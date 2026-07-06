@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import math
 import time
+from collections import Counter
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -639,10 +640,21 @@ async def build_historic(account_hash: str, from_date: date | None = None,
         round(_f(acct_value) - net_all_time, 2)
         if acct_value is not None and int(all_time_count or 0) > 0 else None
     )
-    # ROI on the CAPITAL YOU PUT IN (gross deposits) — withdrawals don't move this base.
+    # ROI base = PEAK capital at risk: the maximum the cumulative net contribution ever
+    # reached. Gross deposits overstate the base when money cycles out and back in
+    # (withdraw 100k then redeposit 50k isn't 50k of NEW capital); net understates it
+    # after withdrawals. The peak is the most of YOUR money that was ever in the
+    # account at once — the honest denominator. (XIRR below is the timing-correct
+    # headline; this simple % is the quick-read companion.)
+    running = peak_net_contributed = 0.0
+    for _cd, _ca in sorted(cap_rows, key=lambda t: t[0]):
+        running += _f(_ca)
+        peak_net_contributed = max(peak_net_contributed, running)
+    peak_net_contributed = round(peak_net_contributed, 2)
+    roi_base = peak_net_contributed if peak_net_contributed > 0 else deposited_all_time
     roi_pct = (
-        round(gain_vs_contributed / deposited_all_time * 100, 1)
-        if gain_vs_contributed is not None and deposited_all_time > 0 else None
+        round(gain_vs_contributed / roi_base * 100, 1)
+        if gain_vs_contributed is not None and roi_base > 0 else None
     )
     # Money-weighted return (XIRR): each contribution as a dated OUTFLOW (-amount), plus
     # today's account value as the terminal INFLOW — so the % reflects WHEN money went in,
@@ -681,6 +693,7 @@ async def build_historic(account_hash: str, from_date: date | None = None,
         "net_contributed_all_time": round(net_all_time, 2),
         "deposited_all_time": deposited_all_time,
         "withdrawn_all_time": withdrawn_all_time,
+        "peak_net_contributed": peak_net_contributed,   # max of YOUR money ever in at once (ROI base)
         "capital_by_year": capital_by_year,
         "contributions_recorded": int(all_time_count or 0),
         "gain_vs_contributed": gain_vs_contributed,
@@ -924,6 +937,85 @@ async def set_etf_link(account_hash: str, etf: str, underlying: str | None) -> d
         )
         await s.commit()
     return {"ok": True, "links": links}
+
+
+_OTHER_CASH_KEY = "other_cash:"  # + account_hash → JSON rows of misc cash (fees/interest/adjustments)
+
+# Actions the OTHER importers already own — everything else with an Amount lands in
+# the other-cash log so the cash cross-check can account for it.
+_OTHER_CASH_SKIP = ("buy", "sell", "sell short", "reverse split", "journal")
+
+
+async def get_other_cash(account_hash: str) -> dict:
+    """Misc cash rows imported from the Transactions CSV that are neither trades,
+    transfers, nor positive dividend/interest income — margin interest, dividend
+    adjustments, cash in lieu, awards, fund distributions, foreign tax. Kept so the
+    cash identity accounts for them; net can be negative (mostly margin interest)."""
+    async with SessionLocal() as s:
+        row = await s.get(AppSetting, _OTHER_CASH_KEY + account_hash)
+    try:
+        rows = _json.loads(row.value) if row and row.value else []
+    except Exception:
+        rows = []
+    rows = rows if isinstance(rows, list) else []
+    return {"rows": rows, "total": round(sum(_f(r.get("amount")) for r in rows), 2)}
+
+
+async def import_other_cash_csv(account_hash: str, csv_text: str) -> dict:
+    """Import the misc cash rows from a Schwab Transactions CSV (see get_other_cash).
+    Deduped by (day, amount, type) so re-imports are no-ops."""
+    import csv as _csvmod
+    import io
+
+    text = (csv_text or "").lstrip("﻿")
+    if not text.strip():
+        return {"ok": False, "added": 0}
+    try:
+        rows = list(_csvmod.DictReader(io.StringIO(text)))
+    except Exception:
+        return {"ok": False, "added": 0}
+
+    def col(r: dict, name: str):
+        for k, v in r.items():
+            if k and k.strip().lower() == name:
+                return v
+        return None
+
+    fresh = []
+    for r in rows:
+        action = (col(r, "action") or "").strip()
+        a = action.lower()
+        if not action or a in _OTHER_CASH_SKIP:
+            continue
+        if any(k in a for k in _CSV_TRANSFER_KEYS):     # transfers → the deposit log
+            continue
+        amt = _parse_money(col(r, "amount"))
+        d = _parse_csv_date(col(r, "date"))
+        if amt is None or d is None or not math.isfinite(amt) or amt == 0:
+            continue
+        if dividends_mod.is_dividend_action(action) and amt > 0:
+            continue                                     # positive income → the income log
+        fresh.append({"day": d.isoformat(), "amount": round(amt, 2), "type": action.upper()[:32]})
+
+    existing = (await get_other_cash(account_hash))["rows"]
+    seen = Counter((r.get("day"), r.get("amount"), r.get("type")) for r in existing)
+    added = []
+    for r in fresh:
+        k = (r["day"], r["amount"], r["type"])
+        if seen.get(k, 0) > 0:
+            seen[k] -= 1
+            continue
+        added.append(r)
+    if added:
+        merged = existing + added
+        payload = _json.dumps(merged)
+        async with SessionLocal() as s:
+            await s.execute(
+                pg_insert(AppSetting).values(key=_OTHER_CASH_KEY + account_hash, value=payload)
+                .on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": payload})
+            )
+            await s.commit()
+    return {"ok": True, "added": len(added), "parsed": len(fresh)}
 
 
 _NOTES_KEY = "notes:"  # + account_hash → JSON {SYMBOL: text}

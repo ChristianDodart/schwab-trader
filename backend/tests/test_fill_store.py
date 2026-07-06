@@ -219,9 +219,11 @@ def test_short_cover_netting():
     assert p["shorts_excluded"] == 1
     assert p["covers_netted"] == 100          # the 100-share buy covered the short
     assert p["short_still_open"] == {}
-    # RUN contributes NO long fills; IREN's real long round-trip is intact.
     syms = [(f["symbol"], f["side"], f["shares"]) for f in p["fills"]]
+    # RUN contributes NO long fills — but its short activity IS stored (SSEL/BCOV)
+    # so the cash cross-check can account for the real cash flow.
     assert ("RUN", "BUY", 100) not in syms
+    assert ("RUN", "SSEL", 100) in syms and ("RUN", "BCOV", 100) in syms
     assert ("IREN", "BUY", 5) in syms and ("IREN", "SELL", 5) in syms
 
 
@@ -232,5 +234,8 @@ def test_partial_cover_leaves_long_remainder():
 '''
     p = parse_csv_trades(csv)
     assert p["covers_netted"] == 100
-    runs = [f for f in p["fills"] if f["symbol"] == "RUN"]
-    assert len(runs) == 1 and runs[0]["side"] == "BUY" and runs[0]["shares"] == 50
+    longs = [f for f in p["fills"] if f["symbol"] == "RUN" and f["side"] == "BUY"]
+    assert len(longs) == 1 and longs[0]["shares"] == 50
+    # The covered portion is stored at the buy's price for the cash identity.
+    bcov = [f for f in p["fills"] if f["side"] == "BCOV"]
+    assert len(bcov) == 1 and bcov[0]["shares"] == 100 and bcov[0]["price"] == 19.5

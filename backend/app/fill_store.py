@@ -359,17 +359,23 @@ def parse_csv_trades(csv_text: str) -> dict:
             "dkey": dk,
         })
 
+    # Short activity is EXCLUDED from the long-only reconstruction but STORED anyway
+    # (sides "SSEL" = short sell, "BCOV" = the covering portion of a buy) so the cash
+    # cross-check can account for its real cash flow instead of listing it as a blind
+    # spot. load_fills() filters these out of the LIFO projection.
     for t in trades:
         sym = t["symbol"]
         if t["kind"] == "short":
             short_open[sym] = short_open.get(sym, 0.0) + t["qty"]
             shorts_excluded += 1
+            add_fill(t["date"], sym, "SSEL", t["qty"], t["px"], t["rank"])
             continue
         if t["kind"] == "buy":
             cover = min(t["qty"], short_open.get(sym, 0.0))
             if cover > _EPS:
                 short_open[sym] = short_open.get(sym, 0.0) - cover
                 covers_netted += cover
+                add_fill(t["date"], sym, "BCOV", round(cover, 4), t["px"], t["rank"])
             remainder = t["qty"] - cover
             if remainder > _EPS:
                 add_fill(t["date"], sym, "BUY", round(remainder, 4), t["px"], t["rank"])
@@ -458,7 +464,8 @@ async def import_csv_fills(account_hash: str, csv_text: str) -> dict:
         if cov_from and cov_to:
             for twins in by_dkey.values():
                 for row in twins:   # unmatched leftovers
-                    if (row.symbol in parsed_syms and row.side in ("BUY", "SELL", "SPLT")
+                    if (row.symbol in parsed_syms
+                            and row.side in ("BUY", "SELL", "SPLT", "SSEL", "BCOV")
                             and cov_from <= row.trade_date <= cov_to):
                         await s.delete(row)
                         removed_stale += 1
@@ -527,10 +534,13 @@ async def heal_ledger(account_hash: str) -> dict:
 
 
 async def load_fills(account_hash: str) -> list[Fill]:
-    """The complete merged fill history for reconstruction, all sources."""
+    """The merged fill history for the LONG-ONLY reconstruction: BUY/SELL/SPLT only.
+    Short-activity rows (SSEL/BCOV) stay in the ledger for the cash cross-check but
+    never enter the LIFO projection."""
     async with SessionLocal() as s:
         rows = (await s.execute(
-            select(FillRecord).where(FillRecord.account_hash == account_hash)
+            select(FillRecord).where(FillRecord.account_hash == account_hash,
+                                     FillRecord.side.in_(["BUY", "SELL", "SPLT"]))
         )).scalars().all()
     return [
         Fill(symbol=r.symbol, side=r.side, shares=float(r.shares), price=float(r.price),

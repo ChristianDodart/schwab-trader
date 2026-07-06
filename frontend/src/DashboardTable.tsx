@@ -1,9 +1,40 @@
-import { Fragment } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { usd, pct } from "./App";
 import { DASH_COLUMNS, PINNED_DASH, rowSignalChips, tickerRiskColor, RISK_LABEL } from "./columns";
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
 import type { SignalRule } from "./signals";
+
+// Column sorting: click a header to sort by it (asc/desc toggle, third click clears
+// back to the default order). Persisted per browser. Applied BEFORE nesting, so ETF
+// children always travel with their parent. Nulls sink to the bottom; watch rows
+// (mostly nulls) naturally follow the held rows.
+type SortState = { id: string; dir: 1 | -1 } | null;
+const SORT_LS = "dash_sort_v1";
+
+function readSort(): SortState {
+  try {
+    const raw = localStorage.getItem(SORT_LS);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    return s && typeof s.id === "string" && (s.dir === 1 || s.dir === -1) ? s : null;
+  } catch { return null; }
+}
+
+function sortRows(rows: DashboardRow[], sort: SortState): DashboardRow[] {
+  if (!sort) return rows;
+  const val = (r: DashboardRow) => (r as unknown as Record<string, unknown>)[sort.id];
+  return [...rows].sort((a, b) => {
+    const va = val(a), vb = val(b);
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;                       // nulls last regardless of direction
+    if (vb == null) return -1;
+    if (typeof va === "string" || typeof vb === "string") {
+      return String(va).localeCompare(String(vb)) * sort.dir;
+    }
+    return ((va as number) - (vb as number)) * sort.dir;
+  });
+}
 
 // ETF grouping: order the rows so each linked leveraged ETF sits directly under its
 // underlying stock (depth 1), and tell each parent how many children it has. A child
@@ -87,6 +118,28 @@ export function DashboardTable({
   const cellFor = (c: DashCol, r: DashboardRow) =>
     c.watchNA && r.is_watch ? <span style={{ color: "var(--text-faint)" }}>—</span> : c.render(r);
 
+  // Click-to-sort: asc → desc → back to the default order. Persisted per browser.
+  const [sort, setSort] = useState<SortState>(readSort);
+  useEffect(() => {
+    try {
+      if (sort) localStorage.setItem(SORT_LS, JSON.stringify(sort));
+      else localStorage.removeItem(SORT_LS);
+    } catch { /* private mode */ }
+  }, [sort]);
+  const clickSort = (id: string) =>
+    setSort((s) => (s?.id !== id ? { id, dir: -1 } : s.dir === -1 ? { id, dir: 1 } : null));
+  const sortMark = (id: string) => (sort?.id === id ? (sort.dir === -1 ? " ▼" : " ▲") : "");
+  const Th = ({ id, label, align }: { id: string; label: string; align?: string }) => (
+    <th scope="col" className={align === "left" ? "left" : ""}
+      aria-sort={sort?.id === id ? (sort.dir === -1 ? "descending" : "ascending") : undefined}
+      style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
+      title={`Sort by ${label} (click again to flip, third click resets)`}
+      onClick={() => clickSort(id)}>
+      {label}{sortMark(id)}
+    </th>
+  );
+  const displayRows = sortRows(rows, sort);
+
   // Totals over HELD positions only (watchlist rows have no position). Shown as a
   // footer band; only summable money columns get a value, the rest stay blank.
   const held = rows.filter((r) => !r.is_watch);
@@ -117,16 +170,14 @@ export function DashboardTable({
                     aria-label="Select all candidates" />
                 </th>
               )}
-              <th scope="col" className="left">Ticker</th>
-              {PINNED_DASH.map((c) => <th scope="col" key={c.id} className={c.align === "left" ? "left" : ""}>{c.label}</th>)}
-              {defs.map((c) => (
-                <th scope="col" key={c.id} className={c.align === "left" ? "left" : ""}>{c.label}</th>
-              ))}
+              <Th id="symbol" label="Ticker" align="left" />
+              {PINNED_DASH.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} />)}
+              {defs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} />)}
             </tr>
           </thead>
           <tbody>
             {/* Bulk mode stays flat (nesting would muddle selection); otherwise nest ETFs. */}
-            {(bulk ? rows.map((r) => ({ row: r, depth: 0, parent: null, childCount: 0 } as DispRow)) : nestRows(rows)).map(({ row: r, depth, parent, childCount }) => {
+            {(bulk ? displayRows.map((r) => ({ row: r, depth: 0, parent: null, childCount: 0 } as DispRow)) : nestRows(displayRows)).map(({ row: r, depth, parent, childCount }) => {
               const isCand = bulk?.candidates.has(r.symbol) ?? false;
               const isChecked = bulk?.checked.has(r.symbol) ?? false;
               const clickable = bulk ? isCand : true; // watch rows now open a (watch-mode) detail too

@@ -86,8 +86,6 @@ export function LedgerTrades() {
           hint="Share of closed trades that were profitable, with the win/loss split." />
         <Card label="Total realized P/L" value={usd(s.total_profit)} accent={moneyColor(s.total_profit)}
           sub={s.count ? `${s.count} trade${s.count === 1 ? "" : "s"}` : undefined} />
-        <Card label="Profit factor" value={s.profit_factor == null ? "—" : `${s.profit_factor.toFixed(2)}×`}
-          hint="Gross wins ÷ gross losses. Above 1.0 = profitable overall; higher is better. '—' means no losing trades yet." />
         <Card label="Avg hold" value={s.avg_hold_days == null ? "—" : `${s.avg_hold_days}d`}
           sub={s.day_trade_count ? `${s.day_trade_count} same-day` : undefined}
           hint="Average days a position was held before closing (across trades with a known open date)." />

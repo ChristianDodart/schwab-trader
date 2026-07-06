@@ -3,6 +3,27 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.24.0 — "Every dollar accounted"
+
+New this version:
+- The cash cross-check is now essentially airtight. It accounts for short-sale
+  cash flow (stored alongside the ledger, still excluded from the long-only
+  ladder), margin debt (borrowed money no longer reads as a phantom surplus),
+  and a new "other cash" import — margin interest, dividend adjustments, cash
+  in lieu, awards, fund distributions — all routed automatically from the same
+  one-file CSV import. What remains unexplained is per-trade fees (cents each)
+  and anything newer than your last import. A large residual now genuinely
+  means something is missing.
+- Dashboard column sorting. Click any header to sort (click again to flip,
+  third click restores the default order); remembered between sessions, and
+  grouped ETFs always travel with their parent stock.
+- Return % is now measured against your PEAK capital — the most of your own
+  money that was ever in the account at once. Withdrawing and later
+  re-depositing no longer inflates (or deflates) the base; the Ledger shows
+  the peak alongside gross deposits. XIRR remains the timing-correct headline.
+- Removed the Profit factor card from the Trades view (not meaningful for a
+  strategy that rarely sells at a loss).
+
 ## v0.23.2 — "Shorts, seen"
 
 Two follow-ups from the same live account:

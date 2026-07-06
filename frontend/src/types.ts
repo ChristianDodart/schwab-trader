@@ -88,8 +88,9 @@ export type LedgerHistoric = {
   realized: { cap_gains: number; gross_proceeds: number; cost_basis: number; trade_count: number; day_trade_count: number };
   contributions: { deposits: number; withdrawals: number; net: number; count: number; schwab_window_days: number; rows: CashFlowRow[] };
   net_contributed_all_time: number;
-  deposited_all_time: number;    // gross deposits (the ROI base — withdrawals never reduce it)
+  deposited_all_time: number;    // gross deposits (info)
   withdrawn_all_time: number;    // gross withdrawals (negative), shown for info only
+  peak_net_contributed?: number; // max of YOUR money ever in at once — the ROI base
   capital_by_year: { year: number; deposits: number; withdrawals: number; net: number }[];
   contributions_recorded: number;
   gain_vs_contributed: number | null;

@@ -644,7 +644,7 @@ type HealthReport = {
   basis_diffs?: { symbol: string; our_cost: number; schwab_basis: number; diff: number; count_matches?: boolean }[];
   cash_check?: {
     expected_cash: number; actual_cash: number; residual: number; residual_pct_of_flow: number;
-    components: { net_deposits: number; trading_net: number; income: number };
+    components: { net_deposits: number; trading_net: number; short_net?: number; income: number; other_cash?: number; margin_debt?: number };
     caveats: string;
   } | null;
   positions_checked: boolean;
@@ -738,16 +738,20 @@ function DataHealth() {
               Lot-accounting note on {h.basis_diffs!.filter((b) => b.count_matches).map((b) => `${b.symbol} (${b.diff > 0 ? "+" : "-"}$${Math.abs(b.diff).toFixed(0)})`).join(", ")}: share counts match Schwab exactly; the cost difference is LIFO (this app) vs your Schwab tax-lot method. Informational — hover for the why.
             </p>
           )}
-          {h.cash_check && (
-            <p style={S.credStatus}
-              title={`Expected = deposits ${h.cash_check.components.net_deposits.toLocaleString("en-US", { style: "currency", currency: "USD" })} + trading net ${h.cash_check.components.trading_net.toLocaleString("en-US", { style: "currency", currency: "USD" })} + income ${h.cash_check.components.income.toLocaleString("en-US", { style: "currency", currency: "USD" })}. Advisory only — ${h.cash_check.caveats}.`}>
-              Cash cross-check vs Schwab:{" "}
-              <b style={{ color: Math.abs(h.cash_check.residual) > 100 ? "var(--warn)" : "var(--text)" }}>
-                {h.cash_check.residual >= 0 ? "+" : ""}{h.cash_check.residual.toLocaleString("en-US", { style: "currency", currency: "USD" })}
-              </b>{" "}
-              unexplained ({h.cash_check.residual_pct_of_flow}% of traded volume). Small residuals are normal (fees, interest); a large one hints at missing history. Hover for the math.
-            </p>
-          )}
+          {h.cash_check && (() => {
+            const c = h.cash_check.components;
+            const $ = (n: number | undefined) => (n ?? 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
+            return (
+              <p style={S.credStatus}
+                title={`Expected = deposits ${$(c.net_deposits)} + trading net ${$(c.trading_net)} (incl. shorts ${$(c.short_net)}) + income ${$(c.income)} + other cash rows ${$(c.other_cash)}. Actual = cash minus margin debt (${$(c.margin_debt)}). Advisory — ${h.cash_check.caveats}.`}>
+                Cash cross-check vs Schwab:{" "}
+                <b style={{ color: Math.abs(h.cash_check.residual) > 500 ? "var(--warn)" : "var(--text)" }}>
+                  {h.cash_check.residual >= 0 ? "+" : ""}{h.cash_check.residual.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+                </b>{" "}
+                unexplained ({h.cash_check.residual_pct_of_flow}% of traded volume). Shorts, margin debt, interest and adjustments are all accounted for — what remains is per-trade fees and anything newer than your last import. Hover for the math.
+              </p>
+            );
+          })()}
           {h.recommendations.map((r, i) => <p key={i} style={S.credStatus}>{r}</p>)}
         </>
       ) : (

@@ -208,14 +208,15 @@ export function LedgerHistoric() {
             <h3 className="section-title" style={{ margin: "14px 0 0" }}>Since inception</h3>
           </div>
           <div style={S.cards}>
-            <Card label="Deposited" value={usd(h.deposited_all_time)}
-              hint="Gross capital you've put in (all time). Withdrawals never reduce this — it's the base for return %." />
+            <Card label="Peak capital" value={usd(h.peak_net_contributed ?? h.deposited_all_time)}
+              sub={h.deposited_all_time !== (h.peak_net_contributed ?? h.deposited_all_time) ? `${usd(h.deposited_all_time)} gross deposited` : undefined}
+              hint="The most of YOUR money that was ever in the account at once (running net of deposits and withdrawals, at its highest). This is the return base — cycling money out and back in doesn't inflate it." />
             <Card label="Current value" value={usd(now.account_value)}
               sub={h.withdrawn_all_time < 0 ? `+ ${usd(-h.withdrawn_all_time)} already withdrawn` : undefined}
               hint="What the account is worth right now (live liquidation value)." />
             <Card label="Total gain" value={usd(h.gain_vs_contributed)} accent={moneyColor(h.gain_vs_contributed)}
-              sub={h.roi_pct != null ? `${h.roi_pct > 0 ? "+" : ""}${h.roi_pct}% simple ROI` : undefined}
-              hint="Value now + everything withdrawn − everything deposited. Simple ROI divides that by gross deposits (ignores timing)." />
+              sub={h.roi_pct != null ? `${h.roi_pct > 0 ? "+" : ""}${h.roi_pct}% on peak capital` : undefined}
+              hint="Value now + everything withdrawn − everything deposited. The % divides that by your peak capital at risk (out-and-back-in money doesn't skew it); XIRR next door adds timing." />
             <Card label="Annualized (XIRR)"
               value={h.xirr_pct != null ? `${h.xirr_pct > 0 ? "+" : ""}${h.xirr_pct}%` : "—"}
               accent={h.xirr_pct != null ? moneyColor(h.xirr_pct) : undefined}

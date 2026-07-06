@@ -654,6 +654,7 @@ async def data_import_csv(body: CsvImportBody) -> dict:
         return {"ok": False, "error": trades.get("error", "Couldn't parse the CSV.")}
     cash = await ledger_svc.import_cashflows_csv(acct, body.csv)
     divs = await ledger_svc.import_dividends_csv(acct, body.csv)
+    other = await ledger_svc.import_other_cash_csv(acct, body.csv)
     changed = trades.get("added") or trades.get("removed_stale") or trades.get("reordered")
     projection = await rebuild_svc.project_account(acct) if changed else {"ok": True, "skipped": "no ledger changes"}
     return {
@@ -665,6 +666,7 @@ async def data_import_csv(body: CsvImportBody) -> dict:
         "other_actions": trades.get("other_actions") or {},
         "cashflows": {"added": cash.get("added", 0)},
         "dividends": {"added": divs.get("added", 0)},
+        "other_cash": {"added": other.get("added", 0)},
         "projection": projection,
     }
 
@@ -743,10 +745,11 @@ async def data_health() -> dict:
                                     "count_matches": sym not in count_diff_syms})
 
     # --- VALIDATION vs Schwab #2: the GLOBAL CASH IDENTITY (advisory). In any account,
-    # cash ~= net deposits + (sells - buys) + recorded income. A big residual points at
-    # missing history (deposits or trades). Known blind spots (listed for the user):
-    # commissions/fees, margin/credit interest, income types we don't import, and
-    # short-sale proceeds (shorts are excluded from the long-only ledger).
+    # net cash position ~= net deposits + trading (LONGS and SHORTS) + income + other
+    # cash rows (margin interest, adjustments, awards...). "Actual" is cash MINUS any
+    # margin loan — borrowed money spent on stock otherwise reads as a phantom surplus.
+    # A big residual now genuinely points at missing history; remaining blind spots are
+    # small: per-trade fees and anything newer than the last import.
     cash_check = None
     try:
         from .db.models import CashFlow as _CF
@@ -757,15 +760,21 @@ async def data_health() -> dict:
             )).scalar() or 0)
             frows = (await s.execute(
                 _select(_FR.side, _FR.shares, _FR.price)
-                .where(_FR.account_hash == acct, _FR.side.in_(["BUY", "SELL"]))
+                .where(_FR.account_hash == acct,
+                       _FR.side.in_(["BUY", "SELL", "SSEL", "BCOV"]))
             )).all()
-        trading_net = sum((float(sh) * float(px)) * (1 if side == "SELL" else -1)
+        trading_net = sum((float(sh) * float(px)) * (1 if side in ("SELL", "SSEL") else -1)
                           for side, sh, px in frows)
+        short_net = sum((float(sh) * float(px)) * (1 if side == "SSEL" else -1)
+                        for side, sh, px in frows if side in ("SSEL", "BCOV"))
         div_data = await ledger_svc.get_dividends(acct)
         income = sum(float(d.get("amount") or 0) for d in div_data.get("rows", []))
-        expected = net_deposits + trading_net + income
+        other_cash = (await ledger_svc.get_other_cash(acct))["total"]
+        expected = net_deposits + trading_net + income + other_cash
         ms = await accounts_svc.margin_summary(acct)
-        actual_cash = None if ms.get("blocked") else ms.get("cash")
+        actual_cash = None
+        if not ms.get("blocked") and ms.get("cash") is not None:
+            actual_cash = float(ms["cash"]) - float(ms.get("debt") or 0.0)
         if actual_cash is not None and ledger["total"] > 0:
             residual = round(actual_cash - expected, 2)
             gross = sum(abs(float(sh) * float(px)) for _sd, sh, px in frows) or 1.0
@@ -773,9 +782,13 @@ async def data_health() -> dict:
                 "expected_cash": round(expected, 2), "actual_cash": round(actual_cash, 2),
                 "residual": residual, "residual_pct_of_flow": round(abs(residual) / gross * 100, 2),
                 "components": {"net_deposits": round(net_deposits, 2),
-                               "trading_net": round(trading_net, 2), "income": round(income, 2)},
-                "caveats": "excludes fees/commissions, margin & credit interest, unimported "
-                           "income types, and short-sale activity",
+                               "trading_net": round(trading_net, 2),
+                               "short_net": round(short_net, 2),
+                               "income": round(income, 2),
+                               "other_cash": round(other_cash, 2),
+                               "margin_debt": round(float(ms.get("debt") or 0.0), 2)},
+                "caveats": "remaining blind spots: per-trade fees (cents each) and any "
+                           "activity newer than the last import",
             }
     except Exception as e:
         print(f"[health] cash identity check failed: {e!r}")
