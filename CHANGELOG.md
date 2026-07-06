@@ -3,6 +3,22 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.23.2 — "Shorts, seen"
+
+Two follow-ups from the same live account:
+
+- Open short positions are now recognized. If you're currently short a stock at
+  Schwab, the Data health panel labels it as an open short (informational — the
+  app's ladder is long-only) instead of reporting it as a share-count
+  difference. The reconciliation also knows the difference now.
+- Importing a CSV now cleans up its own history. Rows stored by an older version
+  of the import logic that today's parser no longer produces (e.g. short-sale
+  covering buys that briefly counted as long buys) are removed automatically —
+  scoped strictly to the symbols and date range the file actually covers, so a
+  partial export can never touch anything else. One re-import fully reconciles
+  the stored history with the file. (Verified: the 400 phantom RUN shares from
+  the earlier report are gone.)
+
 ## v0.23.1 — "The right lots"
 
 A field-found fix to imported-history accuracy. On days where an imported trade

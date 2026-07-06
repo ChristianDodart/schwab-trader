@@ -640,6 +640,7 @@ type HealthReport = {
   fill_ledger: { total: number; by_source: Record<string, number>; earliest: string | null; latest: string | null };
   projection: { open_lots: number; synthetic_lots: { symbol: string; shares: number }[]; completed_trades: number; earliest_completed: string | null };
   position_diffs: { symbol: string; reconstructed: number; actual: number; diff: number }[];
+  short_positions?: { symbol: string; shares: number }[];
   basis_diffs?: { symbol: string; our_cost: number; schwab_basis: number; diff: number; count_matches?: boolean }[];
   cash_check?: {
     expected_cash: number; actual_cash: number; residual: number; residual_pct_of_flow: number;
@@ -681,6 +682,7 @@ function DataHealth() {
           `${j.cashflows?.added ?? 0} deposits/withdrawals`,
           `${j.dividends?.added ?? 0} dividends`,
         ];
+        if (t.removed_stale) parts.push(`${t.removed_stale} outdated stored row${t.removed_stale === 1 ? "" : "s"} cleaned up`);
         if (t.splits) parts.push(`${t.splits} reverse split${t.splits === 1 ? "" : "s"} applied`);
         if (t.unmatched_splits) parts.push(`${t.unmatched_splits} split row(s) UNMATCHED — tell support`);
         if (t.shorts_excluded) parts.push(`${t.shorts_excluded} short-sale rows excluded (long-only; covering buys netted out)`);
@@ -717,6 +719,12 @@ function DataHealth() {
           {h.position_diffs.length > 0 && (
             <p style={{ ...S.credStatus, color: "var(--warn)" }}>
               Share-count differences vs Schwab: {h.position_diffs.map((d) => `${d.symbol} ${d.diff > 0 ? "+" : ""}${d.diff}`).join(", ")} — a resync or CSV import usually resolves this.
+            </p>
+          )}
+          {(h.short_positions?.length ?? 0) > 0 && (
+            <p style={S.credStatus}
+              title="This app tracks the long-only ladder; short selling isn't modeled. The short is shown here so it doesn't read as missing data — its P/L is also excluded from the cash cross-check.">
+              Open short position{h.short_positions!.length === 1 ? "" : "s"} at Schwab: {h.short_positions!.map((s) => `${s.symbol} ${s.shares.toLocaleString()} sh`).join(", ")} — outside the long-only ladder (informational).
             </p>
           )}
           {(h.basis_diffs?.some((b) => !b.count_matches) ?? false) && (

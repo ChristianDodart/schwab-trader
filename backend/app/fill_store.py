@@ -420,7 +420,9 @@ async def import_csv_fills(account_hash: str, csv_text: str) -> dict:
     # KNOWN trade is skipped but its clock is REPAIRED if this parse produced a better
     # one (intra-day sequencing / mixed-day anchoring improve over time) — so simply
     # re-importing the same file heals the ordering of previously imported history.
-    added = updated_times = 0
+    added = updated_times = removed_stale = 0
+    cov_from, cov_to = parsed["coverage"]["from"], parsed["coverage"]["to"]
+    parsed_syms = {f["symbol"] for f in parsed["fills"]}
     async with SessionLocal() as s:
         stored = (await s.execute(
             select(FillRecord).where(FillRecord.account_hash == account_hash,
@@ -447,11 +449,26 @@ async def import_csv_fills(account_hash: str, csv_text: str) -> dict:
                 order_type=None, order_id=None, source="csv", fill_key=key,
             ))
             added += 1
+        # STALE CLEANUP: stored CSV rows this parse did NOT reproduce, within the
+        # file's own coverage AND for symbols the file contains, are artifacts of an
+        # older parsing pass (e.g. pre-fix short-netting outputs that fabricated
+        # long fills). The file is authoritative for its range — remove them.
+        # Scoping by symbol+range keeps a partial/filtered export from touching
+        # anything it doesn't cover. Rows the API owns aren't here (source='csv').
+        if cov_from and cov_to:
+            for twins in by_dkey.values():
+                for row in twins:   # unmatched leftovers
+                    if (row.symbol in parsed_syms and row.side in ("BUY", "SELL", "SPLT")
+                            and cov_from <= row.trade_date <= cov_to):
+                        await s.delete(row)
+                        removed_stale += 1
         await s.commit()
-    if updated_times:
-        print(f"[import] {account_hash[-4:]}: repaired intra-day ordering on {updated_times} stored fills")
+    if updated_times or removed_stale:
+        print(f"[import] {account_hash[-4:]}: repaired ordering on {updated_times} stored fills, "
+              f"removed {removed_stale} stale rows")
     cov = parsed["coverage"]
-    return {"ok": True, "added": added, "skipped_known": skipped,
+    return {"ok": True, "added": added, "skipped_known": skipped, "removed_stale": removed_stale,
+            "reordered": updated_times,
             "bad_rows": parsed["bad_rows"], "other_actions": parsed["other_actions"],
             "splits": parsed.get("splits", 0), "unmatched_splits": parsed.get("unmatched_splits", 0),
             "shorts_excluded": parsed.get("shorts_excluded", 0),

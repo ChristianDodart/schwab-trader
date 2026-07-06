@@ -38,8 +38,13 @@ def _fetch_positions_sync(client, account_hash):
         if instr.get("assetType") in _SKIP_ASSET_TYPES:  # skip options/futures/forex
             continue
         sym = instr.get("symbol")
-        qty = _f(p.get("longQuantity"))
+        # NET quantity: long minus short. A SHORT position comes through NEGATIVE —
+        # explicit information, not omission: the reconcile drops long lots for a
+        # symbol Schwab says isn't held long (actual <= 0 → drop), and the health
+        # report labels the short instead of misreading it as missing data. The
+        # ladder itself stays long-only.
+        qty = _f(p.get("longQuantity")) - _f(p.get("shortQuantity"))
         avg = _f(p.get("averagePrice"))
-        if sym and qty > 0:
+        if sym and abs(qty) > 1e-9:
             out.append((sym, qty, avg))
     return out

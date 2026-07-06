@@ -654,10 +654,12 @@ async def data_import_csv(body: CsvImportBody) -> dict:
         return {"ok": False, "error": trades.get("error", "Couldn't parse the CSV.")}
     cash = await ledger_svc.import_cashflows_csv(acct, body.csv)
     divs = await ledger_svc.import_dividends_csv(acct, body.csv)
-    projection = await rebuild_svc.project_account(acct) if trades.get("added") else {"ok": True, "skipped": "no new fills"}
+    changed = trades.get("added") or trades.get("removed_stale") or trades.get("reordered")
+    projection = await rebuild_svc.project_account(acct) if changed else {"ok": True, "skipped": "no ledger changes"}
     return {
         "ok": True,
-        "trades": {k: trades.get(k) for k in ("added", "skipped_known", "bad_rows", "coverage",
+        "trades": {k: trades.get(k) for k in ("added", "skipped_known", "removed_stale",
+                                              "bad_rows", "coverage",
                                               "splits", "unmatched_splits",
                                               "shorts_excluded", "covers_netted")},
         "other_actions": trades.get("other_actions") or {},
@@ -702,10 +704,16 @@ async def data_health() -> dict:
             recon_totals[sym] = round(sum(l.shares for l in ls), 4)
     positions = await rebuild_svc._fetch_positions_map(acct)
     diffs = []
+    short_positions = []
     if positions is not None:
         for sym in sorted(set(recon_totals) | set(positions)):
             have = recon_totals.get(sym, 0.0)
             actual = round(positions.get(sym, (0.0, 0.0))[0], 4)
+            if actual < 0:
+                # An open SHORT at Schwab — deliberately outside the long-only ledger.
+                # Label it; only a remaining LONG reconstruction is a real discrepancy.
+                short_positions.append({"symbol": sym, "shares": -actual})
+                actual = 0.0
             if abs(have - actual) > 1e-6:
                 diffs.append({"symbol": sym, "reconstructed": have, "actual": actual,
                               "diff": round(actual - have, 4)})
@@ -801,6 +809,7 @@ async def data_health() -> dict:
             "earliest_completed": earliest_trade.isoformat() if earliest_trade else None,
         },
         "position_diffs": diffs,
+        "short_positions": short_positions,
         "basis_diffs": basis_diffs,
         "cash_check": cash_check,
         "positions_checked": positions is not None,
