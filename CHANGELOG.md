@@ -3,6 +3,19 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.9.0 — "See it, prove it, file it"
+
+New this version:
+- Your account, drawn against the index. The equity curve now overlays a second line showing
+  what the same deposits would have been worth in your benchmark - so "am I beating it?" is a
+  picture over time, not just two numbers.
+- A concentration heads-up. The dashboard's sector strip now flags when any one sector grows
+  past a threshold you set, so an over-weighted book doesn't sneak up on you. Advisory only.
+- Tax season, sorted. Export a year's closed trades as a tax-ready CSV - acquired and sold
+  dates, proceeds, cost basis, gain/loss, and short vs long-term - from the Trades tab.
+- Clearer position detail: each position now shows its realized and unrealized profit side by
+  side, so you can see what's booked versus what's still riding.
+
 ## v0.8.0 — "Faster on your feet"
 
 New this version:

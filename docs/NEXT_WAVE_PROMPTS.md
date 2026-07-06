@@ -338,25 +338,35 @@ spreadsheets, records). Add CSV export for the trade journal and the deposit log
   session-aware for safety); notifications bell pops on a new unread; compact sector-exposure strip on
   the dashboard (`SectorStrip.tsx`) from sector tags + market values.
 
-# WAVE 7 — candidate queue (unstarted)
+# WAVE 7 — EXECUTED 2026-07-05, shipped v0.9.0
+
+- **W7-1 Benchmark line on the equity curve** — pure `benchmark.value_series` (+3 tests) marks the
+  benchmark position to each close; `build_benchmark` returns a `series`; `EquityCurve` overlays a
+  dashed gold line with a legend. Single line when history is short.
+- **W7-2 Sector concentration guardrail** — `SectorStrip` flags the biggest named sector when it exceeds
+  a localStorage threshold (default 40%, inline control); tints the segment/chip + an advisory note.
+- **W7-3 Tax-lot CSV** — `/api/ledger/tax-lots.csv?year=` emits acquired/sold dates, proceeds, cost
+  basis, gain/loss, short/long-term; Trades tab has a year picker + "Tax" button.
+- **W7-4 Realized/unrealized split** — `build_position_detail` adds `realized` (summed round-trips) +
+  `unrealized` (mark-to-market); PositionDetail shows both as header stats.
+
+# WAVE 8 — candidate queue (unstarted)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## W7-1 — Benchmark line on the equity curve
-Overlay the benchmark's value series on the Ledger equity curve (a second line on `EquityCurve`), so the
-"you vs index" story is visual over time, not just two end-point numbers. Needs a per-snapshot-day
-benchmark value series from `build_benchmark` (shares-held-as-of(day) × close(day)); reuse the 5Y closes
-already fetched. Degrade (single line) when history is short.
+## W8-1 — Quick symbol jump ("/") on the dashboard
+"/" focuses a jump-to box that filters/scrolls the positions table to a ticker (deferred from W6-3).
+Fast keyboard-first navigation for a long watchlist.
 
-## W7-2 — Sector concentration guardrail
-Turn the new sector strip into an optional alert: warn when any one sector exceeds a configurable % of
-invested value (reuses the SectorStrip aggregation + the notifications system). Advisory only.
+## W8-2 — Screener active-filter chips
+Show the Screener's active constraints (market-cap band, country, excluded sectors, ETF filter) as
+removable chips, so it's obvious WHY a candidate was included/excluded and easy to relax one rule.
 
-## W7-3 — Tax-lot / realized-gain export for filing
-A year-scoped CSV of closed round-trips formatted for taxes (proceeds, cost basis, short-term flag,
-acquired/sold dates). Builds on the existing trade journal + CSV export plumbing.
+## W8-3 — Dividend / income tracking
+Pull dividend transactions from Schwab (like the transfer pull) into a small income view on the Ledger,
+so total return includes dividends, not just price gains + realized trades.
 
-## W7-4 — Small-fixes bundle #5
-1. "/" to focus a quick symbol jump-to on the dashboard (deferred from W6-3).
-2. Screener: show the active filter summary as removable chips.
-3. Position detail: a tiny realized-vs-unrealized split on the header stats.
+## W8-4 — Small-fixes bundle #6
+1. Equity curve: a range selector (3M / 1Y / all) like the price chart.
+2. Orders tab: a compact filled-vs-working summary line.
+3. Dashboard: click a sector-strip chip to filter the table to that sector.

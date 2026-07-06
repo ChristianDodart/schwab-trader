@@ -711,6 +711,7 @@ async def build_benchmark(account_hash: str, symbol: str = "SPY") -> dict:
     your_flows = [(cd, -_f(ca)) for (cd, ca) in cap_rows] + [(today, _f(acct_value))]
     your_r = xirr_calc.xirr(your_flows)
     spy_r = xirr_calc.xirr(sim["flows"])
+    series = [{"day": d.isoformat(), "value": v} for d, v in benchmark_calc.value_series(cashflows, closes)]
     result = {
         "available": True,
         "symbol": symbol,
@@ -719,6 +720,7 @@ async def build_benchmark(account_hash: str, symbol: str = "SPY") -> dict:
         "benchmark_value": sim["value"],
         "your_xirr_pct": round(your_r * 100, 1) if your_r is not None else None,
         "benchmark_xirr_pct": round(spy_r * 100, 1) if spy_r is not None else None,
+        "series": series,
     }
     _bench_cache[ckey] = (time.time(), result)  # cache successes only
     return result

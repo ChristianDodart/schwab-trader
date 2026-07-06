@@ -266,6 +266,12 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
         ticker = (
             await s.execute(select(Ticker).where(Ticker.symbol == symbol))
         ).scalar_one_or_none()
+        realized = (
+            await s.execute(
+                select(func.coalesce(func.sum(CompletedTrade.profit), 0))
+                .where(CompletedTrade.symbol == symbol, CompletedTrade.account_hash == account_hash)
+            )
+        ).scalar()
     if not lots:
         return None
 
@@ -334,6 +340,9 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
         # 52wk reference levels for the chart overlay (None until warmed).
         "avg_52wk": avg52.get(symbol),
         "median_52wk": avg52.median(symbol),
+        # P/L split: unrealized = mark-to-market on open lots; realized = booked round-trips.
+        "unrealized": round(shares * price - invested, 2) if has_price else None,
+        "realized": round(_f(realized), 2),
         "lots": lot_rows,
         "projected_ladder": projected,
     }

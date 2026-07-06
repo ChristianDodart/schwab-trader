@@ -28,6 +28,33 @@ def price_on_or_before(closes: list[tuple[date, float]], day: date) -> float | N
     return found
 
 
+def value_series(cashflows: list[tuple[date, float]],
+                 closes: list[tuple[date, float]]) -> list[tuple[date, float]]:
+    """Benchmark portfolio value at each close date from the first contribution onward:
+    shares accumulate as contributions occur (priced at the close on/before each), and the
+    running position is marked at that day's close. Powers the equity-curve overlay. Empty
+    when there are no closes or contributions."""
+    if not closes:
+        return []
+    cf = sorted([(d, a) for d, a in cashflows if a != 0], key=lambda x: x[0])
+    if not cf:
+        return []
+    first = cf[0][0]
+    out: list[tuple[date, float]] = []
+    ci = 0
+    shares = 0.0
+    for d, px in closes:  # ascending by date
+        while ci < len(cf) and cf[ci][0] <= d:
+            cd, amt = cf[ci]
+            p = price_on_or_before(closes, cd)
+            if p and p > 0:
+                shares += amt / p
+            ci += 1
+        if d >= first and px > 0:
+            out.append((d, round(max(shares, 0.0) * px, 2)))
+    return out
+
+
 def simulate(cashflows: list[tuple[date, float]], closes: list[tuple[date, float]],
              last_price: float | None) -> dict | None:
     """Simulate the benchmark buy-and-hold. `cashflows`: (date, amount) with amount>0 a

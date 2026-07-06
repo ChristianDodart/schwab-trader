@@ -362,6 +362,8 @@ export type PositionDetailData = {
   lilo_pct: number | null;
   avg_52wk: number | null;
   median_52wk: number | null;
+  unrealized: number | null;
+  realized: number;
   lots: Lot[];
   projected_ladder: ProjectedRung[];
 };

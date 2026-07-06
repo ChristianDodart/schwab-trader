@@ -1,7 +1,7 @@
 """Unit tests for the pure buy-and-hold benchmark math (app/benchmark.py)."""
 from datetime import date
 
-from app.benchmark import price_on_or_before, simulate
+from app.benchmark import price_on_or_before, simulate, value_series
 from app.xirr import xirr
 
 CLOSES = [
@@ -60,3 +60,23 @@ def test_simulate_empty_or_no_price_is_none():
     assert simulate([], CLOSES, 150.0) is None
     assert simulate([(date(2023, 1, 3), 100.0)], CLOSES, None) is None
     assert simulate([(date(2023, 1, 3), 100.0)], [], 150.0) is None
+
+
+def test_value_series_tracks_shares_and_marks_to_close():
+    closes = [(date(2023, 1, 1), 100.0), (date(2023, 6, 1), 200.0), (date(2024, 1, 1), 400.0)]
+    # $1000 in at 100 → 10 shares. Value marks up with the close.
+    s = value_series([(date(2023, 1, 1), 1000.0)], closes)
+    assert s == [(date(2023, 1, 1), 1000.0), (date(2023, 6, 1), 2000.0), (date(2024, 1, 1), 4000.0)]
+
+
+def test_value_series_starts_at_first_contribution():
+    closes = [(date(2023, 1, 1), 100.0), (date(2023, 6, 1), 100.0), (date(2024, 1, 1), 100.0)]
+    s = value_series([(date(2023, 6, 1), 500.0)], closes)
+    # nothing before the June deposit
+    assert [d for d, _ in s] == [date(2023, 6, 1), date(2024, 1, 1)]
+    assert s[0][1] == 500.0
+
+
+def test_value_series_empty_inputs():
+    assert value_series([], CLOSES) == []
+    assert value_series([(date(2023, 1, 3), 100.0)], []) == []

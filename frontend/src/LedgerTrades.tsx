@@ -29,6 +29,7 @@ const downloadCsv = (url: string) => {
 export function LedgerTrades() {
   const year = new Date().getFullYear();
   const [scope, setScope] = useState<Period>(ALL_TIME);
+  const [taxYear, setTaxYear] = useState(year);
   const [sym, setSym] = useState("");
   const [d, setD] = useState<TradeLog | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -86,6 +87,15 @@ export function LedgerTrades() {
               <button className="btn btn-secondary btn-sm" title="Download these trades as CSV"
                 onClick={() => downloadCsv(`${API}/ledger/trades.csv${qs(scope, sym)}`)}>⬇ CSV</button>
             )}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+              title="Closed round-trips for the year, formatted for tax filing (proceeds, cost basis, short/long-term)">
+              <select className="field" style={{ height: 30, width: 78 }} value={taxYear}
+                onChange={(e) => setTaxYear(Number(e.target.value))} aria-label="Tax year">
+                {Array.from({ length: 6 }, (_, i) => year - i).map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <button className="btn btn-secondary btn-sm" title="Download the tax-lot report for this year"
+                onClick={() => downloadCsv(`${API}/ledger/tax-lots.csv?year=${taxYear}`)}>⬇ Tax</button>
+            </span>
           </span>
         }
       >

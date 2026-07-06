@@ -522,6 +522,28 @@ async def ledger_trades_csv(start: str | None = None, end: str | None = None,
     return _csv_response("schwab-trades", headers, rows)
 
 
+@app.get("/api/ledger/tax-lots.csv")
+async def ledger_tax_lots_csv(year: int) -> Response:
+    """Closed round-trips for a CALENDAR YEAR, formatted for tax filing: acquired/sold
+    dates, proceeds, cost basis, gain/loss, and the short/long-term flag (held >= 365 days
+    = long-term). Sale date = completed_at, so a lot lands in the year it was SOLD."""
+    d = await ledger_svc.build_trades(
+        await _selected(),
+        ledger_svc._parse_date(f"{year}-01-01"),
+        ledger_svc._parse_date(f"{year}-12-31"),
+        None,
+    )
+    headers = ["Symbol", "Shares", "Acquired", "Sold", "Proceeds", "Cost basis", "Gain/Loss", "Term"]
+    rows = []
+    for t in d["trades"]:
+        hold = t.get("hold_days")
+        term = "Long-term" if (hold is not None and hold >= 365) else "Short-term"
+        proceeds = round((t.get("sell_price") or 0) * (t.get("shares") or 0), 2)
+        rows.append([t["symbol"], t["shares"], t["opened_at"], t["completed_at"],
+                     proceeds, t["cost"], t["profit"], term])
+    return _csv_response(f"schwab-tax-lots-{year}", headers, rows)
+
+
 @app.get("/api/ledger/projection")
 async def ledger_projection() -> dict:
     """PREDICTION tab: this-year annualized gains, goal pacing, and tax estimate."""

@@ -14,6 +14,7 @@ type Benchmark = {
   available: boolean; reason?: string; symbol?: string;
   your_value?: number; benchmark_value?: number;
   your_xirr_pct?: number | null; benchmark_xirr_pct?: number | null;
+  series?: { day: string; value: number }[];
 };
 
 const pillBtn = (active: boolean): React.CSSProperties => ({
@@ -301,7 +302,9 @@ export function LedgerHistoric() {
 
       {/* ---- Account value over time (nightly snapshots, scoped) ---- */}
       <Panel title="Account value over time">
-        <EquityCurve series={h.series} />
+        <EquityCurve series={h.series}
+          benchmark={bench?.available ? bench.series : undefined}
+          benchmarkLabel={bench?.symbol} />
       </Panel>
 
       {/* ---- Capital gains by period (scoped) ---- */}
