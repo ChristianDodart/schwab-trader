@@ -3,6 +3,24 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.23.1 — "The right lots"
+
+A field-found fix to imported-history accuracy. On days where an imported trade
+shared the date with live-synced trades, the imported one was treated as
+happening at midnight — so a sell could pair against week-old lots instead of
+the shares actually bought that same morning, leaving the wrong rung as your
+"last position" (and sometimes flipping a SELL flag that shouldn't be there).
+
+- Imports now preserve the export's real within-day sequence (Schwab's file is
+  newest-first inside each day too — that ordering is real information).
+- On mixed days, an imported trade is placed after the live-synced trades that
+  actually preceded it, so LIFO retires the same lots it did in real life.
+- Re-importing a CSV you've already imported repairs the ordering of the
+  previously stored history — that's the whole fix for existing data: update,
+  re-import once, done. Verified on the affected account: the INMB ladder's
+  deepest rung is now exactly the expected 1,006 shares @ $1.9899, with every
+  position total still matching Schwab.
+
 ## v0.23.0 — "Rules per ticker"
 
 New this version:

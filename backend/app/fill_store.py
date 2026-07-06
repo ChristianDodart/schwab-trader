@@ -20,7 +20,7 @@ from __future__ import annotations
 import csv as _csvmod
 import io
 from collections import Counter
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import delete, select
@@ -105,13 +105,42 @@ def resolve_group_conflicts(incoming: list[dict], api_totals: dict[tuple, float]
     keep_group = {g: (t > api_totals.get(g, 0.0) + _EPS) if g in api_totals else True
                   for g, t in csv_totals.items()}
     kept: list[dict] = []
-    dropped = 0
+    dropped: list[dict] = []
     for f in incoming:
         if keep_group[group_key(f["trade_date"], f["symbol"], f["side"])]:
             kept.append(f)
         else:
-            dropped += 1
+            dropped.append(f)
     return kept, dropped
+
+
+def retime_mixed_days(kept: list[dict], dropped: list[dict],
+                      api_spans: dict[tuple, tuple[datetime, datetime]]) -> list[dict]:
+    """Pure: fix the clock for kept CSV fills that share a (day, symbol) with API
+    fills. A kept fill's near-midnight stamp would sort it BEFORE that day's API
+    fills — but the dropped (API-owned) CSV rows around it in the day's sequence
+    anchor where it really belongs: it must come AFTER the latest API time of any
+    api-owned row that PRECEDES it in the sequence. (Found live: a resting sell the
+    API missed sorted to midnight and LIFO-consumed a week-old lot instead of the
+    same-morning buy.)"""
+    anchors: dict[tuple, list[tuple[int, tuple]]] = {}
+    for f in dropped:
+        anchors.setdefault((f["trade_date"], f["symbol"]), []).append(
+            (f.get("day_rank", 0), group_key(f["trade_date"], f["symbol"], f["side"])))
+    for f in kept:
+        rows = anchors.get((f["trade_date"], f["symbol"]))
+        if not rows:
+            continue
+        floors = [api_spans[g][1] for rank, g in rows
+                  if rank < f.get("day_rank", 0) and g in api_spans]
+        if not floors:
+            continue
+        floor = max(floors)
+        # No end-of-day cap: API times are UTC, so a real evening fill's timestamp
+        # already crosses UTC midnight — `trade_date` (stored separately) is what
+        # anchors the day; `at` only needs to ORDER correctly.
+        f["at"] = floor + timedelta(seconds=f.get("day_rank", 0) + 1)
+    return kept
 
 
 async def _existing_keys(account_hash: str, source: str | None = None) -> list[tuple]:
@@ -271,11 +300,14 @@ def parse_csv_trades(csv_text: str) -> dict:
         return {"ok": False, "error": "This doesn't look like a Schwab transactions export "
                 "(no Date/Action columns).", "fills": []}
 
+    # The export is NEWEST-FIRST — including WITHIN a day (verified against real API
+    # timestamps). Reversed file order is therefore the TRUE chronology, intra-day
+    # sequence included. Preserve it: it decides which lots a same-day sell retires.
     trades: list[dict] = []      # {date, sym, kind: short|buy|sell, qty, px}
     split_rows: list[dict] = []
     other_actions: Counter = Counter()
     bad_rows = 0
-    for r in rows:
+    for r in reversed(rows):     # oldest → newest, real intra-day order
         action = (col(r, "action") or "").strip()
         a = action.lower()
         d = _parse_date(col(r, "date"))
@@ -298,11 +330,13 @@ def parse_csv_trades(csv_text: str) -> dict:
         kind = "short" if a == "sell short" else a   # short | buy | sell
         trades.append({"date": d, "symbol": sym, "kind": kind, "qty": round(qty, 4), "px": round(px, 4)})
 
-    # Chronological, canonical same-day order per symbol: shorts open, buys (cover
-    # first), sells. Ambiguity within a day is irreducible from a date-only export;
-    # a mis-order self-flags as `oversold` at reconstruction rather than corrupting.
-    _KIND_ORD = {"short": 0, "buy": 1, "sell": 2}
-    trades.sort(key=lambda t: (t["date"], _KIND_ORD[t["kind"]]))
+    # Stable sort by date only — within a day the file order (already chronological
+    # after the reversal) is preserved exactly.
+    trades.sort(key=lambda t: t["date"])
+    day_rank: Counter = Counter()   # position of each trade within its date
+    for t in trades:
+        t["rank"] = day_rank[t["date"]]
+        day_rank[t["date"]] += 1
 
     fills: list[dict] = []
     occ: Counter = Counter()
@@ -310,13 +344,16 @@ def parse_csv_trades(csv_text: str) -> dict:
     shorts_excluded = 0
     covers_netted = 0.0
 
-    def add_fill(d, sym, side, qty, px):
+    def add_fill(d, sym, side, qty, px, rank):
         dk = day_key(d, sym, side, qty, px)
         n = occ[dk]
         occ[dk] += 1
         fills.append({
             "symbol": sym, "side": side, "shares": round(qty, 4), "price": round(px, 4),
-            "at": datetime(d.year, d.month, d.day), "trade_date": d,
+            # Encode the intra-day sequence in seconds so the chronological sort
+            # reproduces the file's real order (splits stay at 00:00 and apply first).
+            "at": datetime(d.year, d.month, d.day) + timedelta(seconds=rank + 1),
+            "trade_date": d, "day_rank": rank,
             "order_type": None, "order_id": None,
             "fill_key": f"csv|{d.isoformat()}|{sym}|{side}|{round(qty, 4)}|{round(px, 4)}|#{n}",
             "dkey": dk,
@@ -335,9 +372,9 @@ def parse_csv_trades(csv_text: str) -> dict:
                 covers_netted += cover
             remainder = t["qty"] - cover
             if remainder > _EPS:
-                add_fill(t["date"], sym, "BUY", round(remainder, 4), t["px"])
+                add_fill(t["date"], sym, "BUY", round(remainder, 4), t["px"], t["rank"])
             continue
-        add_fill(t["date"], sym, "SELL", t["qty"], t["px"])
+        add_fill(t["date"], sym, "SELL", t["qty"], t["px"], t["rank"])
 
     splits, unmatched_splits = _pair_splits(split_rows)
     fills.extend(splits)
@@ -364,36 +401,55 @@ async def import_csv_fills(account_hash: str, csv_text: str) -> dict:
 
     async with SessionLocal() as s:
         api_rows = (await s.execute(
-            select(FillRecord.trade_date, FillRecord.symbol, FillRecord.side, FillRecord.shares)
+            select(FillRecord.trade_date, FillRecord.symbol, FillRecord.side,
+                   FillRecord.shares, FillRecord.at)
             .where(FillRecord.account_hash == account_hash, FillRecord.source == "api")
         )).all()
     api_totals: dict[tuple, float] = {}
-    for d, sym, side, sh in api_rows:
+    api_spans: dict[tuple, tuple] = {}
+    for d, sym, side, sh, at in api_rows:
         g = group_key(d, sym, side)
         api_totals[g] = api_totals.get(g, 0.0) + float(sh)
-    incoming, dropped_api = resolve_group_conflicts(incoming, api_totals)
+        span = api_spans.get(g)
+        api_spans[g] = (min(span[0], at), max(span[1], at)) if span else (at, at)
+    kept, dropped_rows = resolve_group_conflicts(incoming, api_totals)
+    kept = retime_mixed_days(kept, dropped_rows, api_spans)
+    skipped = len(dropped_rows)
 
-    existing = await _existing_keys(account_hash, source="csv")
-    fresh, skipped = dedupe_incoming(incoming, existing)
-    skipped += dropped_api
-
-    added = 0
+    # Merge against the stored CSV rows (multiset by day-key): a NEW trade inserts; a
+    # KNOWN trade is skipped but its clock is REPAIRED if this parse produced a better
+    # one (intra-day sequencing / mixed-day anchoring improve over time) — so simply
+    # re-importing the same file heals the ordering of previously imported history.
+    added = updated_times = 0
     async with SessionLocal() as s:
-        known = set((await s.execute(
-            select(FillRecord.fill_key).where(FillRecord.account_hash == account_hash)
-        )).scalars().all())
-        for f in fresh:
-            key = f"{account_hash[:24]}|{f['fill_key']}"[:180]
-            if key in known:
+        stored = (await s.execute(
+            select(FillRecord).where(FillRecord.account_hash == account_hash,
+                                     FillRecord.source == "csv")
+        )).scalars().all()
+        by_dkey: dict[tuple, list] = {}
+        for r in stored:
+            by_dkey.setdefault(
+                day_key(r.trade_date, r.symbol, r.side, float(r.shares), float(r.price)), []
+            ).append(r)
+        for f in kept:
+            twins = by_dkey.get(f["dkey"])
+            if twins:
+                row = twins.pop(0)
+                skipped += 1
+                if row.at != f["at"]:
+                    row.at = f["at"]
+                    updated_times += 1
                 continue
+            key = f"{account_hash[:24]}|{f['fill_key']}"[:180]
             s.add(FillRecord(
                 account_hash=account_hash, symbol=f["symbol"], side=f["side"],
                 shares=f["shares"], price=f["price"], at=f["at"], trade_date=f["trade_date"],
                 order_type=None, order_id=None, source="csv", fill_key=key,
             ))
-            known.add(key)
             added += 1
         await s.commit()
+    if updated_times:
+        print(f"[import] {account_hash[-4:]}: repaired intra-day ordering on {updated_times} stored fills")
     cov = parsed["coverage"]
     return {"ok": True, "added": added, "skipped_known": skipped,
             "bad_rows": parsed["bad_rows"], "other_actions": parsed["other_actions"],

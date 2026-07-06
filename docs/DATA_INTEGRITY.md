@@ -58,11 +58,13 @@ Identity & dedup (rules corrected in v0.22.1 after live findings):
   to Eastern and re-resolves every conflicted group by the totals rule. Idempotent
   self-repair — a damaged ledger converges after (at most) one CSV re-import.
 
-Same-day ordering: API fills carry real timestamps. CSV fills are stamped at
-00:00 of their trade date; reconstruction breaks ties BUY-before-SELL, so a
-same-day round trip pairs correctly. When several same-day buys and sells
-interleave, per-lot pairing within that day is canonicalized (buys first);
-total realized P/L is unaffected.
+Same-day ordering (upgraded v0.23.1): the export is newest-first WITHIN a day
+too, so reversed file order is the TRUE chronology — the parser preserves it by
+encoding each row's intra-day sequence into its timestamp. On MIXED days (a kept
+CSV fill sharing a day with API fills — e.g. a resting sell the API missed), the
+fill is re-timed to sort after the API-owned rows that precede it in the day's
+sequence, so LIFO retires the same lots it did in reality. Re-importing a CSV
+also repairs the ordering of previously imported rows.
 
 ## Data inventory
 

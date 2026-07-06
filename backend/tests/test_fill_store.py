@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 
 from app.fill_store import (api_trade_date, day_key, dedupe_incoming, group_key,
-                            parse_csv_trades, resolve_group_conflicts)
+                            parse_csv_trades, resolve_group_conflicts, retime_mixed_days)
 
 CSV = '''"Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount"
 "07/06/2026","Buy","RCAX","DEFIANCE DAILY TARGET 2XLONG RCAT ETF","90","$5.525","","-$497.25"
@@ -66,7 +66,7 @@ def test_group_conflicts_resolved_by_share_totals():
     other_side = {"trade_date": d, "symbol": "IREN", "side": "BUY", "shares": 2.0, "price": 43.0}
     api_totals = {group_key(d, "IREN", "SELL"): 11.0}   # 5 + 6
     kept, dropped = resolve_group_conflicts([csv_fill, other_day, other_side], api_totals)
-    assert dropped == 1
+    assert len(dropped) == 1 and dropped[0] is csv_fill
     assert kept == [other_day, other_side]   # different day / side untouched
 
 
@@ -83,7 +83,56 @@ def test_partial_api_group_does_not_evict_complete_csv():
     ]
     api_totals = {group_key(d, "GVH", "SELL"): 13903.0}
     kept, dropped = resolve_group_conflicts(csv_rows, api_totals)
-    assert dropped == 0 and len(kept) == 2   # CSV is the more complete source — keep it
+    assert dropped == [] and len(kept) == 2   # CSV is the more complete source — keep it
+
+
+def test_csv_preserves_real_intraday_order():
+    # The export is newest-first WITHIN a day too. The real INMB 11-07 sequence
+    # (bottom-up): buy 1,290 @ 1.545 -> sell 1,290 @ 1.6339 -> buy 1,219 @ 1.6358.
+    # LIFO must retire the SAME-DAY 1.545 buy, leaving the older 1.9899 lot intact —
+    # the old buys-before-sells canonicalization got this right by luck; real order
+    # gets it right by construction.
+    csv = '''"Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount"
+"11/07/2025","Buy","INMB","INMUNE BIO INC","1,219","$1.6358","","-$1994.04"
+"11/07/2025","Sell","INMB","INMUNE BIO INC","1,290","$1.6339","$0.02","$2107.71"
+"11/07/2025","Buy","INMB","INMUNE BIO INC","1,290","$1.545","","-$1993.05"
+"10/07/2025","Buy","INMB","INMUNE BIO INC","1,006","$1.9899","","-$2001.84"
+'''
+    from app.reconstruct import Fill, reconstruct
+    p = parse_csv_trades(csv)
+    fills = [Fill(symbol=f["symbol"], side=f["side"], shares=f["shares"], price=f["price"], at=f["at"])
+             for f in p["fills"]]
+    r = reconstruct(fills)
+    assert not r["oversold"]
+    lots = r["open_lots"]["INMB"]
+    prices = sorted(round(l.price, 4) for l in lots)
+    assert prices == [1.6358, 1.9899]           # the 1.545 buy was the one sold
+    assert sum(l.shares for l in lots) == 1006 + 1219
+
+
+def test_retime_mixed_days_anchors_after_preceding_api_rows():
+    # The live INMB defect: the API missed the day's SELL; the kept CSV sell at
+    # ~midnight sorted before the day's API buys and LIFO ate a week-old lot.
+    # Retiming anchors it AFTER the api-owned row that precedes it in the sequence.
+    d = date(2025, 11, 7)
+    buy_g = group_key(d, "INMB", "BUY")
+    dropped = [
+        {"trade_date": d, "symbol": "INMB", "side": "BUY", "day_rank": 0},   # 1,290 @ 1.545
+        {"trade_date": d, "symbol": "INMB", "side": "BUY", "day_rank": 2},   # 1,219 @ 1.6358
+    ]
+    kept_sell = {"trade_date": d, "symbol": "INMB", "side": "SELL", "day_rank": 1,
+                 "at": datetime(2025, 11, 7, 0, 0, 2)}
+    api_spans = {buy_g: (datetime(2025, 11, 7, 16, 23, 7), datetime(2025, 11, 7, 20, 17, 44))}
+    # NOTE: both buys share one group; its span covers both. The sell (rank 1) anchors
+    # after the group's max time — conservative but correct for LIFO (the 1.545 buy is
+    # on the stack before the sell processes).
+    out = retime_mixed_days([kept_sell], dropped, api_spans)
+    assert out[0]["at"] > datetime(2025, 11, 7, 16, 23, 7)
+    # A kept fill with NO preceding api-owned row keeps its near-midnight stamp.
+    first = {"trade_date": d, "symbol": "INMB", "side": "SELL", "day_rank": 0,
+             "at": datetime(2025, 11, 7, 0, 0, 1)}
+    out2 = retime_mixed_days([first], [{"trade_date": d, "symbol": "INMB", "side": "BUY", "day_rank": 1}], api_spans)
+    assert out2[0]["at"] == datetime(2025, 11, 7, 0, 0, 1)
 
 
 def test_reimport_is_idempotent_by_construction():
