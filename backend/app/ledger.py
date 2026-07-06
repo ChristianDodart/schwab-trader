@@ -750,6 +750,42 @@ async def get_dividends(account_hash: str) -> dict:
     return {"rows": rows, "summary": summary}
 
 
+_NOTES_KEY = "notes:"  # + account_hash → JSON {SYMBOL: text}
+
+
+async def get_notes(account_hash: str) -> dict:
+    async with SessionLocal() as s:
+        row = await s.get(AppSetting, _NOTES_KEY + account_hash)
+    try:
+        notes = _json.loads(row.value) if row and row.value else {}
+    except Exception:
+        notes = {}
+    return notes if isinstance(notes, dict) else {}
+
+
+async def get_note(account_hash: str, symbol: str) -> str:
+    return (await get_notes(account_hash)).get(symbol.upper(), "")
+
+
+async def set_note(account_hash: str, symbol: str, text: str) -> dict:
+    """Free-text thesis/journal note for a symbol (per account, app_setting JSON). Empty
+    clears it. Capped so a runaway paste can't bloat the row."""
+    notes = await get_notes(account_hash)
+    sym = symbol.upper()
+    clean = (text or "").strip()[:2000]
+    if clean:
+        notes[sym] = clean
+    else:
+        notes.pop(sym, None)
+    async with SessionLocal() as s:
+        await s.execute(
+            pg_insert(AppSetting).values(key=_NOTES_KEY + account_hash, value=_json.dumps(notes))
+            .on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": _json.dumps(notes)})
+        )
+        await s.commit()
+    return {"ok": True, "note": clean}
+
+
 async def import_dividends_csv(account_hash: str, csv_text: str) -> dict:
     """Import dividend/interest income from a Schwab 'Transactions' CSV export — the way to
     get history older than the 60-day live pull. Rows are matched by Action containing

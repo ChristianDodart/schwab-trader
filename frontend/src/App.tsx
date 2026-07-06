@@ -46,8 +46,14 @@ export function App() {
   const symInputRef = useRef<HTMLInputElement>(null);
   const gPending = useRef(false); // "g" prefix for vim-style tab jumps (g then d/s/l/o/r)
   const [paused, setPaused] = useState(false); // freeze live dashboard updates
+  const [pausedSince, setPausedSince] = useState<string>("");
   const pausedRef = useRef(false);
   useEffect(() => { pausedRef.current = paused; }, [paused]);
+  const togglePause = () => setPaused((v) => {
+    const next = !v;
+    if (next) setPausedSince(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+    return next;
+  });
   const [acctKey, setAcctKey] = useState("");
   const [addSym, setAddSym] = useState("");
   const [watchTicket, setWatchTicket] = useState<Suggestion | null>(null);
@@ -397,10 +403,10 @@ export function App() {
                     </span>
                   )}
                   <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                    {paused && <span style={S.pausedChip}>updates paused</span>}
+                    {paused && <span style={S.pausedChip}>paused · frozen at {pausedSince}</span>}
                     <button className="btn btn-ghost btn-sm" aria-pressed={paused}
                       title={paused ? "Resume live updates" : "Freeze the table so a quote can't shift under you"}
-                      onClick={() => setPaused((v) => !v)}>{paused ? "Resume" : "Pause updates"}</button>
+                      onClick={togglePause}>{paused ? "Resume" : "Pause updates"}</button>
                   </span>
                 </div>
                 <div style={pricesStale ? { opacity: 0.55, transition: "opacity .2s" } : undefined}>

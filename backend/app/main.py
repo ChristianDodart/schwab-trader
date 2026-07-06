@@ -246,6 +246,9 @@ class PhoneNotifyBody(BaseModel):
     smtp_from: str | None = None
     smtp_to: str | None = None
     smtp_tls: bool | None = None
+    cat_alerts: bool | None = None
+    cat_triggers: bool | None = None
+    cat_fills: bool | None = None
 
 
 @app.get("/api/phone-notify")
@@ -623,6 +626,22 @@ async def ledger_dividends_import(body: CsvImportBody) -> dict:
 @app.get("/api/positions")
 async def positions() -> dict:
     return await ledger_svc.build_positions(await _selected())
+
+
+class NoteBody(BaseModel):
+    text: str
+
+
+@app.get("/api/positions/{symbol}/note")
+async def get_position_note(symbol: str) -> dict:
+    """The free-text journal note for a symbol on the selected account."""
+    return {"symbol": symbol.upper(), "note": await ledger_svc.get_note(await _selected(), symbol)}
+
+
+@app.put("/api/positions/{symbol}/note")
+async def set_position_note(symbol: str, body: NoteBody) -> dict:
+    """Save (or clear, when blank) the journal note for a symbol."""
+    return await ledger_svc.set_note(await _selected(), symbol, body.text)
 
 
 @app.get("/api/account/margin")

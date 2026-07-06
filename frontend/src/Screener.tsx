@@ -46,6 +46,7 @@ export function Screener({ onAdded }: { onAdded?: (symbol: string) => void }) {
 
   const [cands, setCands] = useState<CandidateScreen | null>(null);
   const [candLoading, setCandLoading] = useState(false);
+  const [candSort, setCandSort] = useState<{ col: string; dir: number } | null>(null);
   const runScreen = () => {
     setCandLoading(true);
     fetch(`${API}/screener/candidates?index=${encodeURIComponent(index)}&sort=${sort}`)
@@ -135,16 +136,16 @@ export function Screener({ onAdded }: { onAdded?: (symbol: string) => void }) {
                 <table className="tbl">
                   <thead>
                     <tr>
-                      <th scope="col" className="left">Symbol</th>
+                      <SortTh label="Symbol" col="symbol" sort={candSort} onSort={setCandSort} align="left" />
                       <th scope="col" className="left">Sector</th>
-                      <th scope="col">Market cap</th>
-                      <th scope="col">% Chg</th>
+                      <SortTh label="Market cap" col="market_cap" sort={candSort} onSort={setCandSort} />
+                      <SortTh label="% Chg" col="pct_change" sort={candSort} onSort={setCandSort} />
                       <th scope="col" className="left">Fits your rules?</th>
                       <th scope="col"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(cands.candidates ?? []).map((c) => {
+                    {sortCandidates(cands.candidates ?? [], candSort).map((c) => {
                       const fails = c.reasons.filter((r) => r.status === "fail");
                       return (
                         <tr key={c.symbol} style={c.passes ? undefined : { opacity: 0.62 }}>
@@ -401,6 +402,36 @@ export function fmtCap(n: number | null | undefined): string {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
   return usd(n);
+}
+
+// Client-side candidate sort. No selection → keep the server order (passing first, then
+// biggest cap). A chosen column sorts purely by it; nulls sink to the bottom.
+type CandSort = { col: string; dir: number } | null;
+function sortCandidates<T extends { symbol: string; market_cap: number | null; pct_change: number | null }>(rows: T[], sort: CandSort): T[] {
+  if (!sort) return rows;
+  const val = (c: T) => sort.col === "symbol" ? c.symbol : (sort.col === "market_cap" ? c.market_cap : c.pct_change);
+  return [...rows].sort((a, b) => {
+    const av = val(a), bv = val(b);
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * sort.dir;
+    return ((av as number) - (bv as number)) * sort.dir;
+  });
+}
+
+function SortTh({ label, col, sort, onSort, align }: { label: string; col: string; sort: CandSort; onSort: (s: CandSort) => void; align?: "left" }) {
+  const active = sort?.col === col;
+  const arrow = active ? (sort!.dir === 1 ? " ▲" : " ▼") : "";
+  const toggle = () => onSort(active && sort!.dir === -1 ? null : { col, dir: active ? -1 : 1 });
+  return (
+    <th scope="col" className={align === "left" ? "left" : ""}>
+      <button onClick={toggle} title={`Sort by ${label}`}
+        style={{ background: "none", border: "none", color: active ? "var(--text)" : "inherit", cursor: "pointer", font: "inherit", padding: 0 }}>
+        {label}{arrow}
+      </button>
+    </th>
+  );
 }
 
 // The active universe rules shown as chips, so it's obvious WHY names pass or fail.

@@ -3,6 +3,16 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.15.0 — "Your notes, your noise"
+
+New this version:
+- Position notes. Every position now has a notes box — jot your thesis, targets, or reminders,
+  and they're saved to your account and waiting next time you open it.
+- Choose what reaches your phone. Under Phone notifications you can now toggle price alerts,
+  strategy triggers, and order fills independently — the in-app bell still shows everything.
+- The screener's candidate list is now sortable — click Symbol, Market cap, or % Chg.
+- When you pause the dashboard, the chip now shows the time it froze at.
+
 ## v0.14.0 — "On your terms"
 
 New this version:

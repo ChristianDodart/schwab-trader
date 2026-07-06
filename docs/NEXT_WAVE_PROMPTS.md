@@ -409,23 +409,36 @@ spreadsheets, records). Add CSV export for the trade journal and the deposit log
 - **W12-4 Small fixes #10** — total_return + dividends added to the dashboard totals-footer sum set;
   notification feed grouped by day (Today / Yesterday / date).
 
-# WAVE 13 — candidate queue (unstarted)
+# WAVE 13 — EXECUTED 2026-07-06, shipped v0.15.0
+
+- **W13-2 Phone notification category prefs** — per-category toggles (price alerts / strategy triggers /
+  fills) in the phone config; each `phone.dispatch` call site passes its category; `phone.send` gates on it.
+  Settings checkboxes. In-app bell still gets everything. (Desktop-channel gating deferred — needs a
+  notification `kind` field.)
+- **W13-3 Position notes** — per-symbol free-text note stored per account in app_setting JSON (no
+  migration); GET/PUT `/api/positions/{symbol}/note`; autosaving note box on PositionDetail.
+- **W13-4 Small fixes #11** — pause chip shows the freeze time; screener candidate table sortable by
+  Symbol / Market cap / % Chg. (Print account-name header deferred → W14.)
+- **W13-1 NOT pursued** — per-row alert popover on the dashboard is marginal over the existing row bell
+  (prefills the alert form) + position-detail templates; dropped to avoid low-value per-row menu UI.
+
+# WAVE 14 — candidate queue (unstarted)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## W13-1 — Quick alerts on dashboard rows
-A small per-row alert menu on the dashboard (the deferred W12-1 piece): the same templates as position
-detail, reachable without opening the position.
+## W14-1 — Notification `kind` + desktop-channel prefs
+Add a `kind` (alert|trigger|fill) to the Notification model + push payload (migration), so the FRONTEND can
+gate DESKTOP notifications by category too (completing W13-2's other half) and the bell can show a type icon.
 
-## W13-2 — Notification preferences
-Per-type toggles (fills / strategy triggers / price alerts) for what pushes to desktop + phone, so the user
-can quiet categories they don't care about. Reuses the phone/desktop plumbing.
+## W14-2 — Account name in print headers
+Thread the selected account mask/name into the Ledger + Trades print blocks (fetch once), so a printed/PDF
+report is unambiguously tied to an account.
 
-## W13-3 — Position notes / journal annotations
-A free-text note per symbol (why I'm holding, thesis), stored per account (app_setting JSON like dividends),
-shown on the position detail. A lightweight trading journal.
+## W14-3 — Notes surfaced on the dashboard
+A small indicator on dashboard rows that have a note (hover to preview), so the journal isn't hidden behind
+opening each position.
 
-## W13-4 — Small-fixes bundle #11
-1. Print: include the account mask/name in the printed headers.
-2. Dashboard: a subtle "last updated Xs ago" when paused.
-3. Screener: sort candidates by a chosen column.
+## W14-4 — Small-fixes bundle #12
+1. Position notes: show a "last edited" timestamp.
+2. Screener: persist the chosen sort in localStorage.
+3. Dividends: a CSV export of the income log (mirrors the trades/tax export).

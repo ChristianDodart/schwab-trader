@@ -36,7 +36,13 @@ _DEFAULT: dict = {
     "smtp_from": "",
     "smtp_to": "",
     "smtp_tls": True,       # STARTTLS on the submission port (ignored for 465 → implicit SSL)
+    # Per-category toggles: which events reach the phone (the in-app bell always gets all).
+    "cat_alerts": True,     # price alerts
+    "cat_triggers": True,   # strategy triggers (buy-dip / sell-target)
+    "cat_fills": True,      # resting-order fills
 }
+
+_CAT_KEY = {"alert": "cat_alerts", "trigger": "cat_triggers", "fill": "cat_fills"}
 
 
 async def get_config() -> dict:
@@ -84,6 +90,9 @@ async def status() -> dict:
         "smtp_tls": cfg["smtp_tls"],
         "smtp_pass_set": bool(cfg["smtp_pass"]),
         "smtp_configured": bool(cfg["smtp_host"] and cfg["smtp_to"]),
+        "cat_alerts": cfg["cat_alerts"],
+        "cat_triggers": cfg["cat_triggers"],
+        "cat_fills": cfg["cat_fills"],
     }
 
 
@@ -127,23 +136,27 @@ def _send_sync(cfg: dict, title: str, message: str) -> None:
         _send_email(cfg, title, message)
 
 
-async def send(title: str, message: str) -> None:
-    """Fire-and-forget to the configured channel. Silent no-op when off/unconfigured;
-    swallows every error — must NEVER block or raise into the notification path."""
+async def send(title: str, message: str, category: str | None = None) -> None:
+    """Fire-and-forget to the configured channel. Silent no-op when off/unconfigured, or
+    when this category is toggled off for the phone. Swallows every error — must NEVER
+    block or raise into the notification path."""
     try:
         cfg = await get_config()
         if cfg.get("channel", "off") == "off":
             return
+        catkey = _CAT_KEY.get(category or "")
+        if catkey and not cfg.get(catkey, True):
+            return  # this category is muted for the phone (still in the in-app bell)
         await asyncio.to_thread(_send_sync, cfg, title, message)
     except Exception as e:
         print(f"[phone] send failed: {e!r}")
 
 
-def dispatch(title: str, message: str) -> None:
-    """Schedule a send without awaiting it, so a slow SMTP/ntfy never delays the
-    in-app bell push. Safe to call from any running-loop context."""
+def dispatch(title: str, message: str, category: str | None = None) -> None:
+    """Schedule a send without awaiting it, so a slow SMTP/ntfy never delays the in-app
+    bell push. `category` (alert|trigger|fill) is checked against the phone toggles."""
     try:
-        asyncio.create_task(send(title, message))
+        asyncio.create_task(send(title, message, category))
     except RuntimeError:
         pass  # no running loop (shouldn't happen in the async app) → skip
 

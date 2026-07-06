@@ -79,6 +79,8 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
 
       <AlertTemplates d={d} onSet={(msg, kind) => toast(msg, kind)} />
 
+      <PositionNote symbol={d.symbol} onSaved={(m) => toast(m, "success")} onError={(m) => toast(m, "error")} />
+
       <h3 className="section-title" style={S.h3}>Buy Ladder</h3>
       <div style={{ overflowX: "auto" }}>
         <table className="tbl">
@@ -175,6 +177,37 @@ function AlertTemplates({ d, onSet }: { d: PositionDetailData; onSet: (msg: stri
         <button className="btn btn-ghost btn-sm" onClick={() => make("above", d.basis_per_share, "back above break-even")}
           title={`Notify if ${d.symbol} recovers to your cost basis (${usd(d.basis_per_share)})`}>Above break-even</button>
       )}
+    </div>
+  );
+}
+
+// Free-text journal note per symbol (thesis / reminders). Loads once, autosaves on blur.
+function PositionNote({ symbol, onSaved, onError }: { symbol: string; onSaved: (m: string) => void; onError: (m: string) => void }) {
+  const [note, setNote] = useState("");
+  const [saved, setSaved] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    fetch(`${API}/positions/${symbol}/note`)
+      .then((r) => r.json())
+      .then((j) => { if (alive) { setNote(j.note || ""); setSaved(j.note || ""); setLoaded(true); } })
+      .catch(() => { if (alive) setLoaded(true); });
+    return () => { alive = false; };
+  }, [symbol]);
+  const save = () => {
+    if (note === saved) return;
+    fetch(`${API}/positions/${symbol}/note`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: note }) })
+      .then((r) => r.json())
+      .then((j) => { if (j?.ok) { setSaved(j.note ?? note); onSaved("Note saved."); } else onError("Couldn't save note."); })
+      .catch(() => onError("Couldn't save note."));
+  };
+  if (!loaded) return null;
+  return (
+    <div style={{ marginTop: 14 }}>
+      <label style={{ fontSize: "var(--fs-xs)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-dim)" }}>Notes</label>
+      <textarea value={note} onChange={(e) => setNote(e.target.value)} onBlur={save}
+        placeholder="Your thesis, targets, reminders for this position — saved to this account."
+        className="field" style={{ width: "100%", minHeight: 62, marginTop: 4, resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }} />
     </div>
   );
 }
