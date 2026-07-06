@@ -44,6 +44,7 @@ export function App() {
   const [symQuery, setSymQuery] = useState("");        // "/" jump-to filter (by ticker)
   const [sectorFilter, setSectorFilter] = useState<string | null>(null); // click a sector chip
   const symInputRef = useRef<HTMLInputElement>(null);
+  const gPending = useRef(false); // "g" prefix for vim-style tab jumps (g then d/s/l/o/r)
   const [acctKey, setAcctKey] = useState("");
   const [addSym, setAddSym] = useState("");
   const [watchTicket, setWatchTicket] = useState<Suggestion | null>(null);
@@ -108,6 +109,13 @@ export function App() {
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
       if (e.key === "Escape" && showHelp) { setShowHelp(false); return; }
       if (document.querySelector(".modal-overlay")) return; // don't reach behind a modal
+      // vim-style: "g" then a tab's first letter (g d/s/l/o/r). Consume the letter here.
+      if (gPending.current) {
+        gPending.current = false;
+        const t = NAV.find((n) => n.id[0] === e.key.toLowerCase());
+        if (t) { e.preventDefault(); guardedNav(() => setView(t.id)); return; }
+      }
+      if (e.key === "g") { gPending.current = true; setTimeout(() => { gPending.current = false; }, 900); return; }
       if (e.key === "?") { e.preventDefault(); setShowHelp((v) => !v); return; }
       if (e.key === "/" && view === "dashboard") { e.preventDefault(); symInputRef.current?.focus(); return; }
       if (/^[1-9]$/.test(e.key)) {
@@ -445,6 +453,8 @@ export function App() {
 function HelpOverlay({ onClose }: { onClose: () => void }) {
   const rows: [string, string][] = [
     ...NAV.map((t, i) => [String(i + 1), `Go to ${t.label}`] as [string, string]),
+    ["g then d/s/l/o/r", "Jump to a tab (vim-style)"],
+    ["/", "Jump to a ticker (dashboard)"],
     ["?", "Show / hide this help"],
     ["Esc", "Close dialogs"],
   ];

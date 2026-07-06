@@ -374,23 +374,35 @@ spreadsheets, records). Add CSV export for the trade journal and the deposit log
 - **W9-4 Small fixes #7** — equity-curve range persists (localStorage); dashboard shows "showing N of M"
   when filtered; Settings "Copy support bundle" (diagnostics + log/backups paths).
 
-# WAVE 10 — candidate queue (unstarted)
+# WAVE 10 — EXECUTED 2026-07-05, shipped v0.12.0
+
+- **W10-1 Notification history search** — a filter box on the bell's feed + activity tabs (client-side over
+  loaded rows) matches message or symbol.
+- **W10-2 Dividend CSV import** — `is_dividend_action` (pure, tested) + `ledger.import_dividends_csv`
+  (reuses the verified transfer-CSV parsing; deduped via `merge_dividends`); `/api/ledger/dividends/import`
+  + an Import CSV button on the dividends panel. Covers history beyond the 60-day live pull.
+- **W10-3 Per-symbol total return** — `build_position_detail` adds `dividends` (for the symbol) + a
+  `total_return` (realized + unrealized + dividends); PositionDetail shows both stats.
+- **W10-4 Small fixes #8** — top-payers breakdown on the dividends panel; "g"+letter vim tab jumps;
+  screener "add all passing to watchlist".
+
+# WAVE 11 — candidate queue (unstarted)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## W10-1 — Alert / notification history (was W9-3)
-The bell shows recent notifications; add a searchable, filterable history (by symbol / type / date) drawing
-on the existing AuditEvent + Notification tables — a dedicated view rather than the small dropdown.
+## W11-1 — Dashboard "total return" column (opt-in)
+Add a per-position total-return column to the dashboard column registry (realized + unrealized + dividends),
+so the full-picture number the position detail now shows is available in the table too.
 
-## W10-2 — Dividend history beyond 60 days (CSV import)
-Schwab's live pull is trailing-60-days only. Add a Transactions-CSV import for dividends (like the transfer
-CSV import) so the income record can cover full history, deduped against pulled rows.
+## W11-2 — Alert rule templates
+Common one-click alert setups ("−X% from last buy", "back above 52wk avg") on a symbol, reusing the price
+alert system, so creating useful alerts doesn't mean typing thresholds by hand.
 
-## W10-3 — Per-symbol total-return view
-On position detail, combine realized + unrealized + dividends-for-that-symbol into a per-name total return,
-so each holding shows its complete contribution.
+## W11-3 — Ledger PDF / print summary
+A clean printable one-pager of the since-inception numbers + capital-by-year + dividends, for records or an
+accountant. (Browser print stylesheet, no new deps.)
 
-## W10-4 — Small-fixes bundle #8
-1. Dividends panel: a tiny by-symbol breakdown (top payers).
-2. Keyboard: "g" then a letter to jump to a tab (vim-style), complementing the number keys.
-3. Screener: a one-click "add all passing to watchlist".
+## W11-4 — Small-fixes bundle #9
+1. Dividends: a per-year breakdown table (like capital-by-year).
+2. Position detail: link each dividend to its date in a small popover.
+3. Settings: show which keyboard shortcuts exist (link the "?" overlay from a Settings row).

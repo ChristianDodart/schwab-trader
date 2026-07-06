@@ -613,6 +613,13 @@ async def ledger_import_cashflows(body: CsvImportBody) -> dict:
     return await ledger_svc.import_cashflows_csv(await _selected(), body.csv)
 
 
+@app.post("/api/ledger/dividends/import")
+async def ledger_dividends_import(body: CsvImportBody) -> dict:
+    """Import dividend/interest income from a Schwab Transactions CSV (full history, beyond
+    the 60-day live pull); deduped against existing rows."""
+    return await ledger_svc.import_dividends_csv(await _selected(), body.csv)
+
+
 @app.get("/api/positions")
 async def positions() -> dict:
     return await ledger_svc.build_positions(await _selected())

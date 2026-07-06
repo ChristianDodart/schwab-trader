@@ -750,6 +750,59 @@ async def get_dividends(account_hash: str) -> dict:
     return {"rows": rows, "summary": summary}
 
 
+async def import_dividends_csv(account_hash: str, csv_text: str) -> dict:
+    """Import dividend/interest income from a Schwab 'Transactions' CSV export — the way to
+    get history older than the 60-day live pull. Rows are matched by Action containing
+    'dividend'/'interest'; merged (deduped by day+amount+symbol) into the stored log, so
+    re-importing or overlapping the pull is safe."""
+    import csv as _csvmod
+    import io
+
+    text = (csv_text or "").lstrip("﻿")
+    if not text.strip():
+        return {"ok": False, "error": "The file is empty.", "added": 0}
+    try:
+        rows = list(_csvmod.DictReader(io.StringIO(text)))
+    except Exception as e:
+        return {"ok": False, "error": f"Couldn't parse the CSV ({e}).", "added": 0}
+    if not rows:
+        return {"ok": False, "error": "No data rows in the file.", "added": 0}
+
+    def col(r: dict, name: str):
+        for k, v in r.items():
+            if k and k.strip().lower() == name:
+                return v
+        return None
+
+    if col(rows[0], "amount") is None or col(rows[0], "date") is None:
+        return {"ok": False, "error": "This doesn't look like a Schwab transactions export (no Date/Amount columns).", "added": 0}
+
+    fresh: list[dict] = []
+    for r in rows:
+        if not dividends_mod.is_dividend_action(col(r, "action")):
+            continue
+        d = _parse_csv_date(col(r, "date"))
+        amt = _parse_money(col(r, "amount"))
+        if d is None or amt is None or amt <= 0 or not math.isfinite(amt):
+            continue
+        sym = ((col(r, "symbol") or "").strip().upper()) or None
+        fresh.append({"schwab_txn_id": None, "day": d.isoformat(), "amount": round(amt, 2),
+                      "symbol": sym, "type": (col(r, "action") or "").strip().upper()})
+
+    if not fresh:
+        return {"ok": True, "added": 0, "parsed": 0, "note": "No dividend/interest rows found in this file."}
+
+    existing = (await get_dividends(account_hash))["rows"]
+    merged, added = dividends_mod.merge_dividends(existing, fresh)
+    async with SessionLocal() as s:
+        await s.execute(
+            pg_insert(AppSetting).values(key=_DIV_KEY + account_hash, value=_json.dumps(merged))
+            .on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": _json.dumps(merged)})
+        )
+        await s.commit()
+    return {"ok": True, "added": added, "parsed": len(fresh), "total": dividends_mod.summarize(merged)["total"]}
+
+
 async def refresh_dividends(account_hash: str) -> dict:
     """Pull the trailing-60-day dividend window from Schwab and merge it into the stored
     log (idempotent). Returns {ok, added, total} or {ok: False, error} — never wipes the

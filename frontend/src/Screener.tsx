@@ -82,6 +82,13 @@ export function Screener({ onAdded }: { onAdded?: (symbol: string) => void }) {
       .finally(() => setVetLoading(false));
   };
 
+  const addAllPassing = () => {
+    const fresh = (cands?.candidates ?? []).filter((c) => c.passes && !added[c.symbol]);
+    if (!fresh.length) { toast("No new passing names to add.", "info"); return; }
+    fresh.forEach((c) => addToWatch(c.symbol));
+    toast(`Adding ${fresh.length} name${fresh.length === 1 ? "" : "s"} to your watchlist…`, "info");
+  };
+
   const addToWatch = (sym: string) => {
     setAdded((a) => ({ ...a, [sym]: true })); // optimistic
     fetch(`${API}/tickers`, {
@@ -118,6 +125,11 @@ export function Screener({ onAdded }: { onAdded?: (symbol: string) => void }) {
               <span style={{ color: "var(--text-faint)" }}> · pool: {cands.pool_note}</span>
             </p>
             {cands.filters && <FilterChips f={cands.filters} />}
+            {(cands.passing ?? 0) > 0 && (cands.candidates ?? []).some((c) => c.passes && !added[c.symbol]) && (
+              <button className="btn btn-secondary btn-sm" style={{ margin: "0 0 10px" }} onClick={addAllPassing}>
+                + Add all passing to watchlist
+              </button>
+            )}
             {(cands.candidates ?? []).length > 0 && (
               <div style={{ overflowX: "auto" }}>
                 <table className="tbl">

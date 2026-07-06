@@ -371,6 +371,8 @@ export type PositionDetailData = {
   median_52wk: number | null;
   unrealized: number | null;
   realized: number;
+  dividends: number;
+  total_return: number;
   lots: Lot[];
   projected_ladder: ProjectedRung[];
 };

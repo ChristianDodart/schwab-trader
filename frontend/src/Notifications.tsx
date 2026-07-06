@@ -31,6 +31,9 @@ export function NotificationsBell({
   const [unread, setUnread] = useState(0);
   const [pulse, setPulse] = useState(false);
   const prevUnread = useRef(0);
+  const [q, setQ] = useState(""); // history search (feed + activity)
+  const match = (msg?: string | null, sym?: string | null) =>
+    !q || (msg || "").toLowerCase().includes(q.toLowerCase()) || (sym || "").toLowerCase().includes(q.toLowerCase());
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [desktopPerm, setDesktopPerm] = useState<string>(desktopSupported ? Notification.permission : "unsupported");
@@ -266,10 +269,14 @@ export function NotificationsBell({
                   )}
                 </span>
               </div>
+              <input className="field" value={q} onChange={(e) => setQ(e.target.value)}
+                placeholder="Filter by symbol or text" aria-label="Filter notifications" style={S.search} />
               {notes.length === 0 ? (
                 <p style={S.empty}>No notifications yet. Set a price alert →</p>
+              ) : notes.filter((n) => match(n.message, n.symbol)).length === 0 ? (
+                <p style={S.empty}>No matches for "{q}".</p>
               ) : (
-                notes.map((n) => (
+                notes.filter((n) => match(n.message, n.symbol)).map((n) => (
                   <div key={n.id} style={{ ...S.note, opacity: n.read ? 0.55 : 1 }}>
                     {!n.read && <span style={S.dot} />}
                     <div style={{ flex: 1 }}>
@@ -285,10 +292,14 @@ export function NotificationsBell({
               <div style={S.barRow}>
                 <span style={S.dim}>{audit.length} events — every fill (incl. market) is logged here, not pushed</span>
               </div>
+              <input className="field" value={q} onChange={(e) => setQ(e.target.value)}
+                placeholder="Filter by symbol or text" aria-label="Filter activity" style={S.search} />
               {audit.length === 0 ? (
                 <p style={S.empty}>No activity yet.</p>
+              ) : audit.filter((e) => match(e.message, e.symbol)).length === 0 ? (
+                <p style={S.empty}>No matches for "{q}".</p>
               ) : (
-                audit.map((e) => (
+                audit.filter((e) => match(e.message, e.symbol)).map((e) => (
                   <div key={e.id} style={S.note}>
                     <div style={{ flex: 1 }}>
                       <div style={S.noteMsg}>{e.message}</div>
@@ -481,6 +492,7 @@ const S: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
   empty: { color: "var(--text-faint)", fontSize: "var(--fs-sm)", padding: "12px 14px" },
+  search: { width: "calc(100% - 28px)", margin: "0 14px 8px", height: 28, fontSize: "var(--fs-sm)" },
   note: {
     display: "flex",
     alignItems: "flex-start",

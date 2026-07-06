@@ -3,6 +3,20 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.12.0 — "The whole picture"
+
+New this version:
+- Every position now shows its total return - realized gains, unrealized gains, and dividends
+  for that name, added up, so you see a holding's full contribution at a glance.
+- Search your history. The notification bell's feed and activity now have a filter box - type a
+  symbol or a word to find past alerts and fills.
+- Full dividend history. Alongside the 60-day live pull, you can now import a Schwab Transactions
+  CSV to bring in dividends going back as far as you like, and the Dividends view highlights your
+  top payers.
+- Keyboard power: press "g" then a letter (d, s, l, o, r) to jump to a tab, vim-style - on top of
+  the number keys.
+- The screener can add every passing name to your watchlist in one click.
+
 ## v0.11.0 — "Count the dividends"
 
 New this version:

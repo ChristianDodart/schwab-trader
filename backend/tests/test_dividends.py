@@ -1,5 +1,15 @@
 """Unit tests for the pure dividend parsing/merge (app/dividends.py)."""
-from app.dividends import merge_dividends, parse_dividends, summarize
+from app.dividends import is_dividend_action, merge_dividends, parse_dividends, summarize
+
+
+def test_is_dividend_action():
+    assert is_dividend_action("Cash Dividend")
+    assert is_dividend_action("Qualified Dividend")
+    assert is_dividend_action("Reinvest Dividend")
+    assert is_dividend_action("Bank Interest")
+    assert not is_dividend_action("Reinvest Shares")
+    assert not is_dividend_action("Buy")
+    assert not is_dividend_action(None)
 
 
 def _txn(ty, amount, day="2026-03-01", sym="AAPL", tid="1"):

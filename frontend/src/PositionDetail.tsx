@@ -71,6 +71,8 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
         <Stat label="LILO %" value={pct(d.lilo_pct)} color={signColor(d.lilo_pct)} />
         <Stat label="Unrealized" value={d.unrealized == null ? "—" : usd(d.unrealized)} color={signColor(d.unrealized)} />
         <Stat label="Realized" value={usd(d.realized)} color={signColor(d.realized)} />
+        {d.dividends > 0 && <Stat label="Dividends" value={usd(d.dividends)} color="var(--pos)" />}
+        <Stat label="Total return" value={usd(d.total_return)} color={signColor(d.total_return)} />
       </div>
 
       <ChartToggle d={d} />

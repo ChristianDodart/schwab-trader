@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from . import avg52, config_store
 from .db import SessionLocal
 from .db.models import CompletedTrade, Lot, Ticker
-from .ledger import MARKET_TZ
+from .ledger import MARKET_TZ, get_dividends
 from .schwab import hub
 from .strategy import StrategyConfig, rules
 
@@ -327,6 +327,11 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
             })
             prev_price = trigger
 
+    # Dividends received for THIS symbol (from the stored income log).
+    div_data = await get_dividends(account_hash)
+    sym_dividends = round(sum(_f(d.get("amount")) for d in div_data.get("rows", [])
+                              if (d.get("symbol") or "").upper() == symbol), 2)
+
     return {
         "symbol": symbol,
         "name": ticker.name if ticker else None,
@@ -340,9 +345,13 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
         # 52wk reference levels for the chart overlay (None until warmed).
         "avg_52wk": avg52.get(symbol),
         "median_52wk": avg52.median(symbol),
-        # P/L split: unrealized = mark-to-market on open lots; realized = booked round-trips.
+        # P/L split: unrealized = mark-to-market on open lots; realized = booked round-trips;
+        # dividends = income received for this name. total_return sums all three (a single
+        # name — no double count: price P/L and cash dividends are distinct).
         "unrealized": round(shares * price - invested, 2) if has_price else None,
         "realized": round(_f(realized), 2),
+        "dividends": sym_dividends,
+        "total_return": round(_f(realized) + sym_dividends + (shares * price - invested if has_price else 0.0), 2),
         "lots": lot_rows,
         "projected_ladder": projected,
     }

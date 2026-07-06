@@ -83,6 +83,14 @@ def merge_dividends(existing: list[dict], fresh: list[dict]) -> tuple[list[dict]
     return merged, added
 
 
+def is_dividend_action(action: str | None) -> bool:
+    """Whether a Schwab CSV 'Action' cell denotes dividend/interest income (used by the CSV
+    import). Broad on purpose — 'Cash Dividend', 'Qualified Dividend', 'Reinvest Dividend',
+    'Bank Interest', etc. all count. The share-buy leg ('Reinvest Shares') doesn't match."""
+    a = (action or "").lower()
+    return "dividend" in a or "interest" in a
+
+
 def summarize(rows: list[dict], year: int | None = None) -> dict:
     """Totals for the income view: all-time and (optionally) a given calendar year."""
     total = round(sum(_f(r.get("amount")) for r in rows or []), 2)

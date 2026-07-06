@@ -77,6 +77,21 @@ export function LedgerHistoric() {
       .catch(() => {});
   }, [scope, cgGrain]);
 
+  const importDividendsCsv = (file: File) => {
+    setBusy(true);
+    file.text()
+      .then((csv) => fetch(`${API}/ledger/dividends/import`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ csv }),
+      }).then((r) => r.json()))
+      .then((j) => {
+        if (!j?.ok) { toast(j?.error || "Couldn't import that file.", "error"); return; }
+        toast(j.added ? `Imported ${j.added} dividend${j.added === 1 ? "" : "s"}.` : (j.note || "No dividend rows found in that file."), j.added ? "success" : "info");
+        if (j.added) load();
+      })
+      .catch(() => toast("Couldn't read that file.", "error"))
+      .finally(() => setBusy(false));
+  };
+
   const refreshDividends = () => {
     setBusy(true);
     fetch(`${API}/ledger/dividends/refresh`, { method: "POST" })
@@ -324,13 +339,24 @@ export function LedgerHistoric() {
       {/* ---- Dividends / income ---- */}
       <Panel
         title="Dividends & income"
-        right={<button className="btn btn-secondary btn-sm" disabled={busy} onClick={refreshDividends}>↻ Pull from Schwab (60d)</button>}
+        right={
+          <span style={{ display: "flex", gap: 6 }}>
+            <label className="btn btn-secondary btn-sm" style={{ cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}
+              title="Import a Schwab Transactions CSV export (full dividend history)">
+              ⬆ Import CSV
+              <input type="file" accept=".csv,text/csv" disabled={busy} style={{ display: "none" }}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) importDividendsCsv(f); e.target.value = ""; }} />
+            </label>
+            <button className="btn btn-secondary btn-sm" disabled={busy} onClick={refreshDividends}>↻ Pull from Schwab (60d)</button>
+          </span>
+        }
       >
         <div style={S2.cfSummary}>
           <span>All-time <b style={{ color: "var(--pos)" }}>{usd(div?.summary.total ?? 0)}</b></span>
           <span>This year <b style={{ color: "var(--pos)" }}>{usd(div?.summary.ytd ?? 0)}</b></span>
           <span style={{ color: "var(--text-faint)" }}>{div?.summary.count ?? 0} payment{(div?.summary.count ?? 0) === 1 ? "" : "s"}</span>
         </div>
+        {div && div.rows.length > 0 && <TopPayers rows={div.rows} />}
         {div && div.rows.length > 0 ? (
           <div style={{ overflowX: "auto" }}>
             <table className="tbl">
@@ -400,6 +426,20 @@ function BenchmarkCard({ b }: { b: Benchmark }) {
     <Card label={`If it were all ${b.symbol}`} value={usd(idx)}
       accent={ahead ? "var(--pos)" : "var(--neg)"} sub={sub}
       hint={`What your exact deposits (same dates, same amounts) would be worth today in ${b.symbol} buy-and-hold. Colored by whether your active strategy is ahead of (green) or behind (red) just holding the index.`} />
+  );
+}
+
+// Top dividend payers by total received — a quick "who's paying me" glance.
+function TopPayers({ rows }: { rows: DivRow[] }) {
+  const bySym = new Map<string, number>();
+  for (const d of rows) bySym.set(d.symbol || "—", (bySym.get(d.symbol || "—") ?? 0) + d.amount);
+  const top = [...bySym.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  if (top.length < 2) return null;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", margin: "0 0 10px", fontSize: "var(--fs-xs)", color: "var(--text-dim)" }}>
+      <span style={{ color: "var(--text-faint)" }}>Top payers:</span>
+      {top.map(([s, v]) => <span key={s}><b style={{ color: "var(--text-muted)" }}>{s}</b> {usd(v)}</span>)}
+    </div>
   );
 }
 
