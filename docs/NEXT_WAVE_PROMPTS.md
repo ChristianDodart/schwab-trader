@@ -436,24 +436,38 @@ spreadsheets, records). Add CSV export for the trade journal and the deposit log
 - **Notes "last edited" timestamp** — skipped (would change the notes storage shape from {sym: text} to
   {sym: {text, at}}; not worth the added handling right now).
 
-# WAVE 15 — candidate queue (unstarted)
+# WAVE 15 (FIELD FEEDBACK) — EXECUTED 2026-07-06, shipped v0.17.0
+
+Prioritized ahead of the polish queue because it came from real use.
+
+- **FF-1 Instant dashboard refresh after a trade** — `streaming.poke_resync()` fires the fill-resync
+  loop immediately; `orders.place_order` + `cancel_order` call it (bulk inherits via place_order). Frontend
+  OrderTicket + BulkReviewModal POST `/api/account/sync` on a successful place for an immediate rebuild.
+- **FF-3 Drill into watch tickers** — `build_position_detail` returns a watch-mode payload (is_watch, price,
+  52wk, empty ladder) instead of None; PositionDetail renders a watch view (chart/notes/alerts, no ladder);
+  DashboardTable lets watch rows open.
+- **FF-2 Auto-watch on sell-out + last held price** — `resync_account` diffs open-lot symbols pre/post
+  rebuild; sold-to-zero names get `Ticker.watch=True` and their last held price stored (app_setting JSON,
+  no migration); shown on the watch tag + watch detail. Live-verified against a DB copy.
+
+# WAVE 16 — candidate queue (unstarted, was Wave 15 polish)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## W15-1 — Account label in print headers (was W14-2)
+## W16-1 — Account label in print headers (was W14-2)
 Include the selected account's mask/name (and profile) in the Ledger + Trades print blocks. Resolve the
 label from accounts_svc / the active profile (degrade to unlabeled when Schwab isn't connected).
 
-## W15-2 — Bell type icons
+## W16-2 — Bell type icons
 Now that the push carries `kind`, show a small per-type icon in the bell feed (price alert vs trigger vs
 fill) so the history scans faster. (Historical rows lack kind → infer from alert_id / message, or add the
 `kind` column in a later migration if it proves worth it.)
 
-## W15-3 — Dashboard note preview on hover
+## W16-3 — Dashboard note preview on hover
 Upgrade the W14-3 note dot: a hover tooltip/popover showing the note text (needs the note text on the row
 or a lightweight fetch on hover).
 
-## W15-4 — Small-fixes bundle #13
+## W16-4 — Small-fixes bundle #13
 1. Empty-state polish across tabs (friendly "nothing yet" copy where sparse).
 2. A subtle "saved" flash on the position note after autosave.
 3. Consistent number formatting audit (thousands separators everywhere).

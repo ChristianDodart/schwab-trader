@@ -98,10 +98,10 @@ export function DashboardTable({
             {rows.map((r) => {
               const isCand = bulk?.candidates.has(r.symbol) ?? false;
               const isChecked = bulk?.checked.has(r.symbol) ?? false;
-              const clickable = bulk ? isCand : !r.is_watch;
+              const clickable = bulk ? isCand : true; // watch rows now open a (watch-mode) detail too
               const onRowClick = () => {
                 if (bulk) { if (isCand) bulk.onToggle(r.symbol); }
-                else if (!r.is_watch) onSelect(r.symbol);
+                else onSelect(r.symbol);
               };
               const isOpen = !bulk && r.symbol === selected;
               const rowCls = [
@@ -138,7 +138,11 @@ export function DashboardTable({
                       <span style={{ fontWeight: 700 }}>{r.symbol}</span>
                       {r.has_note && <span style={S.noteDot} title="Has a saved note — open to read it" aria-label="has note">●</span>}
                       {rowSignalChips(r)}
-                      {r.is_watch && <span className="tag" style={S.watchTag}>watch</span>}
+                      {r.is_watch && (
+                        <span className="tag" style={S.watchTag}>
+                          watch{r.last_held != null ? ` · last $${r.last_held.toFixed(2)}` : ""}
+                        </span>
+                      )}
                       {!bulk && (
                         <button
                           className="hover-reveal"

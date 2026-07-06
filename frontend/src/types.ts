@@ -32,6 +32,7 @@ export type DashboardRow = {
   dividends: number;      // income received for this name (held rows)
   total_return: number;   // realized + unrealized + dividends
   has_note?: boolean;     // a saved journal note exists for this symbol
+  last_held?: number | null; // watch rows previously held: last held price
 };
 
 export type Dashboard = {
@@ -377,6 +378,8 @@ export type PositionDetailData = {
   realized: number;
   dividends: number;
   total_return: number;
+  is_watch?: boolean;         // no open position — watch-mode detail
+  last_held?: number | null;  // last price held (for a sold-out watch ticker)
   lots: Lot[];
   projected_ladder: ProjectedRung[];
 };

@@ -69,7 +69,7 @@ export function useBulk(rows: DashboardRow[] | undefined, mode: string | undefin
       .then((res: BulkResult) => {
         setResult(res);
         const okN = res.placed ?? 0;
-        if (okN) toast(`Placed ${okN} ${kind} order${okN > 1 ? "s" : ""}`, "success");
+        if (okN) { toast(`Placed ${okN} ${kind} order${okN > 1 ? "s" : ""}`, "success"); fetch(`${API}/account/sync`, { method: "POST" }).catch(() => {}); }
         if (okN < (res.count ?? 0)) toast(`${(res.count ?? 0) - okN} order(s) didn't place — see the summary`, "error");
       })
       .catch(() => toast("Bulk placement failed — network error"))

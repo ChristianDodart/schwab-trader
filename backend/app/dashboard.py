@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from . import avg52, config_store
 from .db import SessionLocal
 from .db.models import CompletedTrade, Lot, Ticker
-from .ledger import MARKET_TZ, get_dividends
+from .ledger import MARKET_TZ, get_dividends, get_last_held
 from .schwab import hub
 from .strategy import StrategyConfig, rules
 
@@ -224,8 +224,11 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
     # Flag rows that have a saved journal note (surfaces the note without opening detail).
     from .ledger import get_notes
     notes = await get_notes(account_hash)
+    last_held = await get_last_held(account_hash)
     for r in rows:
         r["has_note"] = r["symbol"] in notes
+        # Watch rows that used to be held show the last price they were held at.
+        r["last_held"] = last_held.get(r["symbol"]) if r["is_watch"] else None
 
     # Header metric — "Harvestable": the profit you could lock in RIGHT NOW by selling
     # every profitable last position, measured vs. each last lot's entry price. It is
@@ -291,7 +294,27 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
             )
         ).scalar()
     if not lots:
-        return None
+        # No open position — a watch ticker (or a fully-sold name). Return a minimal
+        # "watch mode" payload so the detail view can still show chart / 52wk / notes /
+        # alerts (empty ladder). None only if the symbol is entirely unknown.
+        if ticker is None:
+            return None
+        q = hub.latest.get(symbol, {})
+        wprice = _f(q.get("last")) if q.get("last") is not None else None
+        div_data = await get_dividends(account_hash)
+        sym_div = round(sum(_f(d.get("amount")) for d in div_data.get("rows", [])
+                            if (d.get("symbol") or "").upper() == symbol), 2)
+        last_held = (await get_last_held(account_hash)).get(symbol)
+        return {
+            "symbol": symbol, "name": ticker.name, "sector": ticker.sector,
+            "price": round(wprice, 4) if wprice else None,
+            "positions": 0, "shares": 0.0, "invested": 0.0, "basis_per_share": 0.0,
+            "lilo_pct": None, "avg_52wk": avg52.get(symbol), "median_52wk": avg52.median(symbol),
+            "unrealized": None, "realized": round(_f(realized), 2), "dividends": sym_div,
+            "total_return": round(_f(realized) + sym_div, 2),
+            "is_watch": True, "last_held": last_held,
+            "lots": [], "projected_ladder": [],
+        }
 
     quote = hub.latest.get(symbol, {})
     price = quote.get("last")

@@ -84,6 +84,15 @@ def _activity_handler(msg: dict) -> None:
         pass  # a resync is already pending; this poke is redundant
 
 
+def poke_resync() -> None:
+    """Trigger the fill re-sync loop NOW — call after WE place/cancel an order so the
+    rebuild doesn't wait for Schwab's ACCT_ACTIVITY stream poke (which can lag or drop)."""
+    try:
+        _activity_q.put_nowait(True)
+    except asyncio.QueueFull:
+        pass
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 

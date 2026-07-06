@@ -3,6 +3,17 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.17.0 — "Keep up with the trade"
+
+New this version (all from real-use feedback):
+- The dashboard updates right after you trade. Placing or canceling an order now kicks an
+  immediate holdings refresh instead of waiting on Schwab's activity stream — so what you see
+  matches your order confirmation within a second or two.
+- Sell out of a position and it sticks around. When you close a position completely, its ticker
+  automatically moves to your watchlist, tagged with the last price you held it at.
+- Click into watchlist tickers. Watch names now open a detail view too — price chart, 52-week
+  levels, your notes, and one-click alerts — even with no open position.
+
 ## v0.16.0 — "Quiet the pop-ups"
 
 New this version:

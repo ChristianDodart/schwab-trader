@@ -246,6 +246,11 @@ async def place_order(symbol: str, side: str, quantity: int,
     except Exception as e:
         return {"ok": False, "error": repr(e)}
     ok = status in (200, 201)
+    if ok:
+        # We just changed the account — trigger the fill re-sync now instead of waiting
+        # for Schwab's ACCT_ACTIVITY stream poke, so the dashboard reflects it promptly.
+        from .schwab import poke_resync
+        poke_resync()
     return {
         "ok": ok,
         "http": status,
@@ -338,9 +343,13 @@ async def cancel_order(order_id, account_hash: str | None = None) -> dict:
         return {"ok": c.status_code in (200, 201), "http": c.status_code, "status": status}
 
     try:
-        return await asyncio.to_thread(go)
+        res = await asyncio.to_thread(go)
     except Exception as e:
         return {"ok": False, "error": repr(e)}
+    if res.get("ok"):
+        from .schwab import poke_resync
+        poke_resync()  # working-order set changed → refresh promptly
+    return res
 
 
 # ---- strategy-driven order suggestions (the user confirms, then places) ----

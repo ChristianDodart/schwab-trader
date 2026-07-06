@@ -176,6 +176,33 @@ async def rebuild_account(account_hash: str, fills: list[Fill]) -> dict:
         return await _write(account_hash, fills)
 
 
+async def _open_lot_marks(account_hash: str) -> dict:
+    """{SYMBOL: buy_price of the deepest (last) open lot} for the account — used to detect
+    sell-to-zero transitions and remember the last held price."""
+    async with SessionLocal() as s:
+        lots = (
+            await s.execute(
+                select(Lot.symbol, Lot.buy_price)
+                .where(Lot.account_hash == account_hash).order_by(Lot.rung)
+            )
+        ).all()
+    marks: dict = {}
+    for sym, bp in lots:
+        marks[sym] = float(bp)  # ordered by rung → last write is the deepest rung
+    return marks
+
+
+async def _auto_watch_closed(closed: dict) -> None:
+    """A position was fully sold → add it to the watchlist so it stays on the dashboard."""
+    if not closed:
+        return
+    async with SessionLocal() as s:
+        await s.execute(
+            Ticker.__table__.update().where(Ticker.symbol.in_(list(closed))).values(watch=True)
+        )
+        await s.commit()
+
+
 async def resync_account(account_hash: str) -> dict:
     """The production entry point: fetch fills + current positions, reconstruct the
     ladder, reconcile it to the positions (so the total always matches Schwab), and
@@ -192,7 +219,19 @@ async def resync_account(account_hash: str) -> dict:
         probe = fills_hint.should_probe(capable, last_probe, today)
         fills = await fills_svc.fetch_fills(account_hash) if probe else []
         positions = await _fetch_positions_map(account_hash)
+        pre_marks = await _open_lot_marks(account_hash)   # positions held before this rebuild
         result = await _write(account_hash, fills, positions)
+        # Positions that were held and are now flat → auto-add to the watchlist, and
+        # remember the last held price so the watch row can show it.
+        post_marks = await _open_lot_marks(account_hash)
+        closed = {sym: px for sym, px in pre_marks.items() if sym not in post_marks}
+        if closed:
+            await _auto_watch_closed(closed)
+            try:
+                from . import ledger as ledger_svc
+                await ledger_svc.set_last_held(account_hash, closed)
+            except Exception as e:
+                print(f"[resync] last-held record failed: {e!r}")
 
         # Update the hint ONLY after a real probe with a trustworthy result (fills is a
         # list, not None=error). Empty + no fill-derived history ⇒ this account exposes

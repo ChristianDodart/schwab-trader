@@ -57,23 +57,39 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <ColumnManager prefs={cols} labelOf={(id) => DETAIL_COLUMNS[id]?.label ?? id} align="right" />
-          <button className="btn btn-buy" disabled={busy} onClick={openBuy}>Buy next rung</button>
+          {!d.is_watch && <button className="btn btn-buy" disabled={busy} onClick={openBuy}>Buy next rung</button>}
           <button style={S.close} aria-label="Close position detail" onClick={onClose}>✕</button>
         </div>
       </div>
 
-      <div style={S.stats}>
-        <Stat label="Price" value={usd(d.price)} />
-        <Stat label="Positions" value={String(d.positions)} />
-        <Stat label="Shares" value={d.shares.toLocaleString()} />
-        <Stat label="Invested" value={usd(d.invested)} />
-        <Stat label="Basis / Share" value={usd(d.basis_per_share)} />
-        <Stat label="LILO %" value={pct(d.lilo_pct)} color={signColor(d.lilo_pct)} />
-        <Stat label="Unrealized" value={d.unrealized == null ? "—" : usd(d.unrealized)} color={signColor(d.unrealized)} />
-        <Stat label="Realized" value={usd(d.realized)} color={signColor(d.realized)} />
-        {d.dividends > 0 && <Stat label="Dividends" value={usd(d.dividends)} color="var(--pos)" />}
-        <Stat label="Total return" value={usd(d.total_return)} color={signColor(d.total_return)} />
-      </div>
+      {d.is_watch ? (
+        <div style={S.stats}>
+          <Stat label="Price" value={usd(d.price)} />
+          {d.last_held != null && <Stat label="Last held" value={usd(d.last_held)} />}
+          {d.realized !== 0 && <Stat label="Realized" value={usd(d.realized)} color={signColor(d.realized)} />}
+          {d.dividends > 0 && <Stat label="Dividends" value={usd(d.dividends)} color="var(--pos)" />}
+        </div>
+      ) : (
+        <div style={S.stats}>
+          <Stat label="Price" value={usd(d.price)} />
+          <Stat label="Positions" value={String(d.positions)} />
+          <Stat label="Shares" value={d.shares.toLocaleString()} />
+          <Stat label="Invested" value={usd(d.invested)} />
+          <Stat label="Basis / Share" value={usd(d.basis_per_share)} />
+          <Stat label="LILO %" value={pct(d.lilo_pct)} color={signColor(d.lilo_pct)} />
+          <Stat label="Unrealized" value={d.unrealized == null ? "—" : usd(d.unrealized)} color={signColor(d.unrealized)} />
+          <Stat label="Realized" value={usd(d.realized)} color={signColor(d.realized)} />
+          {d.dividends > 0 && <Stat label="Dividends" value={usd(d.dividends)} color="var(--pos)" />}
+          <Stat label="Total return" value={usd(d.total_return)} color={signColor(d.total_return)} />
+        </div>
+      )}
+
+      {d.is_watch && (
+        <p style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)", margin: "8px 0 0" }}>
+          On your watchlist — no open position{d.last_held != null ? `, last held at ${usd(d.last_held)}` : ""}.
+          Use the ticker's Buy button on the dashboard to open a position.
+        </p>
+      )}
 
       <ChartToggle d={d} />
 
@@ -81,6 +97,7 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
 
       <PositionNote symbol={d.symbol} onSaved={(m) => toast(m, "success")} onError={(m) => toast(m, "error")} />
 
+      {!d.is_watch && <>
       <h3 className="section-title" style={S.h3}>Buy Ladder</h3>
       <div style={{ overflowX: "auto" }}>
         <table className="tbl">
@@ -142,6 +159,7 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
           </div>
         </>
       )}
+      </>}
 
       {ticket && <OrderTicket suggestion={ticket} mode={mode} onClose={() => setTicket(null)} />}
     </section>

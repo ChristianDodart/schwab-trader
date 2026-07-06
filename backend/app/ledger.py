@@ -750,6 +750,34 @@ async def get_dividends(account_hash: str) -> dict:
     return {"rows": rows, "summary": summary}
 
 
+_LASTHELD_KEY = "last_held:"  # + account_hash → JSON {SYMBOL: price} (last held price at sell-out)
+
+
+async def get_last_held(account_hash: str) -> dict:
+    async with SessionLocal() as s:
+        row = await s.get(AppSetting, _LASTHELD_KEY + account_hash)
+    try:
+        d = _json.loads(row.value) if row and row.value else {}
+    except Exception:
+        d = {}
+    return d if isinstance(d, dict) else {}
+
+
+async def set_last_held(account_hash: str, prices: dict) -> None:
+    """Merge {SYMBOL: price} for positions just sold out (so a watch row can show the
+    last held price). Per account, app_setting JSON — no migration."""
+    if not prices:
+        return
+    cur = await get_last_held(account_hash)
+    cur.update({k.upper(): round(float(v), 4) for k, v in prices.items() if v})
+    async with SessionLocal() as s:
+        await s.execute(
+            pg_insert(AppSetting).values(key=_LASTHELD_KEY + account_hash, value=_json.dumps(cur))
+            .on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": _json.dumps(cur)})
+        )
+        await s.commit()
+
+
 _NOTES_KEY = "notes:"  # + account_hash → JSON {SYMBOL: text}
 
 

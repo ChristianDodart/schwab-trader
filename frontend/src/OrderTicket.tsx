@@ -199,7 +199,12 @@ export function OrderTicket({
       .then((r) => r.json())
       .then((res) => {
         setResult(res); setPlacing(false);
-        if (res.ok) onPlaced?.();
+        if (res.ok) {
+          onPlaced?.();
+          // Force an immediate holdings rebuild so the dashboard reflects this trade fast
+          // (the backend also self-pokes a resync as a guaranteed follow-up).
+          fetch(`${API}/account/sync`, { method: "POST" }).catch(() => {});
+        }
         if (res.ok && res.order_id) pollStatus(res.order_id, acct.hash);
       })
       .catch(() => { setResult({ ok: false, error: "network error" }); setPlacing(false); });
