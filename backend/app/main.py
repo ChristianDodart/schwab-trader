@@ -641,6 +641,22 @@ class NoteBody(BaseModel):
     text: str
 
 
+@app.get("/api/signal-rules")
+async def get_signal_rules() -> dict:
+    """User-defined extra signal rules for the selected account."""
+    return {"rules": await ledger_svc.get_signal_rules(await _selected())}
+
+
+class SignalRulesBody(BaseModel):
+    rules: list
+
+
+@app.put("/api/signal-rules")
+async def set_signal_rules(body: SignalRulesBody) -> dict:
+    """Replace the extra signal rules for the selected account."""
+    return await ledger_svc.set_signal_rules(await _selected(), body.rules)
+
+
 @app.get("/api/positions/{symbol}/note")
 async def get_position_note(symbol: str) -> dict:
     """The free-text journal note for a symbol on the selected account."""

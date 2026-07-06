@@ -3,6 +3,7 @@ import { usd } from "./App";
 import { DASH_COLUMNS, PINNED_DASH, rowSignalChips } from "./columns";
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
+import type { SignalRule } from "./signals";
 
 // Column ids whose per-row values are money that's meaningful to SUM in a totals row.
 // "signed" = a P/L figure (color + sign it); "plain" = a magnitude (Invested, Value).
@@ -41,6 +42,7 @@ export function DashboardTable({
   onAlert,
   bulk,
   renderDetail,
+  signalRules = [],
 }: {
   rows: DashboardRow[];
   cols: string[];
@@ -51,6 +53,7 @@ export function DashboardTable({
   onAlert: (row: DashboardRow) => void;
   bulk?: BulkUI | null;
   renderDetail?: (symbol: string) => React.ReactNode; // drill-down, rendered inline under its row
+  signalRules?: SignalRule[];
 }) {
   const defs = cols.map((id) => DASH_COLUMNS[id]).filter(Boolean);
   const colSpan = 1 /* ticker */ + PINNED_DASH.length + defs.length + (bulk ? 1 : 0);
@@ -137,7 +140,7 @@ export function DashboardTable({
                     <span style={S.tickerLine}>
                       <span style={{ fontWeight: 700 }}>{r.symbol}</span>
                       {r.has_note && <span style={S.noteDot} title="Has a saved note — open to read it" aria-label="has note">●</span>}
-                      {rowSignalChips(r)}
+                      {rowSignalChips(r, signalRules)}
                       {r.is_watch && (
                         <span className="tag" style={S.watchTag}>
                           watch{r.last_held != null ? ` · last $${r.last_held.toFixed(2)}` : ""}

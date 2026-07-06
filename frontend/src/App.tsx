@@ -3,6 +3,7 @@ import { AccountPicker } from "./AccountPicker";
 import { AuthBanner, LiveStatusPill, useLiveness } from "./AuthBanner";
 import { UpdateBanner } from "./UpdateBanner";
 import { SectorStrip } from "./SectorStrip";
+import type { SignalRule } from "./signals";
 import { BulkGear, BulkReviewModal, useBulk } from "./Bulk";
 import { ColumnManager } from "./ColumnManager";
 import { ConfirmDialog } from "./Modal";
@@ -45,6 +46,8 @@ export function App() {
   const [sectorFilter, setSectorFilter] = useState<string | null>(null); // click a sector chip
   const symInputRef = useRef<HTMLInputElement>(null);
   const gPending = useRef(false); // "g" prefix for vim-style tab jumps (g then d/s/l/o/r)
+  const [cashInfo, setCashInfo] = useState<{ cash: number | null; buying_power: number | null; margin_buying_power: number | null } | null>(null);
+  const [signalRules, setSignalRules] = useState<SignalRule[]>([]);
   const [paused, setPaused] = useState(false); // freeze live dashboard updates
   const [pausedSince, setPausedSince] = useState<string>("");
   const pausedRef = useRef(false);
@@ -88,6 +91,27 @@ export function App() {
       try { localStorage.setItem(key, v); } catch { /* private mode */ }
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Custom signal rules (per account). Refetch on account switch + whenever we return to the
+  // dashboard, so edits made in Settings show up without a full reload.
+  useEffect(() => {
+    let alive = true;
+    fetch(`${API}/signal-rules`).then((r) => r.json())
+      .then((j) => { if (alive && Array.isArray(j?.rules)) setSignalRules(j.rules); }).catch(() => {});
+    return () => { alive = false; };
+  }, [acctKey, view]);
+
+  // Cash + buying power for the header (account-level, live). Refetch on account switch + 30s.
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      fetch(`${API}/account/margin`).then((r) => r.json())
+        .then((j) => { if (alive) setCashInfo(j && !j.blocked ? { cash: j.cash ?? null, buying_power: j.buying_power ?? null, margin_buying_power: j.margin_buying_power ?? null } : null); })
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 30_000);
+    return () => { alive = false; clearInterval(t); };
+  }, [acctKey]);
 
   // Ambient working-order count for the nav badge (per selected account). Refetch on
   // account switch (acctKey) + every 60s.
@@ -273,6 +297,13 @@ export function App() {
                     hero
                   />
                 )}
+                {cashInfo?.cash != null && (
+                  <KPI
+                    label="Cash"
+                    value={usd(cashInfo.cash)}
+                    hint={`Buying power ${usd(cashInfo.buying_power)}${cashInfo.margin_buying_power != null ? ` (incl. margin ${usd(cashInfo.margin_buying_power)})` : ""} — settled cash plus available margin. Fluctuates intraday.`}
+                  />
+                )}
               </div>
             )}
             <NotificationsBell
@@ -419,6 +450,7 @@ export function App() {
                     onBuyWatch={buyWatch}
                     onAlert={onAlert}
                     bulk={bulk.bulkUI}
+                    signalRules={signalRules}
                     renderDetail={(sym) => (
                       <PositionDetail symbol={sym} mode={mode} onClose={() => setSelected(null)} embedded />
                     )}

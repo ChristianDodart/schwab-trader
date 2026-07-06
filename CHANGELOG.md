@@ -3,6 +3,18 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.18.0 — "Signal it your way"
+
+New this version:
+- Custom signal rules. The built-in BUY/SELL flags stay as your default rule, but now you can add
+  your own OR rules under Settings > Signals — e.g. flag a SELL when a position's profit is at least
+  $50, or when it's up a set percentage from your cost — each with its own color and label. Tickers
+  light up when the default or any of your rules match.
+- Cash on the dashboard. Your settled cash now shows in the header; hover it to see your full buying
+  power (cash plus available margin).
+- The sector-exposure concentration alert is now opt-in — a small "Alerts" toggle on the strip, off
+  by default (it's mainly useful for larger accounts). The exposure bar itself always shows.
+
 ## v0.17.0 — "Keep up with the trade"
 
 New this version (all from real-use feedback):

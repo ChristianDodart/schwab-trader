@@ -778,6 +778,50 @@ async def set_last_held(account_hash: str, prices: dict) -> None:
         await s.commit()
 
 
+_SIGNAL_RULES_KEY = "signal_rules:"  # + account_hash → JSON list of custom signal rules
+
+
+async def get_signal_rules(account_hash: str) -> list:
+    """User-defined EXTRA signal rules (OR'd with the built-in strategy buy/sell marks).
+    Each: {id, side, metric, op, value, color, label, enabled}. Evaluated client-side."""
+    async with SessionLocal() as s:
+        row = await s.get(AppSetting, _SIGNAL_RULES_KEY + account_hash)
+    try:
+        rules = _json.loads(row.value) if row and row.value else []
+    except Exception:
+        rules = []
+    return rules if isinstance(rules, list) else []
+
+
+async def set_signal_rules(account_hash: str, rules: list) -> dict:
+    """Validate + persist the extra signal rules (cap 20; sanitize each field)."""
+    clean = []
+    for r in (rules or [])[:20]:
+        if not isinstance(r, dict):
+            continue
+        try:
+            val = float(r.get("value") or 0)
+        except (TypeError, ValueError):
+            val = 0.0
+        clean.append({
+            "id": str(r.get("id") or "")[:40],
+            "side": "buy" if r.get("side") == "buy" else "sell",
+            "metric": str(r.get("metric") or "")[:40],
+            "op": "<=" if r.get("op") == "<=" else ">=",
+            "value": round(val, 4),
+            "color": str(r.get("color") or "#c9a227")[:16],
+            "label": str(r.get("label") or "")[:24],
+            "enabled": bool(r.get("enabled", True)),
+        })
+    async with SessionLocal() as s:
+        await s.execute(
+            pg_insert(AppSetting).values(key=_SIGNAL_RULES_KEY + account_hash, value=_json.dumps(clean))
+            .on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": _json.dumps(clean)})
+        )
+        await s.commit()
+    return {"ok": True, "rules": clean}
+
+
 _NOTES_KEY = "notes:"  # + account_hash → JSON {SYMBOL: text}
 
 

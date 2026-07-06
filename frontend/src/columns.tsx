@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usd, pct } from "./App";
 import type { DashboardRow, Lot } from "./types";
+import { matchesRule, type SignalRule } from "./signals";
 
 import { API } from "./api";
 
@@ -60,14 +61,25 @@ const Chip = ({ children, kind }: { children: React.ReactNode; kind: "buy" | "se
   </span>
 );
 
-// The BUY/SELL chips for a row (or null if none). Rendered at the ticker cell in
-// DashboardTable — the signal lives next to the symbol, not in a separate column.
-export function rowSignalChips(r: DashboardRow): React.ReactNode {
-  if (r.is_watch || (!r.buy_mark && !r.sell_mark)) return null;
+// A custom-rule chip in the rule's own color (▲ buy / ▼ sell for grayscale separability).
+const CustomChip = ({ rule }: { rule: SignalRule }) => (
+  <span className="chip" style={{ marginLeft: 4, background: rule.color, color: "#0b0e13", fontWeight: 700 }}
+    title={`Your ${rule.side} rule matched`}>
+    <span aria-hidden="true">{rule.side === "buy" ? "▲" : "▼"}</span>{rule.label || rule.side.toUpperCase()}
+  </span>
+);
+
+// The BUY/SELL chips for a row: the built-in strategy marks (default rule, red/green) PLUS
+// any user signal rules that match (each in its own color). Rendered at the ticker cell.
+export function rowSignalChips(r: DashboardRow, rules: SignalRule[] = []): React.ReactNode {
+  if (r.is_watch) return null;
+  const matched = rules.filter((rule) => matchesRule(rule, r));
+  if (!r.buy_mark && !r.sell_mark && matched.length === 0) return null;
   return (
     <>
       {r.buy_mark && <Chip kind="buy">BUY</Chip>}
       {r.sell_mark && <Chip kind="sell">SELL</Chip>}
+      {matched.map((rule) => <CustomChip key={rule.id} rule={rule} />)}
     </>
   );
 }

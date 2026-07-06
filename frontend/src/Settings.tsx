@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ConnectionStatus } from "./Reauth";
 import { useToast } from "./Toast";
 import { CHANGELOG, entryFor } from "./changelog";
+import { SIGNAL_METRICS, newRule, metricUnit, type SignalRule } from "./signals";
 
 import { API } from "./api";
 
@@ -105,6 +106,10 @@ export function Settings({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) =
             <span style={{ color: "var(--text-faint)" }}>%</span>
           </span>
         </Field>
+      </Section>
+
+      <Section title="Signals" info="Dashboard buy/sell flags. The default rule is built in (BUY at the next ladder rung, SELL at the strategy sell target — set those under Rules). Add your own OR rules with custom colors — a ticker flags when the default OR any enabled rule matches.">
+        <SignalRulesEditor />
       </Section>
 
       <Section title="Benchmark" info="The buy-and-hold yardstick for the Ledger's 'If it were all …' comparison — what your exact deposits would be worth in this ticker instead of actively traded.">
@@ -542,6 +547,65 @@ function Diagnostics() {
         <button className="btn btn-secondary btn-sm" disabled={busy} onClick={load}>{busy ? "Refreshing…" : "Refresh"}</button>
         <button className="btn btn-secondary btn-sm" onClick={copy}>Copy diagnostics</button>
         <button className="btn btn-secondary btn-sm" onClick={copyBundle} title="Diagnostics plus where to find the log to attach">Copy support bundle</button>
+      </div>
+    </div>
+  );
+}
+
+function SignalRulesEditor() {
+  const toast = useToast();
+  const [rules, setRules] = useState<SignalRule[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    fetch(`${API}/signal-rules`).then((r) => r.json())
+      .then((j) => setRules(Array.isArray(j?.rules) ? j.rules : [])).catch(() => setRules([]));
+  }, []);
+  if (!rules) return <p style={S.credStatus}>Loading…</p>;
+  const patch = (i: number, p: Partial<SignalRule>) => setRules((rs) => rs!.map((r, j) => (j === i ? { ...r, ...p } : r)));
+  const save = () => {
+    setBusy(true);
+    fetch(`${API}/signal-rules`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rules }) })
+      .then((r) => r.json())
+      .then((j) => { if (j?.ok) { setRules(j.rules); toast("Signal rules saved — the dashboard will use them.", "success"); } else toast("Couldn't save rules.", "error"); })
+      .catch(() => toast("Couldn't save rules.", "error"))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <div>
+      <div style={{ ...S.credStatus, display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span className="chip chip-buy">▲BUY</span><span className="chip chip-sell">▼SELL</span>
+        <span>Default (built in) — at the next ladder rung / strategy sell target.</span>
+      </div>
+      {rules.map((r, i) => (
+        <div key={r.id} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", margin: "6px 0", padding: 8, background: "var(--panel-2)", borderRadius: "var(--r-md)" }}>
+          <select value={r.side} className="field" style={{ height: 28 }}
+            onChange={(e) => { const side = e.target.value as "buy" | "sell"; patch(i, { side, metric: SIGNAL_METRICS[side][0].key }); }}>
+            <option value="sell">Sell</option><option value="buy">Buy</option>
+          </select>
+          <span style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)" }}>when</span>
+          <select value={r.metric} className="field" style={{ height: 28 }} onChange={(e) => patch(i, { metric: e.target.value })}>
+            {SIGNAL_METRICS[r.side].map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+          </select>
+          <select value={r.op} className="field" style={{ height: 28, width: 54 }} onChange={(e) => patch(i, { op: e.target.value as ">=" | "<=" })}>
+            <option value=">=">≥</option><option value="<=">≤</option>
+          </select>
+          <input type="number" value={r.value} className="field" style={{ height: 28, width: 80, textAlign: "right" }}
+            onChange={(e) => patch(i, { value: Number(e.target.value) })} aria-label="Threshold" />
+          <span style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)" }}>{metricUnit(r.side, r.metric)}</span>
+          <input type="color" value={r.color} title="Chip color" aria-label="Chip color"
+            onChange={(e) => patch(i, { color: e.target.value })} style={{ width: 30, height: 28, padding: 0, border: "none", background: "none", cursor: "pointer" }} />
+          <input value={r.label} placeholder="label" className="field" style={{ height: 28, width: 96 }}
+            onChange={(e) => patch(i, { label: e.target.value })} aria-label="Chip label" />
+          <label style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)", display: "inline-flex", gap: 4, alignItems: "center" }}>
+            <input type="checkbox" checked={r.enabled} onChange={(e) => patch(i, { enabled: e.target.checked })} />on
+          </label>
+          <button className="btn btn-ghost btn-sm" aria-label="Delete rule" onClick={() => setRules((rs) => rs!.filter((_, j) => j !== i))}>✕</button>
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button className="btn btn-secondary btn-sm" onClick={() => setRules((rs) => [...rs!, newRule("sell")])}>+ Sell rule</button>
+        <button className="btn btn-secondary btn-sm" onClick={() => setRules((rs) => [...rs!, newRule("buy")])}>+ Buy rule</button>
+        <button className="btn btn-primary btn-sm" disabled={busy} onClick={save} style={{ marginLeft: "auto" }}>Save rules</button>
       </div>
     </div>
   );

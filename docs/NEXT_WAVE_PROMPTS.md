@@ -450,24 +450,60 @@ Prioritized ahead of the polish queue because it came from real use.
   rebuild; sold-to-zero names get `Ticker.watch=True` and their last held price stored (app_setting JSON,
   no migration); shown on the watch tag + watch detail. Live-verified against a DB copy.
 
-# WAVE 16 — candidate queue (unstarted, was Wave 15 polish)
+# WAVE 16 (SIGNALS & GLANCES pt.1) — EXECUTED 2026-07-06, shipped v0.18.0
+
+From a user feature batch. Part 1 of 2 (the rest is Wave 17).
+
+- **SIG-1 Customizable signal rules** — per-account extra rules in app_setting JSON (no migration):
+  `{side, metric, op, value, color, label, enabled}`; endpoints GET/PUT `/api/signal-rules`. Pure
+  client-side eval (`signals.ts`) over row metrics (last_pos_profit $, last-position gain %, LILO %).
+  `rowSignalChips` renders the built-in BUY/SELL default PLUS matched custom rules as colored chips.
+  Editor in Settings → Signals (default shown read-only + CRUD + color pickers). Live-verified.
+- **SIG-2 Cash + buying power** — App header Cash KPI from a 30s `/api/account/margin` fetch; buying
+  power (incl. margin) on hover. Hidden/degraded in demo.
+- **SIG-3 Sector alert opt-in** — SectorStrip concentration alert (threshold + warning) hidden behind
+  an "Alerts" toggle (localStorage, default off); the exposure bar always shows.
+
+# WAVE 17 (SIGNALS & GLANCES pt.2) — candidate queue (from the same user batch)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## W16-1 — Account label in print headers (was W14-2)
+## W17-1 — Ticker type "danger" coloring (all pages)
+Color-code the ticker symbol everywhere it renders by risk: blue = safer (e.g. broad ETF / large cap),
+red = riskier (leveraged/inverse ETF, micro-cap, high-beta). Needs an `is_etf`/classification on the row
+(from FMP profiles, already fetched by the screener — surface it on the dashboard row + Ticker). A shared
+`tickerRiskColor(row)` used by DashboardTable + PositionDetail + Screener.
+
+## W17-2 — To-Do sub-tab on the dashboard
+A dashboard sub-tab filtered to just actionable tickers — those meeting a BUY or SELL signal (built-in
+mark OR a custom rule). Reuses DashboardTable with a pre-filter.
+
+## W17-3 — Top-10 Buys / Sells sub-tab
+A dashboard sub-tab showing the 10 biggest LILO% (buy-worthy discounts) and the 10 biggest gains
+(sell-worthy), a quick daily glance. Sort the existing rows; no backend change.
+
+## W17-4 — $ bought & sold by day / week / month (Ledger)
+A Ledger view of gross $ spent buying and $ received selling, grouped by period (day/week/month), from
+the fills/completed-trade data — "did I make good money over X period, and what did I do?".
+
+# WAVE 18 — candidate queue (older polish, deferred)
+
+Same shared-rules header as Wave 1. Ordered by value.
+
+## W18-1 — Account label in print headers (was W14-2/W16-1)
 Include the selected account's mask/name (and profile) in the Ledger + Trades print blocks. Resolve the
 label from accounts_svc / the active profile (degrade to unlabeled when Schwab isn't connected).
 
-## W16-2 — Bell type icons
+## W18-2 — Bell type icons
 Now that the push carries `kind`, show a small per-type icon in the bell feed (price alert vs trigger vs
 fill) so the history scans faster. (Historical rows lack kind → infer from alert_id / message, or add the
 `kind` column in a later migration if it proves worth it.)
 
-## W16-3 — Dashboard note preview on hover
+## W18-3 — Dashboard note preview on hover
 Upgrade the W14-3 note dot: a hover tooltip/popover showing the note text (needs the note text on the row
 or a lightweight fetch on hover).
 
-## W16-4 — Small-fixes bundle #13
+## W18-4 — Small-fixes bundle #13
 1. Empty-state polish across tabs (friendly "nothing yet" copy where sparse).
 2. A subtle "saved" flash on the position note after autosave.
 3. Consistent number formatting audit (thousands separators everywhere).

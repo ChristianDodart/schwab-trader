@@ -5,10 +5,12 @@ import { usd } from "./App";
 // Concentration alert threshold (% of invested in a single sector). Persisted locally;
 // advisory only — it never blocks anything, just flags an over-weighted sector.
 const LS_THRESH = "sector.alertPct.v1";
+const LS_ALERTS_ON = "sector.alertsOn.v1"; // opt-in — mostly useful for larger accounts
 const readThresh = () => {
   try { const n = Number(localStorage.getItem(LS_THRESH)); return n >= 5 && n <= 100 ? n : 40; }
   catch { return 40; }
 };
+const readAlertsOn = () => { try { return localStorage.getItem(LS_ALERTS_ON) === "1"; } catch { return false; } };
 
 // A compact stacked bar of portfolio exposure by sector, from the held positions'
 // current market value. Read-only glance — "where is my money concentrated?" — that
@@ -23,7 +25,9 @@ export function SectorStrip({ rows, activeSector, onSectorClick }: {
   onSectorClick?: (name: string) => void;
 }) {
   const [thresh, setThresh] = useState(readThresh);
+  const [alertsOn, setAlertsOn] = useState(readAlertsOn);
   useEffect(() => { try { localStorage.setItem(LS_THRESH, String(thresh)); } catch { /* private mode */ } }, [thresh]);
+  useEffect(() => { try { localStorage.setItem(LS_ALERTS_ON, alertsOn ? "1" : "0"); } catch { /* private mode */ } }, [alertsOn]);
   const held = (rows || []).filter((r) => !r.is_watch && (r.current_value ?? 0) > 0);
   if (held.length < 2) return null; // nothing meaningful to break down
 
@@ -44,22 +48,30 @@ export function SectorStrip({ rows, activeSector, onSectorClick }: {
   const color = (i: number) => (segments[i][0] === "Untagged" || segments[i][0] === "Other"
     ? "var(--text-faint)" : PALETTE[i % PALETTE.length]);
 
-  // Concentration flag: the biggest NAMED sector (Untagged/Other don't count as concentration).
+  // Concentration flag only when the user opts into alerts (mainly useful for large accounts).
   const topReal = sorted.find(([n]) => n !== "Untagged");
   const topPct = topReal ? (topReal[1] / total) * 100 : 0;
-  const over = topReal && topPct >= thresh ? { name: topReal[0], pct: topPct } : null;
+  const over = alertsOn && topReal && topPct >= thresh ? { name: topReal[0], pct: topPct } : null;
 
   return (
     <div style={S.wrap}>
       <div style={S.head}>
         <span style={S.title}>Sector exposure</span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-          <label style={S.threshCtl} title="Flag a sector above this share of invested value">
-            alert &gt;
-            <input type="number" min={5} max={100} step={5} value={thresh} aria-label="Concentration alert threshold %"
-              onChange={(e) => setThresh(Math.max(5, Math.min(100, Number(e.target.value) || 40)))}
-              style={S.threshInput} />%
-          </label>
+          <button type="button" className="btn btn-ghost btn-sm" aria-pressed={alertsOn}
+            title="Flag a sector that grows past a threshold (handy for larger accounts)"
+            onClick={() => setAlertsOn((v) => !v)}
+            style={{ fontSize: "var(--fs-2xs)", padding: "1px 8px", color: alertsOn ? "var(--accent)" : "var(--text-dim)" }}>
+            {alertsOn ? "Alerts on" : "Alerts off"}
+          </button>
+          {alertsOn && (
+            <label style={S.threshCtl} title="Flag a sector above this share of invested value">
+              alert &gt;
+              <input type="number" min={5} max={100} step={5} value={thresh} aria-label="Concentration alert threshold %"
+                onChange={(e) => setThresh(Math.max(5, Math.min(100, Number(e.target.value) || 40)))}
+                style={S.threshInput} />%
+            </label>
+          )}
           <span style={S.total}>{usd(total)} invested</span>
         </span>
       </div>
