@@ -361,25 +361,36 @@ spreadsheets, records). Add CSV export for the trade journal and the deposit log
 - **W8-3 DEFERRED → W9-1** — dividend tracking needs a schema migration + live Schwab transaction parsing
   that can't be verified against the running DB; moved to Wave 9 to do carefully.
 
-# WAVE 9 — candidate queue (unstarted)
+# WAVE 9 — EXECUTED 2026-07-05, shipped v0.11.0
+
+- **W9-1 Dividend / income tracking** — pure `dividends.py` (parse + idempotent merge + summarize) + 7
+  tests; `accounts.fetch_dividends` mirrors the verified transfer pull; stored as JSON in app_setting
+  (NO migration — dividends stay out of cash_flow so the ROI/deposit base is untouched);
+  `/api/ledger/dividends` + `/refresh`; "Dividends & income" panel on the Ledger with all-time + YTD
+  totals, a per-payment list, and a Pull-from-Schwab button.
+- **W9-2 folded in** — rather than a separate "total return" card (dividends are already in account value →
+  would double-count), the income panel shows the dividend total and states plainly it's already reflected
+  in returns. Honest framing beat a misleading rollup.
+- **W9-4 Small fixes #7** — equity-curve range persists (localStorage); dashboard shows "showing N of M"
+  when filtered; Settings "Copy support bundle" (diagnostics + log/backups paths).
+
+# WAVE 10 — candidate queue (unstarted)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## W9-1 — Dividend / income tracking (was W8-3)
-Pull dividend transactions from Schwab (reuse `accounts.get_transactions`, like `fetch_transfers`) into a
-new income store (Alembic migration for a `dividend` table or a typed CashFlow) + a small income view on
-the Ledger, so total return includes dividends. NEEDS live verification of the Schwab dividend record
-shape before shipping; degrade to an empty view when unavailable.
+## W10-1 — Alert / notification history (was W9-3)
+The bell shows recent notifications; add a searchable, filterable history (by symbol / type / date) drawing
+on the existing AuditEvent + Notification tables — a dedicated view rather than the small dropdown.
 
-## W9-2 — Total-return rollup
-Once dividends land, add a "total return" figure = realized trades + unrealized + dividends, shown on the
-since-inception card next to price-only return.
+## W10-2 — Dividend history beyond 60 days (CSV import)
+Schwab's live pull is trailing-60-days only. Add a Transactions-CSV import for dividends (like the transfer
+CSV import) so the income record can cover full history, deduped against pulled rows.
 
-## W9-3 — Alert history / audit polish
-The bell shows recent notifications; add a searchable/filterable history (by symbol/type/date) drawing on
-the existing AuditEvent table.
+## W10-3 — Per-symbol total-return view
+On position detail, combine realized + unrealized + dividends-for-that-symbol into a per-name total return,
+so each holding shows its complete contribution.
 
-## W9-4 — Small-fixes bundle #7
-1. Persist the equity-curve range choice (localStorage), like the screener filter.
-2. Dashboard: show the active "/" filter as a count ("showing 3 of 20").
-3. Settings: a "copy support bundle" that bundles diagnostics + recent backend.log lines.
+## W10-4 — Small-fixes bundle #8
+1. Dividends panel: a tiny by-symbol breakdown (top payers).
+2. Keyboard: "g" then a letter to jump to a tab (vim-style), complementing the number keys.
+3. Screener: a one-click "add all passing to watchlist".

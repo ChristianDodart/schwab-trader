@@ -726,6 +726,50 @@ async def build_benchmark(account_hash: str, symbol: str = "SPY") -> dict:
     return result
 
 
+# ===================== dividends / income =====================
+# Stored as a JSON list in app_setting (NOT cash_flow — dividends are income, not the
+# deposit/ROI base). Keyed by account_hash so it survives profile switches.
+import json as _json
+
+from . import dividends as dividends_mod
+
+_DIV_KEY = "dividends:"  # + account_hash
+
+
+async def get_dividends(account_hash: str) -> dict:
+    """Stored dividend rows (newest first) + all-time/YTD totals for the income view."""
+    async with SessionLocal() as s:
+        row = await s.get(AppSetting, _DIV_KEY + account_hash)
+    try:
+        rows = _json.loads(row.value) if row and row.value else []
+    except Exception:
+        rows = []
+    if not isinstance(rows, list):
+        rows = []
+    summary = dividends_mod.summarize(rows, year=_today().year)
+    return {"rows": rows, "summary": summary}
+
+
+async def refresh_dividends(account_hash: str) -> dict:
+    """Pull the trailing-60-day dividend window from Schwab and merge it into the stored
+    log (idempotent). Returns {ok, added, total} or {ok: False, error} — never wipes the
+    log on a failed/blocked pull."""
+    from . import accounts as accounts_svc
+
+    fresh = await accounts_svc.fetch_dividends(account_hash)
+    if fresh is None:
+        return {"ok": False, "error": "Couldn't reach Schwab for transactions (or not connected)."}
+    existing = (await get_dividends(account_hash))["rows"]
+    merged, added = dividends_mod.merge_dividends(existing, fresh)
+    async with SessionLocal() as s:
+        await s.execute(
+            pg_insert(AppSetting).values(key=_DIV_KEY + account_hash, value=_json.dumps(merged))
+            .on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": _json.dumps(merged)})
+        )
+        await s.commit()
+    return {"ok": True, "added": added, "total": dividends_mod.summarize(merged)["total"]}
+
+
 # ===================== cash flows (deposits / withdrawals) =====================
 
 def _cf_row(r: CashFlow) -> dict:

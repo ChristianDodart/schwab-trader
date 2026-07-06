@@ -16,6 +16,8 @@ type Benchmark = {
   your_xirr_pct?: number | null; benchmark_xirr_pct?: number | null;
   series?: { day: string; value: number }[];
 };
+type DivRow = { day: string; amount: number; symbol: string | null; type?: string; schwab_txn_id?: string | null };
+type Dividends = { rows: DivRow[]; summary: { total: number; ytd: number | null; year: number | null; count: number } };
 
 const pillBtn = (active: boolean): React.CSSProperties => ({
   background: active ? "var(--accent)" : "transparent",
@@ -37,6 +39,7 @@ export function LedgerHistoric() {
   const [h, setH] = useState<Historic | null>(null);
   const [cg, setCg] = useState<CapGains | null>(null);
   const [bench, setBench] = useState<Benchmark | null>(null);
+  const [div, setDiv] = useState<Dividends | null>(null);
   const [margin, setMargin] = useState<MarginSummary | null>(null);
   const [cgGrain, setCgGrain] = useState<"month" | "week">("month");
   const [err, setErr] = useState<string | null>(null);
@@ -67,7 +70,25 @@ export function LedgerHistoric() {
       .then((r) => r.json())
       .then((j) => { if (seqRef.current === my && j) setBench(j); })
       .catch(() => {});
+    // Dividends are account-level all-time (not scope-dependent); reload with the ledger.
+    fetch(`${API}/ledger/dividends`)
+      .then((r) => r.json())
+      .then((j) => { if (seqRef.current === my && j) setDiv(j); })
+      .catch(() => {});
   }, [scope, cgGrain]);
+
+  const refreshDividends = () => {
+    setBusy(true);
+    fetch(`${API}/ledger/dividends/refresh`, { method: "POST" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j?.ok) toast(j.added ? `Pulled ${j.added} dividend${j.added === 1 ? "" : "s"} from Schwab.` : "No new dividends in the last 60 days.", "info");
+        else toast(j?.error || "Couldn't reach Schwab for dividends.", "error");
+        load();
+      })
+      .catch(() => toast("Couldn't reach Schwab for dividends.", "error"))
+      .finally(() => setBusy(false));
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -297,6 +318,41 @@ export function LedgerHistoric() {
           full history, export your account's <b>Transactions</b> CSV from Schwab and use <b>Import CSV</b> — only transfer/wire
           rows are taken, and imports are deduped by date + amount, so re-importing (or overlapping the 60-day pull) is safe.
           You can also add older transfers by hand below.
+        </p>
+      </Panel>
+
+      {/* ---- Dividends / income ---- */}
+      <Panel
+        title="Dividends & income"
+        right={<button className="btn btn-secondary btn-sm" disabled={busy} onClick={refreshDividends}>↻ Pull from Schwab (60d)</button>}
+      >
+        <div style={S2.cfSummary}>
+          <span>All-time <b style={{ color: "var(--pos)" }}>{usd(div?.summary.total ?? 0)}</b></span>
+          <span>This year <b style={{ color: "var(--pos)" }}>{usd(div?.summary.ytd ?? 0)}</b></span>
+          <span style={{ color: "var(--text-faint)" }}>{div?.summary.count ?? 0} payment{(div?.summary.count ?? 0) === 1 ? "" : "s"}</span>
+        </div>
+        {div && div.rows.length > 0 ? (
+          <div style={{ overflowX: "auto" }}>
+            <table className="tbl">
+              <thead><tr><th className="left">Date</th><th className="left">Symbol</th><th>Amount</th></tr></thead>
+              <tbody>
+                {div.rows.slice(0, 30).map((d, i) => (
+                  <tr key={`${d.schwab_txn_id ?? i}-${d.day}`}>
+                    <td className="left">{d.day}</td>
+                    <td className="left"><b>{d.symbol ?? "—"}</b></td>
+                    <td style={{ textAlign: "right", color: "var(--pos)", fontVariantNumeric: "tabular-nums" }}>+{usd(d.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p style={S.fine}>No dividends recorded yet. Use "Pull from Schwab" for the last 60 days; repeat over time to accumulate history.</p>
+        )}
+        <p style={S.fine}>
+          Dividends are paid as cash into the account, so they're <b>already included</b> in your account value
+          and returns above — this view breaks out how much of that came from income. Schwab exposes only the
+          trailing 60 days per pull, so pull periodically to build the record.
         </p>
       </Panel>
 

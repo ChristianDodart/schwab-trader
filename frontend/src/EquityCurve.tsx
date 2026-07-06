@@ -6,6 +6,11 @@ type BenchPoint = { day: string; value: number };
 
 const RANGES = { "3M": 90, "1Y": 365, All: 0 } as const;
 type RangeKey = keyof typeof RANGES;
+const LS_RANGE = "equity.range.v1";
+const readRange = (): RangeKey => {
+  try { const r = localStorage.getItem(LS_RANGE); return r && r in RANGES ? (r as RangeKey) : "All"; }
+  catch { return "All"; }
+};
 // Keep only points on/after (latest day − `days`). days=0 → keep all.
 function sliceByRange<T extends { day: string }>(pts: T[], days: number): T[] {
   if (days === 0 || pts.length === 0) return pts;
@@ -31,7 +36,8 @@ export function EquityCurve({
   benchmarkLabel?: string;
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const [range, setRange] = useState<RangeKey>("All");
+  const [range, setRange] = useState<RangeKey>(readRange);
+  useEffect(() => { try { localStorage.setItem(LS_RANGE, range); } catch { /* private mode */ } }, [range]);
   const allPoints = (series || []).filter((p) => p.balance != null && p.balance > 0);
   const points = sliceByRange(allPoints, RANGES[range]);
   const bench = sliceByRange((benchmark || []).filter((p) => p.value != null && p.value > 0), RANGES[range]);

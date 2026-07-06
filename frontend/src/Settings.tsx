@@ -478,14 +478,32 @@ function Diagnostics() {
   ] : [];
   const color = (t: string) => ({ ok: "var(--pos)", warn: "var(--warn)", bad: "var(--neg)", muted: "var(--text-faint)" }[t] || "var(--text)");
 
+  const diagText = () => [
+    `Schwab Trader v${d?.version ?? "?"}`,
+    `Data dir: ${d?.dataDir ?? "?"}`,
+    `Database: ${mb(d?.dbBytes)} · ${d?.database ?? "?"}`,
+    ...rows.map(([k, v]) => `${k}: ${v}`),
+  ].join("\n");
+
   const copy = () => {
+    navigator.clipboard?.writeText(diagText()).then(() => toast("Diagnostics copied.", "info")).catch(() => {});
+  };
+
+  // A fuller bundle for a support message: diagnostics + where the log/backups live so
+  // the user can attach backend.log (we can't read files from the browser sandbox).
+  const copyBundle = () => {
+    const dir = d?.dataDir ?? "?";
     const txt = [
-      `Schwab Trader v${d?.version ?? "?"}`,
-      `Data dir: ${d?.dataDir ?? "?"}`,
-      `Database: ${mb(d?.dbBytes)} · ${d?.database ?? "?"}`,
-      ...rows.map(([k, v]) => `${k}: ${v}`),
+      diagText(),
+      "",
+      "--- support bundle ---",
+      `Copied: ${new Date().toISOString()}`,
+      `Attach this file: ${dir}\\backend.log`,
+      `Backups folder: ${dir}\\backups`,
     ].join("\n");
-    navigator.clipboard?.writeText(txt).then(() => toast("Diagnostics copied.", "info")).catch(() => {});
+    navigator.clipboard?.writeText(txt)
+      .then(() => toast("Support bundle copied — attach backend.log from the data folder.", "info"))
+      .catch(() => {});
   };
 
   return (
@@ -508,6 +526,7 @@ function Diagnostics() {
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn btn-secondary btn-sm" disabled={busy} onClick={load}>{busy ? "Refreshing…" : "Refresh"}</button>
         <button className="btn btn-secondary btn-sm" onClick={copy}>Copy diagnostics</button>
+        <button className="btn btn-secondary btn-sm" onClick={copyBundle} title="Diagnostics plus where to find the log to attach">Copy support bundle</button>
       </div>
     </div>
   );

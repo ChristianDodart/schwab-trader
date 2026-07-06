@@ -3,6 +3,18 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.11.0 — "Count the dividends"
+
+New this version:
+- Dividend tracking. The Ledger now has a Dividends & income view - pull your dividend and
+  interest payments straight from Schwab, see the all-time and this-year totals, and a list of
+  every payment. (Dividends land as cash, so they're already part of your account value and
+  returns - this just breaks out how much came from income.)
+- The equity curve remembers your range choice (3M / 1Y / all) between visits.
+- When you filter the dashboard, it now tells you how many positions you're seeing.
+- A "Copy support bundle" button in Settings gathers your diagnostics and points to the log
+  file, so reporting an issue is one click and one attachment.
+
 ## v0.10.0 — "Find it fast"
 
 New this version:

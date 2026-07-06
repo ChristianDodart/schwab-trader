@@ -544,6 +544,18 @@ async def ledger_tax_lots_csv(year: int) -> Response:
     return _csv_response(f"schwab-tax-lots-{year}", headers, rows)
 
 
+@app.get("/api/ledger/dividends")
+async def ledger_dividends() -> dict:
+    """Stored dividend/income rows + all-time & YTD totals for the selected account."""
+    return await ledger_svc.get_dividends(await _selected())
+
+
+@app.post("/api/ledger/dividends/refresh")
+async def ledger_dividends_refresh() -> dict:
+    """Pull the trailing-60-day dividend window from Schwab and merge it in (idempotent)."""
+    return await ledger_svc.refresh_dividends(await _selected())
+
+
 @app.get("/api/ledger/projection")
 async def ledger_projection() -> dict:
     """PREDICTION tab: this-year annualized gains, goal pacing, and tax estimate."""

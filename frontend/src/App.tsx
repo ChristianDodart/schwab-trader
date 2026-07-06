@@ -374,6 +374,11 @@ export function App() {
                     onChange={(e) => setSymQuery(e.target.value.toUpperCase())}
                     onKeyDown={(e) => { if (e.key === "Escape") { setSymQuery(""); e.currentTarget.blur(); } }} />
                   {symQuery && <button className="btn btn-ghost btn-sm" onClick={() => setSymQuery("")}>clear</button>}
+                  {(symQuery || sectorFilter) && (
+                    <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-xs)" }}>
+                      showing {dashRows.length} of {data.rows.length}
+                    </span>
+                  )}
                   {sectorFilter && (
                     <span style={S.activeFilter}>
                       Sector: <b>{sectorFilter}</b>

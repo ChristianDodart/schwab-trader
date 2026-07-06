@@ -317,6 +317,34 @@ async def fetch_transfers(account_hash: str, days: int = 60) -> list[dict] | Non
     return out
 
 
+async def fetch_dividends(account_hash: str, days: int = 60) -> list[dict] | None:
+    """Dividend/interest income from Schwab's transactions endpoint (same 60-day window as
+    transfers). Returns normalized rows (see dividends.parse_dividends) or None on
+    error/no-token — caller treats None as 'unknown' and must not wipe the stored log."""
+    from . import dividends as dividends_mod
+
+    client = get_client()
+    if client is None or not account_hash:
+        return None
+
+    def fetch():
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(days=min(max(days, 1), 60))
+        r = client.get_transactions(account_hash, start_date=start, end_date=end)
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        return data if isinstance(data, list) else None
+
+    try:
+        data = await asyncio.to_thread(fetch)
+    except Exception:
+        return None
+    if data is None:
+        return None
+    return dividends_mod.parse_dividends(data)
+
+
 async def selected_account_positions() -> dict:
     """Live positions/balances for the currently selected account."""
     client = get_client()
