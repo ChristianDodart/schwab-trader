@@ -75,12 +75,47 @@ try {
             Write-Host "    using gh token for account: $ghUser" -ForegroundColor DarkGray
         }
         Write-Host "    publishing a GitHub release (auto-update feed)" -ForegroundColor Yellow
-        npm run release   # electron-builder --publish always
+        npm run release   # electron-builder --publish always (creates a DRAFT release)
     } else {
         npm run dist
     }
     if ($LASTEXITCODE -ne 0) { throw "electron-builder failed" }
 } finally { Pop-Location }
+
+# --- release notes: set the GitHub release body from CHANGELOG.md, then publish ---
+# electron-builder leaves the release as a DRAFT. We pull this version's section out of
+# CHANGELOG.md (so the SAME notes appear on the web AND inside the app's update banner),
+# append a standard "how to update" footer, attach it, and flip the draft to published.
+if ($Publish) {
+    $tag = "v$version"
+    $changelog = "$root/CHANGELOG.md"
+    $notes = $null
+    if (Test-Path $changelog) {
+        $lines = Get-Content $changelog
+        $start = -1
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match "^##\s+v$([regex]::Escape($version))(\s|$)") { $start = $i; break }
+        }
+        if ($start -ge 0) {
+            $body = New-Object System.Collections.Generic.List[string]
+            for ($i = $start + 1; $i -lt $lines.Count; $i++) {
+                if ($lines[$i] -match "^##\s+v") { break }   # next version's section
+                $body.Add($lines[$i])
+            }
+            $notes = ($body -join "`n").Trim()
+        } else {
+            Write-Host "    (no CHANGELOG.md section for v$version — publishing without notes)" -ForegroundColor DarkYellow
+        }
+    }
+    $footer = "`n`n---`nHow to update: the app updates itself. Next time you launch, click ""Restart & update"" in the banner, or just close and reopen — your data and settings stay exactly as they are."
+    $fullNotes = if ($notes) { "$notes$footer" } else { "Maintenance release.$footer" }
+    $notesFile = [System.IO.Path]::GetTempFileName()
+    Set-Content -Path $notesFile -Value $fullNotes -Encoding utf8
+    Write-Host "    setting release notes + publishing $tag" -ForegroundColor Yellow
+    gh release edit $tag --repo ChristianDodart/schwab-trader --notes-file $notesFile --draft=false
+    if ($LASTEXITCODE -ne 0) { Write-Host "    WARN: couldn't set notes/publish automatically — do it manually with 'gh release edit $tag'" -ForegroundColor Red }
+    Remove-Item $notesFile -ErrorAction SilentlyContinue
+}
 
 $installer = Get-ChildItem "$root/desktop/dist/*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 Write-Host ""

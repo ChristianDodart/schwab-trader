@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AccountPicker } from "./AccountPicker";
 import { AuthBanner, LiveStatusPill, useLiveness } from "./AuthBanner";
+import { UpdateBanner } from "./UpdateBanner";
 import { BulkGear, BulkReviewModal, useBulk } from "./Bulk";
 import { ColumnManager } from "./ColumnManager";
 import { ConfirmDialog } from "./Modal";
@@ -218,6 +219,7 @@ export function App() {
           </div>
         </header>
 
+        <UpdateBanner />
         <AuthBanner />
 
         <div style={S.subbar}>

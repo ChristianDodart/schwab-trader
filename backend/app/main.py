@@ -476,6 +476,13 @@ async def ledger_historic(start: str | None = None, end: str | None = None) -> d
     )
 
 
+@app.get("/api/ledger/benchmark")
+async def ledger_benchmark() -> dict:
+    """Buy-and-hold benchmark: what the account's own dated contributions would be worth
+    in SPY instead. {available: False, reason} when it can't be computed honestly."""
+    return await ledger_svc.build_benchmark(await _selected(), "SPY")
+
+
 @app.get("/api/ledger/trades")
 async def ledger_trades(start: str | None = None, end: str | None = None,
                         symbol: str | None = None) -> dict:

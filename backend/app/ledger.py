@@ -20,7 +20,9 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import case, func, select
 
+from . import benchmark as benchmark_calc
 from . import config_store
+from . import market_data
 from . import xirr as xirr_calc
 from .db import SessionLocal, dialect_insert as pg_insert
 from .db.models import CashFlow, CompletedTrade, DailyBalance, Lot
@@ -620,6 +622,66 @@ async def build_historic(account_hash: str, from_date: date | None = None,
             {"day": r.day.isoformat(), "balance": _f(r.balance), "capital_gains": _f(r.capital_gains)}
             for r in series
         ],
+    }
+
+
+async def build_benchmark(account_hash: str, symbol: str = "SPY") -> dict:
+    """What the account's OWN dated contributions would be worth in `symbol` (buy-and-hold)
+    — an apples-to-apples yardstick for the real account's return (same cash in/out, same
+    dates, different vehicle). Degrades to {available: False, reason} whenever it can't be
+    done honestly: no contributions, blocked/unknown account value, missing benchmark
+    history, or a deposit that predates the available price history."""
+    from datetime import datetime, timezone
+
+    from . import accounts as accounts_svc
+
+    today = _today()
+    async with SessionLocal() as s:
+        cap_rows = (
+            await s.execute(select(CashFlow.day, CashFlow.amount).where(CashFlow.account_hash == account_hash))
+        ).all()
+    if not cap_rows:
+        return {"available": False, "reason": "no contributions recorded"}
+
+    bals = await accounts_svc.account_balances(account_hash)
+    acct_value = None if bals.get("blocked") else bals.get("account_value")
+    if acct_value is None:
+        snap = await latest_balance(account_hash)
+        if not snap.get("balance_blocked"):
+            acct_value = snap.get("balance")
+    if acct_value is None:
+        return {"available": False, "reason": "account value unavailable"}
+
+    hist = await market_data.price_history(symbol, "5Y")
+    candles = hist.get("candles") or []
+    if not candles:
+        return {"available": False, "reason": hist.get("error") or "no benchmark history"}
+    closes = sorted(
+        (
+            (datetime.fromtimestamp(c["time"], timezone.utc).date(), float(c["close"]))
+            for c in candles if c.get("close")
+        ),
+        key=lambda x: x[0],
+    )
+    last_price = closes[-1][1] if closes else None
+    cashflows = [(cd, _f(ca)) for (cd, ca) in cap_rows]
+    sim = benchmark_calc.simulate(cashflows, closes, last_price)
+    if sim is None:
+        earliest = min(cd for cd, _ in cap_rows)
+        return {"available": False,
+                "reason": f"{symbol} price history doesn't reach back to {earliest.isoformat()}"}
+
+    your_flows = [(cd, -_f(ca)) for (cd, ca) in cap_rows] + [(today, _f(acct_value))]
+    your_r = xirr_calc.xirr(your_flows)
+    spy_r = xirr_calc.xirr(sim["flows"])
+    return {
+        "available": True,
+        "symbol": symbol,
+        "as_of": today.isoformat(),
+        "your_value": round(_f(acct_value), 2),
+        "benchmark_value": sim["value"],
+        "your_xirr_pct": round(your_r * 100, 1) if your_r is not None else None,
+        "benchmark_xirr_pct": round(spy_r * 100, 1) if spy_r is not None else None,
     }
 
 

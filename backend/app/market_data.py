@@ -18,12 +18,13 @@ _RANGES = {
     "1M": ("get_price_history_every_day", timedelta(days=31)),
     "6M": ("get_price_history_every_day", timedelta(days=183)),
     "1Y": ("get_price_history_every_day", timedelta(days=365)),
+    "5Y": ("get_price_history_every_day", timedelta(days=1830)),  # benchmark history
 }
 
 # The Schwab market-data API throttles bursts (returns HTTP 200 with empty
 # candles, not 429). Cache results so normal use makes few calls and a transient
 # throttle serves the last good data instead of a blank chart.
-_TTL = {"1D": 60, "5D": 60, "1M": 600, "6M": 600, "1Y": 600}
+_TTL = {"1D": 60, "5D": 60, "1M": 600, "6M": 600, "1Y": 600, "5Y": 3600}
 _cache: dict[tuple[str, str], dict] = {}  # (symbol, range) -> {"at": ts, "payload": {...}}
 
 

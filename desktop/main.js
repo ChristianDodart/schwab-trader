@@ -171,15 +171,39 @@ if (!app.requestSingleInstanceLock()) {
     startBackend();
     waitForBackend(() => {
       createWindow();
-      if (!isDev) {
-        // Auto-update: check GitHub Releases, download in the background, install on quit.
-        try {
-          const { autoUpdater } = require("electron-updater");
-          autoUpdater.checkForUpdatesAndNotify();
-        } catch (e) { /* updater is a no-op in unsigned/dev contexts */ }
-      }
+      if (!isDev) setupAutoUpdate();
     });
   });
+}
+
+// Auto-update wiring. electron-updater downloads a newer GitHub release in the
+// background; instead of the old silent "installs on quit", we forward the events to
+// the renderer so it can show a friendly "Update ready" banner with the patch notes,
+// and expose an install action for the one-click restart. Still installs on quit if
+// the user ignores the banner (autoInstallOnAppQuit defaults on).
+function setupAutoUpdate() {
+  let autoUpdater;
+  try {
+    ({ autoUpdater } = require("electron-updater"));
+  } catch (e) {
+    return; // updater unavailable (unsigned/dev) — no-op
+  }
+  const toWin = (channel, payload) => {
+    if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+  };
+  autoUpdater.on("update-available", (info) => toWin("updater:available", { version: info?.version }));
+  autoUpdater.on("update-downloaded", (info) => toWin("updater:downloaded", {
+    version: info?.version,
+    // GitHub provider fills releaseNotes from the release body (our CHANGELOG section).
+    notes: typeof info?.releaseNotes === "string" ? info.releaseNotes : null,
+  }));
+  autoUpdater.on("error", (err) => toWin("updater:error", { message: String(err && err.message || err) }));
+  // The renderer asks to restart into the new version once the user clicks the button.
+  ipcMain.handle("updater:install", () => {
+    setImmediate(() => autoUpdater.quitAndInstall());
+    return true;
+  });
+  autoUpdater.checkForUpdates().catch(() => { /* offline / no release yet */ });
 }
 
 function killBackend() {

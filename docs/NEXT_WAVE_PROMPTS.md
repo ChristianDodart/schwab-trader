@@ -309,42 +309,40 @@ spreadsheets, records). Add CSV export for the trade journal and the deposit log
 - **W4-5 Small fixes #3** — dashboard dims + "prices may be stale" note when not live (reuses verified_live via
   `useLiveness`); cumulative-P/L sparkline on the Trades sub-tab; Screener remembers index/sort in localStorage.
 
-# WAVE 5 — candidate queue (unstarted)
+# WAVE 5 — EXECUTED 2026-07-05, shipped v0.7.0
+
+- **W5-1 In-app update banner** — `main.js` forwards electron-updater `update-available/downloaded/error`
+  through the preload bridge; `UpdateBanner.tsx` shows the new version + patch notes + a one-click
+  "Restart & update" (quitAndInstall) with a plain "or relaunch later" note. No-op on web.
+- **W5-2 CHANGELOG + release-notes automation** — `CHANGELOG.md` holds fun per-version notes;
+  `build-installer.ps1 -Publish` extracts the version's section, appends a standard "how to update"
+  footer, sets it as the GitHub release body, and flips the draft to published (one source of truth →
+  web release page AND the in-app banner via electron-updater's releaseNotes).
+- **W5-3 SPY benchmark** — pure `benchmark.py` (`simulate` buy-and-hold over the account's own dated
+  contributions) + 7 unit tests; `market_data` gained a "5Y" range; `ledger.build_benchmark` +
+  `/api/ledger/benchmark`; an "If it were all SPY" card on the since-inception block, tinted by whether
+  the active strategy is ahead of / behind the index. Fails soft (card hides) when history is short.
+
+# WAVE 6 — candidate queue (unstarted)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## (originally Wave 4, kept for reference of the exact scope shipped)
+## W6-1 — "What's new" viewer in Settings → About
+The update banner shows notes only at update time. Add an always-available "What's new" panel that
+shows the running version's CHANGELOG section (bundle CHANGELOG.md into the frontend via a Vite `?raw`
+import, or serve it from the backend), plus a small "you're now on vX" toast on first launch after a
+version change (compare `/api/version` to a localStorage `lastSeenVersion`).
 
-## W4-1 — Chart overlays (ladder rungs + 52wk avg on PriceChart)
-Overlay the position's projected ladder rungs (from `/api/positions/{sym}` `projected_ladder`
-`trigger_price`s) as horizontal price lines on `PriceChart`, plus the 52wk avg/median as
-faint reference lines. Use lightweight-charts `series.createPriceLine(...)`. So the chart
-shows WHERE the next buys sit vs the current price. Frontend-only (data already exists).
+## W6-2 — Benchmark polish
+Extend the SPY benchmark: (a) let the user pick the benchmark symbol (QQQ, VTI…) in Settings;
+(b) overlay a benchmark line on the equity curve; (c) cache `build_benchmark` per account for a few
+minutes so the Ledger view doesn't refetch 5Y history on every scope change.
 
-## W4-2 — Cash/buying-power awareness in buy suggestions
-`orders.suggest_buy` + bulk buy plans size by the strategy tier but ignore available buying
-power. Add an informational `affordable` flag + the current buying power to the suggestion
-payload (from `accounts.margin_summary`), and in OrderTicket/BulkReviewModal show a soft
-"exceeds buying power (~$X available)" note when the order notional > buying power. ADVISORY
-only — do NOT add a hard block (margin/day-trade rules are the broker's job now). 
+## W6-3 — Keyboard shortcuts / quick nav
+Number keys to switch tabs, "/" to focus a symbol jump-to, `b`/`s` to open buy/sell on the selected
+position. A small, discoverable help overlay ("?"). Power-user speed for a day-trading tool.
 
-## W4-3 — Phone reach for notifications (email or ntfy)
-Notifications are bell+desktop only. Add an OPTIONAL outbound channel so alerts reach the
-phone: simplest zero-cost path is **ntfy.sh** (a topic URL, no account) OR SMTP email
-(user provides host/from/to/app-password in Settings, Fernet-encrypted like the FMP key).
-Fire it from `post_system_notification` + `_fire` for RESTING fills & strategy triggers only
-(not every tick). Gate behind a Settings toggle; degrade silently when unconfigured.
-
-## W4-4 — Ledger "since inception" summary card + XIRR
-Add a top-line performance summary to Ledger→Historic: total deposited, current value,
-absolute gain, simple ROI (have), AND a time-weighted / money-weighted return (XIRR over the
-cashflow + current-value stream) so the % accounts for WHEN money went in. Pure Python XIRR
-(Newton's method, guard non-convergence) + unit tests; one card in the Historic tab.
-
-## W4-5 — Small-fixes bundle #3
-1. Dashboard: a subtle "as of" timestamp / staleness indicator when the quote feed is offline
-   (reuse the liveness `verified_live` — dim prices + a "prices may be stale" note when not live).
-2. Trades sub-tab: a tiny cumulative-P/L sparkline or a "this year vs all-time" toggle on the
-   summary cards.
-3. Screener candidate pool: remember the last index/sort in localStorage so "Screen now" reuses
-   the user's usual filter across sessions.
+## W6-4 — Small-fixes bundle #4
+1. Order ticket: remember the last-used order type/duration per session.
+2. Notifications bell: "mark all read" already exists — add a subtle unread-count animation on new push.
+3. Dashboard: a compact sector-allocation strip (uses existing sector tags + market values).

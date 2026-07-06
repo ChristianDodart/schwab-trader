@@ -10,6 +10,11 @@ import type { CashFlowRow, LedgerHistoric as Historic, MarginSummary } from "./t
 
 import { API } from "./api";
 type CapGains = { rows: { period: string; cap_gains: number; trade_count: number }[]; total_cap_gains: number };
+type Benchmark = {
+  available: boolean; reason?: string; symbol?: string;
+  your_value?: number; benchmark_value?: number;
+  your_xirr_pct?: number | null; benchmark_xirr_pct?: number | null;
+};
 
 const pillBtn = (active: boolean): React.CSSProperties => ({
   background: active ? "var(--accent)" : "transparent",
@@ -30,6 +35,7 @@ export function LedgerHistoric() {
   const [scope, setScope] = useState<Period>(ALL_TIME);
   const [h, setH] = useState<Historic | null>(null);
   const [cg, setCg] = useState<CapGains | null>(null);
+  const [bench, setBench] = useState<Benchmark | null>(null);
   const [margin, setMargin] = useState<MarginSummary | null>(null);
   const [cgGrain, setCgGrain] = useState<"month" | "week">("month");
   const [err, setErr] = useState<string | null>(null);
@@ -53,6 +59,12 @@ export function LedgerHistoric() {
     fetch(`${API}/account/margin`)
       .then((r) => r.json())
       .then((j) => { if (seqRef.current === my && j) setMargin(j); })
+      .catch(() => {});
+    // Benchmark is all-time + account-level (not scope-dependent), but reload it alongside
+    // so an account switch refreshes it. Fails soft: available:false just hides the card.
+    fetch(`${API}/ledger/benchmark`)
+      .then((r) => r.json())
+      .then((j) => { if (seqRef.current === my && j) setBench(j); })
       .catch(() => {});
   }, [scope, cgGrain]);
 
@@ -164,7 +176,15 @@ export function LedgerHistoric() {
               accent={h.xirr_pct != null ? moneyColor(h.xirr_pct) : undefined}
               sub={h.xirr_pct != null ? "per year, money-weighted" : "needs ~1 month of history"}
               hint="Money-weighted annual return: the single rate that values every dated deposit/withdrawal plus today's balance to zero. Unlike simple ROI, it accounts for WHEN money went in — the fair way to compare against a benchmark." />
+            {bench?.available && bench.benchmark_value != null && <BenchmarkCard b={bench} />}
           </div>
+          {bench?.available && bench.benchmark_value != null && (
+            <p style={S.fine}>
+              "If it were all {bench.symbol}" invests your exact deposits (same dates, same amounts) into{" "}
+              {bench.symbol} buy-and-hold instead — an honest yardstick for whether the active strategy is
+              earning its keep.
+            </p>
+          )}
         </>
       )}
 
@@ -301,6 +321,26 @@ export function LedgerHistoric() {
         </Panel>
       )}
     </div>
+  );
+}
+
+// "If it were all SPY": what the same dated deposits would be worth in the benchmark,
+// with the value tinted by whether the active strategy is ahead of (green) or behind
+// (red) simply holding the index.
+function BenchmarkCard({ b }: { b: Benchmark }) {
+  const yours = b.your_value ?? 0;
+  const idx = b.benchmark_value ?? 0;
+  const diff = yours - idx;
+  const ahead = diff >= 0;
+  const xirr = b.benchmark_xirr_pct;
+  const sub = [
+    xirr != null ? `${xirr > 0 ? "+" : ""}${xirr}%/yr` : null,
+    `you're ${ahead ? "ahead" : "behind"} by ${usd(Math.abs(diff))}`,
+  ].filter(Boolean).join(" · ");
+  return (
+    <Card label={`If it were all ${b.symbol}`} value={usd(idx)}
+      accent={ahead ? "var(--pos)" : "var(--neg)"} sub={sub}
+      hint={`What your exact deposits (same dates, same amounts) would be worth today in ${b.symbol} buy-and-hold. Colored by whether your active strategy is ahead of (green) or behind (red) just holding the index.`} />
   );
 }
 
