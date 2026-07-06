@@ -3,7 +3,9 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  server: { port: 5173 },
+  // fs.allow includes the repo root so `../CHANGELOG.md?raw` (the single source of patch
+  // notes, shared with the GitHub release body) imports cleanly in dev + build.
+  server: { port: 5173, fs: { allow: [".."] } },
   build: {
     rollupOptions: {
       output: {

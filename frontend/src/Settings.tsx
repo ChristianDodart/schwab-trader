@@ -1,8 +1,16 @@
 import { useEffect, useState } from "react";
 import { ConnectionStatus } from "./Reauth";
 import { useToast } from "./Toast";
+import { CHANGELOG, entryFor } from "./changelog";
 
 import { API } from "./api";
+
+// Render CHANGELOG body readably: leading "- " → "• ", drop the machine footer.
+const prettyNotes = (body: string) =>
+  body.split("\n")
+    .filter((l) => !/^-{3,}$/.test(l.trim()) && !/^how to update/i.test(l.trim()))
+    .map((l) => l.replace(/^[-*]\s+/, "• "))
+    .join("\n").trim();
 
 type Config = {
   account_hash: string;
@@ -99,12 +107,20 @@ export function Settings({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) =
         </Field>
       </Section>
 
+      <Section title="Benchmark" info="The buy-and-hold yardstick for the Ledger's 'If it were all …' comparison — what your exact deposits would be worth in this ticker instead of actively traded.">
+        <BenchmarkPicker />
+      </Section>
+
       <Section title="Phone notifications" info="Optional. Also send resting-fill, strategy-trigger, and price alerts to your phone. ntfy.sh needs no account — pick a hard-to-guess topic and subscribe to it in the free ntfy app. Or use email via SMTP (an app password, not your login password). The in-app bell always works regardless.">
         <PhoneNotify />
       </Section>
 
       <Section title="Data & backups" info="Your entire trading history lives in one local database file. The app backs it up automatically on startup and daily (keeping the newest 14), using a method that's safe while the app is running. Backups exclude the Schwab connection — after restoring, just reconnect.">
         <Backups />
+      </Section>
+
+      <Section title="What's new" info="Patch notes for your current version. The same notes appear in the update banner when a new version is ready.">
+        <WhatsNew />
       </Section>
 
       <Section title="About & diagnostics" info="Build version + a live health snapshot. Use “Copy diagnostics” to paste the whole picture into a support message.">
@@ -497,6 +513,64 @@ function Diagnostics() {
   );
 }
 
+function BenchmarkPicker() {
+  const toast = useToast();
+  const [sym, setSym] = useState("");
+  const [saved, setSaved] = useState("");
+  useEffect(() => {
+    fetch(`${API}/benchmark-symbol`).then((r) => r.json())
+      .then((j) => { const s = j?.symbol || "SPY"; setSym(s); setSaved(s); }).catch(() => {});
+  }, []);
+  const save = () => {
+    const s = sym.trim().toUpperCase() || "SPY";
+    fetch(`${API}/benchmark-symbol`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ symbol: s }) })
+      .then((r) => r.json())
+      .then((j) => { const v = j?.symbol || s; setSym(v); setSaved(v); toast(`Benchmark set to ${v}.`, "success"); })
+      .catch(() => toast("Couldn't save the benchmark.", "error"));
+  };
+  return (
+    <div>
+      <Field label="Benchmark ticker">
+        <span style={{ display: "inline-flex", gap: 6 }}>
+          <input className="field" style={{ width: 110, textAlign: "left" }} value={sym}
+            onChange={(e) => setSym(e.target.value.toUpperCase())} placeholder="SPY" aria-label="Benchmark ticker" />
+          <button className="btn btn-primary btn-sm" disabled={!sym.trim() || sym.trim().toUpperCase() === saved} onClick={save}>Save</button>
+        </span>
+      </Field>
+      <p style={S.credStatus}>Any liquid ETF or stock with price history works — SPY, QQQ, VTI. Change it and the Ledger comparison updates.</p>
+    </div>
+  );
+}
+
+function WhatsNew() {
+  const [version, setVersion] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => {
+    fetch(`${API}/version`).then((r) => r.json()).then((j) => setVersion(j?.version ?? null)).catch(() => {});
+  }, []);
+  if (!CHANGELOG.length) return <p style={S.credStatus}>No release notes bundled.</p>;
+  const current = entryFor(version) ?? CHANGELOG[0];
+  const list = showAll ? CHANGELOG : current ? [current] : [];
+  return (
+    <div>
+      {list.map((e) => (
+        <div key={e.version} style={{ marginBottom: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: "var(--fs-md)" }}>
+            v{e.version}{e.title ? ` — ${e.title}` : ""}
+            {e.version === version && <span style={S.nowTag}>you're on this</span>}
+          </div>
+          <div style={S.notesBody}>{prettyNotes(e.body)}</div>
+        </div>
+      ))}
+      {CHANGELOG.length > 1 && (
+        <button className="btn btn-ghost btn-sm" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? "Show only current" : "Show older versions"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Section({ title, info, children }: { title: string; info?: string; children: React.ReactNode }) {
   return (
     <section style={S.section}>
@@ -531,6 +605,8 @@ const S: Record<string, React.CSSProperties> = {
   input: { width: 150, textAlign: "right" },
   credInput: { width: 280, textAlign: "left" },
   credStatus: { fontSize: "var(--fs-sm)", color: "var(--text-muted)", margin: "0 0 10px" },
+  notesBody: { whiteSpace: "pre-wrap", color: "var(--text-muted)", fontSize: "var(--fs-sm)", marginTop: 4, lineHeight: 1.5 },
+  nowTag: { fontSize: "var(--fs-2xs)", color: "var(--pos)", border: "1px solid var(--pos)", borderRadius: "var(--r-pill)", padding: "0 7px", marginLeft: 8, textTransform: "uppercase", letterSpacing: "0.04em" },
   toggle: { display: "flex", gap: 8, alignItems: "center", fontSize: "var(--fs-md)", color: "var(--text-muted)" },
   actions: { display: "flex", alignItems: "center", gap: 12, marginTop: 16 },
   savedMsg: { color: "var(--pos)", fontSize: "var(--fs-md)" },

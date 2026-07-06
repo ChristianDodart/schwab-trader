@@ -3,6 +3,20 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.8.0 — "Faster on your feet"
+
+New this version:
+- Keyboard shortcuts. Press number keys to jump between tabs, and "?" any time to see the
+  full list. Your hands can stay off the mouse.
+- Pick your benchmark. The "If it were all ..." comparison isn't stuck on SPY anymore -
+  choose QQQ, VTI, or any ticker you like under Settings, and the Ledger updates to match.
+- A "What's new" panel lives in Settings now, so you can re-read the notes for your version
+  any time - and you'll get a small nudge the first time you open a freshly updated build.
+- A sector-exposure strip on the dashboard shows at a glance where your money is concentrated,
+  built from the sector tags you keep.
+- Small niceties: the notifications bell gives a subtle pop when something new lands, and the
+  order ticket remembers your last-used duration for the session.
+
 ## v0.7.0 — "Tell me when, and tell me how you did"
 
 The app now updates itself gracefully. When a new version finishes downloading, you'll

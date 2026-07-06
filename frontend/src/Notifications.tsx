@@ -29,6 +29,8 @@ export function NotificationsBell({
   const [tab, setTab] = useState<"feed" | "activity" | "alerts">("feed");
   const [notes, setNotes] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
+  const [pulse, setPulse] = useState(false);
+  const prevUnread = useRef(0);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [desktopPerm, setDesktopPerm] = useState<string>(desktopSupported ? Notification.permission : "unsupported");
@@ -65,6 +67,18 @@ export function NotificationsBell({
     if (!desktopSupported) return;
     Notification.requestPermission().then(setDesktopPerm).catch(() => {});
   };
+
+  // Pop the unread badge whenever the count goes UP (a fresh alert arrived) — a quick,
+  // non-annoying nudge. Never on a decrease (marking read shouldn't animate).
+  useEffect(() => {
+    if (unread > prevUnread.current) {
+      setPulse(true);
+      const t = setTimeout(() => setPulse(false), 500);
+      prevUnread.current = unread;
+      return () => clearTimeout(t);
+    }
+    prevUnread.current = unread;
+  }, [unread]);
 
   useEffect(() => {
     loadNotes();
@@ -211,8 +225,8 @@ export function NotificationsBell({
     <div style={S.wrap} ref={wrapRef}>
       <button style={S.bell} onClick={openFeed} aria-label={`Notifications${unread > 0 ? `, ${unread} unread` : ""}`}
         aria-haspopup="true" aria-expanded={open}>
-        🔔
-        {unread > 0 && <span style={S.badge}>{unread > 99 ? "99+" : unread}</span>}
+        <span style={{ display: "inline-block", transform: pulse ? "scale(1.25) rotate(-8deg)" : "none", transition: "transform .18s ease" }}>🔔</span>
+        {unread > 0 && <span style={{ ...S.badge, ...(pulse ? S.badgePulse : null) }}>{unread > 99 ? "99+" : unread}</span>}
       </button>
 
       {open && (
@@ -417,6 +431,11 @@ const S: Record<string, React.CSSProperties> = {
     padding: "1px 5px",
     minWidth: 16,
     textAlign: "center",
+    transition: "transform .18s ease, box-shadow .18s ease",
+  },
+  badgePulse: {
+    transform: "scale(1.4)",
+    boxShadow: "0 0 0 3px var(--danger-bg)",
   },
   pop: {
     position: "absolute",

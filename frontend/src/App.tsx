@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AccountPicker } from "./AccountPicker";
 import { AuthBanner, LiveStatusPill, useLiveness } from "./AuthBanner";
 import { UpdateBanner } from "./UpdateBanner";
+import { SectorStrip } from "./SectorStrip";
 import { BulkGear, BulkReviewModal, useBulk } from "./Bulk";
 import { ColumnManager } from "./ColumnManager";
 import { ConfirmDialog } from "./Modal";
@@ -39,6 +40,7 @@ export function App() {
   const [connected, setConnected] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<View>("dashboard");
+  const [showHelp, setShowHelp] = useState(false);
   const [acctKey, setAcctKey] = useState("");
   const [addSym, setAddSym] = useState("");
   const [watchTicket, setWatchTicket] = useState<Suggestion | null>(null);
@@ -54,6 +56,20 @@ export function App() {
   // Prices are stale only when we're MEANT to be live (not demo) but Schwab isn't
   // answering — then dim the table + explain, so a frozen quote isn't mistaken for a real move.
   const pricesStale = data?.mode !== "demo" && live === false;
+
+  // One-time "you just updated" toast: compare the running version to the last one we saw.
+  // Only fires when it actually changed (not on a fresh install), then records the new one.
+  useEffect(() => {
+    fetch(`${API}/version`).then((r) => r.json()).then((j) => {
+      const v = j?.version;
+      if (!v) return;
+      const key = "app.lastSeenVersion";
+      let prev: string | null = null;
+      try { prev = localStorage.getItem(key); } catch { /* private mode */ }
+      if (prev && prev !== v) toast(`Updated to v${v} — see what's new under Settings.`, "success");
+      try { localStorage.setItem(key, v); } catch { /* private mode */ }
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ambient working-order count for the nav badge (per selected account). Refetch on
   // account switch (acctKey) + every 60s.
@@ -72,6 +88,27 @@ export function App() {
     if (view === "settings" && settingsDirty) setPendingNav(() => action);
     else action();
   };
+
+  // Keyboard shortcuts: digits 1..N jump to a tab (through the same dirty-settings guard),
+  // "?" toggles the help overlay. Ignored while typing in a field or when a modal is open,
+  // so it never fights with order tickets, search boxes, or dialogs.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
+      if (e.key === "Escape" && showHelp) { setShowHelp(false); return; }
+      if (document.querySelector(".modal-overlay")) return; // don't reach behind a modal
+      if (e.key === "?") { e.preventDefault(); setShowHelp((v) => !v); return; }
+      if (/^[1-9]$/.test(e.key)) {
+        const t = NAV[Number(e.key) - 1];
+        if (t) { e.preventDefault(); guardedNav(() => setView(t.id)); }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }); // re-bound each render so the guard sees current view/settingsDirty
 
   // Commit an account switch: persist server-side FIRST, then reset views. Awaiting
   // the select avoids a race where the acctKey-keyed child views remount and fetch
@@ -319,6 +356,7 @@ export function App() {
                     Settings → Schwab connection.
                   </p>
                 )}
+                <SectorStrip rows={data.rows} />
                 <div style={pricesStale ? { opacity: 0.55, transition: "opacity .2s" } : undefined}>
                   <DashboardTable
                     rows={data.rows}
@@ -367,8 +405,38 @@ export function App() {
             onCancel={() => setPendingNav(null)}
           />
         )}
+
+        {showHelp && <HelpOverlay onClose={() => setShowHelp(false)} />}
       </div>
     </main>
+  );
+}
+
+// Keyboard-shortcut cheat sheet (toggled with "?"). Reuses the modal overlay styling.
+function HelpOverlay({ onClose }: { onClose: () => void }) {
+  const rows: [string, string][] = [
+    ...NAV.map((t, i) => [String(i + 1), `Go to ${t.label}`] as [string, string]),
+    ["?", "Show / hide this help"],
+    ["Esc", "Close dialogs"],
+  ];
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" role="dialog" aria-label="Keyboard shortcuts" onClick={(e) => e.stopPropagation()} style={{ padding: 20, maxWidth: 380 }}>
+        <div style={{ fontSize: "var(--fs-lg)", fontWeight: 600, marginBottom: 12 }}>Keyboard shortcuts</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {rows.map(([k, label]) => (
+            <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "var(--fs-sm)" }}>
+              <span style={{ color: "var(--text-muted)" }}>{label}</span>
+              <kbd style={S.kbd}>{k}</kbd>
+            </div>
+          ))}
+        </div>
+        <p style={{ color: "var(--text-faint)", fontSize: "var(--fs-xs)", marginTop: 14 }}>
+          Shortcuts are ignored while you're typing in a field or a dialog is open.
+        </p>
+        <button className="btn btn-secondary" style={{ marginTop: 14, width: "100%" }} onClick={onClose}>Close</button>
+      </div>
+    </div>
   );
 }
 
@@ -446,4 +514,5 @@ const S: Record<string, React.CSSProperties> = {
   addWrap: { display: "flex", gap: 6, alignItems: "center" },
   note: { color: "var(--text-muted)", fontSize: "var(--fs-md)", marginTop: 16 },
   staleNote: { color: "var(--warn)", fontSize: "var(--fs-sm)", margin: "0 0 10px", lineHeight: 1.45 },
+  kbd: { fontFamily: "monospace", fontSize: "var(--fs-xs)", background: "var(--panel-2)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-sm)", padding: "1px 8px", color: "var(--text)", minWidth: 22, textAlign: "center" },
 };

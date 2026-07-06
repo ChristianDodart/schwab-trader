@@ -323,26 +323,40 @@ spreadsheets, records). Add CSV export for the trade journal and the deposit log
   `/api/ledger/benchmark`; an "If it were all SPY" card on the since-inception block, tinted by whether
   the active strategy is ahead of / behind the index. Fails soft (card hides) when history is short.
 
-# WAVE 6 — candidate queue (unstarted)
+# WAVE 6 — EXECUTED 2026-07-05, shipped v0.8.0
+
+- **W6-1 "What's new" viewer + update toast** — `CHANGELOG.md` bundled into the frontend via Vite `?raw`
+  (`changelog.ts` parses per-version sections); a "What's new" panel in Settings shows the running
+  version (expandable to older ones); a one-time "you're now on vX" toast compares `/api/version` to a
+  localStorage `lastSeenVersion`.
+- **W6-2 Benchmark polish** — pickable benchmark ticker (Settings → Benchmark, `benchmark_symbol` in
+  app_setting, `/api/benchmark-symbol`); `build_benchmark` cached per (account, symbol) for 5 min so the
+  Ledger view doesn't refetch 5Y history on every scope change. (Equity-curve overlay deferred → W7.)
+- **W6-3 Keyboard shortcuts** — global keydown: digits 1..N switch tabs (through the dirty-settings
+  guard), "?" toggles a help overlay; ignored while typing or when a modal is open.
+- **W6-4 Small fixes #4** — OrderTicket remembers the last-used duration per session (type stays
+  session-aware for safety); notifications bell pops on a new unread; compact sector-exposure strip on
+  the dashboard (`SectorStrip.tsx`) from sector tags + market values.
+
+# WAVE 7 — candidate queue (unstarted)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## W6-1 — "What's new" viewer in Settings → About
-The update banner shows notes only at update time. Add an always-available "What's new" panel that
-shows the running version's CHANGELOG section (bundle CHANGELOG.md into the frontend via a Vite `?raw`
-import, or serve it from the backend), plus a small "you're now on vX" toast on first launch after a
-version change (compare `/api/version` to a localStorage `lastSeenVersion`).
+## W7-1 — Benchmark line on the equity curve
+Overlay the benchmark's value series on the Ledger equity curve (a second line on `EquityCurve`), so the
+"you vs index" story is visual over time, not just two end-point numbers. Needs a per-snapshot-day
+benchmark value series from `build_benchmark` (shares-held-as-of(day) × close(day)); reuse the 5Y closes
+already fetched. Degrade (single line) when history is short.
 
-## W6-2 — Benchmark polish
-Extend the SPY benchmark: (a) let the user pick the benchmark symbol (QQQ, VTI…) in Settings;
-(b) overlay a benchmark line on the equity curve; (c) cache `build_benchmark` per account for a few
-minutes so the Ledger view doesn't refetch 5Y history on every scope change.
+## W7-2 — Sector concentration guardrail
+Turn the new sector strip into an optional alert: warn when any one sector exceeds a configurable % of
+invested value (reuses the SectorStrip aggregation + the notifications system). Advisory only.
 
-## W6-3 — Keyboard shortcuts / quick nav
-Number keys to switch tabs, "/" to focus a symbol jump-to, `b`/`s` to open buy/sell on the selected
-position. A small, discoverable help overlay ("?"). Power-user speed for a day-trading tool.
+## W7-3 — Tax-lot / realized-gain export for filing
+A year-scoped CSV of closed round-trips formatted for taxes (proceeds, cost basis, short-term flag,
+acquired/sold dates). Builds on the existing trade journal + CSV export plumbing.
 
-## W6-4 — Small-fixes bundle #4
-1. Order ticket: remember the last-used order type/duration per session.
-2. Notifications bell: "mark all read" already exists — add a subtle unread-count animation on new push.
-3. Dashboard: a compact sector-allocation strip (uses existing sector tags + market values).
+## W7-4 — Small-fixes bundle #5
+1. "/" to focus a quick symbol jump-to on the dashboard (deferred from W6-3).
+2. Screener: show the active filter summary as removable chips.
+3. Position detail: a tiny realized-vs-unrealized split on the header stats.

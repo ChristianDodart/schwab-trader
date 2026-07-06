@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import time
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -25,7 +26,7 @@ from . import config_store
 from . import market_data
 from . import xirr as xirr_calc
 from .db import SessionLocal, dialect_insert as pg_insert
-from .db.models import CashFlow, CompletedTrade, DailyBalance, Lot
+from .db.models import AppSetting, CashFlow, CompletedTrade, DailyBalance, Lot
 from .schwab import hub
 from .strategy import rules
 
@@ -625,6 +626,36 @@ async def build_historic(account_hash: str, from_date: date | None = None,
     }
 
 
+_K_BENCH = "benchmark_symbol"
+
+
+async def get_benchmark_symbol() -> str:
+    """The user's chosen buy-and-hold benchmark ticker (default SPY)."""
+    async with SessionLocal() as s:
+        row = await s.get(AppSetting, _K_BENCH)
+    return (row.value.strip().upper() if row and row.value else "SPY") or "SPY"
+
+
+async def set_benchmark_symbol(symbol: str) -> dict:
+    sym = (symbol or "").strip().upper()[:8] or "SPY"
+    async with SessionLocal() as s:
+        await s.execute(
+            pg_insert(AppSetting).values(key=_K_BENCH, value=sym)
+            .on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": sym})
+        )
+        await s.commit()
+    _bench_cache.clear()  # symbol changed → drop any cached comparison
+    return {"symbol": sym}
+
+
+# Per-(account, symbol) benchmark cache. 5Y history + the sim is relatively heavy and the
+# comparison barely moves minute-to-minute, so a short TTL keeps the Ledger view snappy
+# across scope changes without a stale-looking number. Only successful results are cached
+# (a transient throttle retries next time). Cleared when the symbol setting changes.
+_bench_cache: dict[tuple[str, str], tuple[float, dict]] = {}
+_BENCH_TTL_S = 300
+
+
 async def build_benchmark(account_hash: str, symbol: str = "SPY") -> dict:
     """What the account's OWN dated contributions would be worth in `symbol` (buy-and-hold)
     — an apples-to-apples yardstick for the real account's return (same cash in/out, same
@@ -634,6 +665,12 @@ async def build_benchmark(account_hash: str, symbol: str = "SPY") -> dict:
     from datetime import datetime, timezone
 
     from . import accounts as accounts_svc
+
+    symbol = (symbol or "SPY").upper()
+    ckey = (account_hash, symbol)
+    hit = _bench_cache.get(ckey)
+    if hit and (time.time() - hit[0]) < _BENCH_TTL_S:
+        return hit[1]
 
     today = _today()
     async with SessionLocal() as s:
@@ -674,7 +711,7 @@ async def build_benchmark(account_hash: str, symbol: str = "SPY") -> dict:
     your_flows = [(cd, -_f(ca)) for (cd, ca) in cap_rows] + [(today, _f(acct_value))]
     your_r = xirr_calc.xirr(your_flows)
     spy_r = xirr_calc.xirr(sim["flows"])
-    return {
+    result = {
         "available": True,
         "symbol": symbol,
         "as_of": today.isoformat(),
@@ -683,6 +720,8 @@ async def build_benchmark(account_hash: str, symbol: str = "SPY") -> dict:
         "your_xirr_pct": round(your_r * 100, 1) if your_r is not None else None,
         "benchmark_xirr_pct": round(spy_r * 100, 1) if spy_r is not None else None,
     }
+    _bench_cache[ckey] = (time.time(), result)  # cache successes only
+    return result
 
 
 # ===================== cash flows (deposits / withdrawals) =====================

@@ -8,6 +8,15 @@ type Acct = { hash: string; mask: string; type: string | null };
 
 const ORDER_TYPES = ["LIMIT", "MARKET", "STOP", "STOP_LIMIT", "TRAILING_STOP"];
 const DURATIONS = ["DAY", "GOOD_TILL_CANCEL", "FILL_OR_KILL", "IMMEDIATE_OR_CANCEL"];
+
+// Remember the last-used duration for the session (a preference, not a price/qty — safe to
+// carry). Order TYPE is deliberately NOT remembered: its default is session-aware (never a
+// MARKET order when the market's closed), a safety choice we don't want a stale value to defeat.
+const DUR_KEY = "orderticket.duration.v1";
+const rememberedDuration = (): string => {
+  try { const d = sessionStorage.getItem(DUR_KEY); return d && DURATIONS.includes(d) ? d : "DAY"; }
+  catch { return "DAY"; }
+};
 const SESSIONS = ["NORMAL", "AM", "PM", "SEAMLESS"];
 const label = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -28,7 +37,7 @@ export function OrderTicket({
   const [stopPrice, setStopPrice] = useState(suggestion.limit_price);
   const [trailingOffset, setTrailingOffset] = useState(5);
   const [trailingType, setTrailingType] = useState("PERCENT");
-  const [duration, setDuration] = useState("DAY");
+  const [duration, setDuration] = useState(rememberedDuration);
   const [session, setSession] = useState("NORMAL");
   const [marketSession, setMarketSession] = useState<string | null>(null); // pre|regular|post|closed|unknown
   const [livePrice, setLivePrice] = useState<number | null>(suggestion.limit_price || null);
@@ -141,7 +150,7 @@ export function OrderTicket({
     defaultsApplied.current = true;
     setOrderType(marketSession === "regular" ? "MARKET" : "LIMIT");
     setSession(marketSession === "pre" ? "AM" : marketSession === "post" ? "PM" : "NORMAL");
-    setDuration("DAY");
+    setDuration(rememberedDuration());
   }, [marketSession]);
 
   const isBuy = suggestion.side === "BUY";
@@ -277,7 +286,7 @@ export function OrderTicket({
           )}
           <label style={S.label}>Duration
             <select className="field" style={S.field} value={duration}
-              onChange={(e) => { userTouched.current = true; setDuration(e.target.value); }}>
+              onChange={(e) => { userTouched.current = true; setDuration(e.target.value); try { sessionStorage.setItem(DUR_KEY, e.target.value); } catch { /* private mode */ } }}>
               {DURATIONS.map((d) => <option key={d} value={d}>{label(d)}</option>)}
             </select>
           </label>

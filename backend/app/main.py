@@ -479,8 +479,24 @@ async def ledger_historic(start: str | None = None, end: str | None = None) -> d
 @app.get("/api/ledger/benchmark")
 async def ledger_benchmark() -> dict:
     """Buy-and-hold benchmark: what the account's own dated contributions would be worth
-    in SPY instead. {available: False, reason} when it can't be computed honestly."""
-    return await ledger_svc.build_benchmark(await _selected(), "SPY")
+    in the chosen benchmark instead. {available: False, reason} when not computable."""
+    return await ledger_svc.build_benchmark(await _selected(), await ledger_svc.get_benchmark_symbol())
+
+
+@app.get("/api/benchmark-symbol")
+async def get_benchmark_symbol() -> dict:
+    """The chosen buy-and-hold benchmark ticker (default SPY)."""
+    return {"symbol": await ledger_svc.get_benchmark_symbol()}
+
+
+class BenchmarkSymbolBody(BaseModel):
+    symbol: str
+
+
+@app.post("/api/benchmark-symbol")
+async def set_benchmark_symbol(body: BenchmarkSymbolBody) -> dict:
+    """Set the benchmark ticker used by the since-inception comparison."""
+    return await ledger_svc.set_benchmark_symbol(body.symbol)
 
 
 @app.get("/api/ledger/trades")
