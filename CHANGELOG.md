@@ -3,6 +3,28 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.22.1 — "Self-healing, proven"
+
+A field-found fix. Importing a real two-year account exposed two subtle defects in
+how live-synced trades and CSV history were matched up, causing some holdings to
+show more shares than Schwab actually reports:
+
+- After-hours fills were being dated on the wrong day. A fill at 7pm Eastern is
+  the next calendar day in universal time, which made it miss its CSV twin and
+  count twice. Trades are now dated on Schwab's ledger day (Eastern), matching
+  the CSV.
+- When live data and CSV history described the same trading day, the live side
+  was assumed complete — but Schwab's live history can be PARTIAL at the very
+  edge of its window, and trusting it there discarded a few real CSV trades.
+  The two sources are now compared by total shares per day, and whichever
+  accounts for more wins.
+
+The ledger now heals itself: every sync re-checks dates and re-resolves any
+overlap automatically. If your Data health panel showed share-count or cost-basis
+differences after a big import, update, then re-import the same CSV once — the
+numbers converge to exactly what Schwab holds. (Verified on the affected account:
+every discrepancy resolved to a perfect match.)
+
 ## v0.22.0 — "Weird stuff handled"
 
 Data-integrity hardening, part two — validated against a real 1,554-row,

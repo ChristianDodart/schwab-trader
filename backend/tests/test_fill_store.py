@@ -1,6 +1,7 @@
-from datetime import date
+from datetime import date, datetime, timezone
 
-from app.fill_store import day_key, dedupe_incoming, drop_api_owned, group_key, parse_csv_trades
+from app.fill_store import (api_trade_date, day_key, dedupe_incoming, group_key,
+                            parse_csv_trades, resolve_group_conflicts)
 
 CSV = '''"Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount"
 "07/06/2026","Buy","RCAX","DEFIANCE DAILY TARGET 2XLONG RCAT ETF","90","$5.525","","-$497.25"
@@ -56,18 +57,33 @@ def test_dedupe_multiset_counting():
     assert skipped3 == 0 and len(fresh3) == 3
 
 
-def test_api_owns_its_day_groups():
-    # An order that partially filled shows as ONE 11-share CSV row but TWO API legs
-    # (5 + 6) — exact matching can't pair them. The group rule drops the CSV row
-    # because the API covers (day, symbol, side) completely.
+def test_group_conflicts_resolved_by_share_totals():
     d = date(2026, 7, 6)
+    # Partial fill: ONE 11-share CSV row vs TWO API legs (5+6). Totals equal → API
+    # wins the group, CSV row dropped.
     csv_fill = {"trade_date": d, "symbol": "IREN", "side": "SELL", "shares": 11.0, "price": 43.8}
     other_day = {"trade_date": date(2026, 7, 2), "symbol": "IREN", "side": "SELL", "shares": 3.0, "price": 40.0}
     other_side = {"trade_date": d, "symbol": "IREN", "side": "BUY", "shares": 2.0, "price": 43.0}
-    api_groups = {group_key(d, "IREN", "SELL")}
-    kept, dropped = drop_api_owned([csv_fill, other_day, other_side], api_groups)
+    api_totals = {group_key(d, "IREN", "SELL"): 11.0}   # 5 + 6
+    kept, dropped = resolve_group_conflicts([csv_fill, other_day, other_side], api_totals)
     assert dropped == 1
     assert kept == [other_day, other_side]   # different day / side untouched
+
+
+def test_partial_api_group_does_not_evict_complete_csv():
+    # The live GVH case: the API's first-sync window starts MID-DAY (it queries by
+    # entered time), so on the boundary day it returned the 13,903-share sell but
+    # MISSED the 1,000-share sell entered before the cutoff. CSV total (14,903) >
+    # API total (13,903) → the CSV keeps the group; blind 'API owns it' would have
+    # deleted a real 1,000-share sell.
+    d = date(2025, 7, 10)
+    csv_rows = [
+        {"trade_date": d, "symbol": "GVH", "side": "SELL", "shares": 13903.0, "price": 0.0821},
+        {"trade_date": d, "symbol": "GVH", "side": "SELL", "shares": 1000.0, "price": 0.0825},
+    ]
+    api_totals = {group_key(d, "GVH", "SELL"): 13903.0}
+    kept, dropped = resolve_group_conflicts(csv_rows, api_totals)
+    assert dropped == 0 and len(kept) == 2   # CSV is the more complete source — keep it
 
 
 def test_reimport_is_idempotent_by_construction():
@@ -77,6 +93,21 @@ def test_reimport_is_idempotent_by_construction():
     existing = [f["dkey"] for f in p["fills"]]
     fresh, skipped = dedupe_incoming(p["fills"], existing)
     assert fresh == [] and skipped == 4
+
+
+def test_api_trade_date_is_eastern_not_utc():
+    # An after-hours fill at 7:30pm ET on Jan 9 is 00:30 UTC on Jan 10. Schwab's
+    # ledger (and the CSV) date it Jan 9 — the trade_date must match or the
+    # cross-source dedup group misses and the trade double-counts (live bug, v0.22.1).
+    evening = datetime(2026, 1, 10, 0, 30, tzinfo=timezone.utc)
+    assert api_trade_date(evening) == date(2026, 1, 9)
+    # A regular-hours fill (2pm ET = 19:00 UTC) stays on its own day.
+    midday = datetime(2026, 1, 9, 19, 0, tzinfo=timezone.utc)
+    assert api_trade_date(midday) == date(2026, 1, 9)
+    # Naive datetimes are assumed UTC (that's how the DB stores them).
+    assert api_trade_date(datetime(2026, 1, 10, 0, 30)) == date(2026, 1, 9)
+    # DST: July — 7:30pm ET = 23:30 UTC same day; 8:30pm ET = 00:30 UTC next day.
+    assert api_trade_date(datetime(2026, 7, 7, 0, 30, tzinfo=timezone.utc)) == date(2026, 7, 6)
 
 
 # --- corporate actions + shorts (shapes taken verbatim from a real export) ---

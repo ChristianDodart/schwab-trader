@@ -40,15 +40,23 @@ a **pure projection** of this ledger: reconstruct (LIFO) → reconcile against
 live positions → write. The projection can be wiped and rebuilt at any time
 without losing anything, because the source of truth is durable.
 
-Identity & dedup:
+Identity & dedup (rules corrected in v0.22.1 after live findings):
 - **API fill**: key = order_id + execution time + price + shares + side. Exact.
+  trade_date is the EASTERN calendar date of the execution — Schwab's ledger day.
+  (Deriving it from UTC put after-hours fills on the next day and broke pairing.)
 - **CSV fill**: key = trade_date + symbol + side + shares + price + occurrence#
   (occurrence# distinguishes two identical trades the same day).
-- **Cross-source**: a CSV row and an API fill describing the same trade are
-  matched by day-level multiset counting on (date, symbol, side, shares, price):
-  if the ledger already holds N API fills for a day-key, the first N matching
-  CSV occurrences are skipped (and vice versa, API upserts replace matching CSV
-  rows — upgrading them to full fidelity). Pure function, unit-tested.
+- **Cross-source — the TOTALS rule**: within a (day, symbol, side) group where both
+  sources have rows, the source accounting for MORE shares wins the group; the
+  other's rows are evicted (tie → API, for leg-level timestamps). Why totals, not
+  presence: the API queries orders by ENTERED time, so its first-sync boundary day
+  is only partially covered, and a long-resting GTC order entered before the window
+  is invisible — "API touched the group ⇒ API owns it" deleted real CSV fills in
+  exactly those cases (found live). The CSV is complete per day by construction;
+  comparing totals resolves both directions. Pure function, unit-tested.
+- **heal_ledger** runs on every resync/projection: re-stamps any UTC-dated API rows
+  to Eastern and re-resolves every conflicted group by the totals rule. Idempotent
+  self-repair — a damaged ledger converges after (at most) one CSV re-import.
 
 Same-day ordering: API fills carry real timestamps. CSV fills are stamped at
 00:00 of their trade date; reconstruction breaks ties BUY-before-SELL, so a

@@ -210,6 +210,7 @@ async def project_account(account_hash: str) -> dict:
     from . import fill_store
 
     async with _lock_for(account_hash):
+        await fill_store.heal_ledger(account_hash)
         stored = await fill_store.load_fills(account_hash)
         if not stored:
             return {"ok": True, "skipped": "fill ledger is empty — nothing to project"}
@@ -251,6 +252,10 @@ async def resync_account(account_hash: str) -> dict:
                               f"({up['upgraded_csv']} csv upgraded, {up['skipped']} known)")
                 except Exception as e:
                     print(f"[resync] fill-ledger persist failed (projecting from fetch): {e!r}")
+            try:
+                await fill_store.heal_ledger(account_hash)   # idempotent self-repair
+            except Exception as e:
+                print(f"[resync] ledger heal failed (continuing): {e!r}")
             stored = await fill_store.load_fills(account_hash)
             if stored:
                 effective = stored

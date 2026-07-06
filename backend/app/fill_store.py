@@ -21,6 +21,7 @@ import csv as _csvmod
 import io
 from collections import Counter
 from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import delete, select
 
@@ -29,6 +30,11 @@ from .db.models import FillRecord
 from .reconstruct import Fill
 
 _EPS = 1e-9
+# Schwab's ledger day (and the Transactions CSV) is the EASTERN trade date. An
+# after-hours fill at 7pm ET is the NEXT calendar day in UTC — deriving trade_date
+# from the UTC timestamp made such fills miss their CSV twins in the (day, symbol,
+# side) dedup group and double-count (found live on a real account, v0.22.1).
+_MARKET_DAY_TZ = ZoneInfo("America/New_York")
 
 
 def _naive_utc(dt: datetime) -> datetime:
@@ -37,6 +43,12 @@ def _naive_utc(dt: datetime) -> datetime:
     if dt.tzinfo is not None:
         return dt.astimezone(timezone.utc).replace(tzinfo=None)
     return dt
+
+
+def api_trade_date(at: datetime) -> date:
+    """The EASTERN calendar date of an API fill timestamp (naive = assumed UTC)."""
+    aware = at if at.tzinfo is not None else at.replace(tzinfo=timezone.utc)
+    return aware.astimezone(_MARKET_DAY_TZ).date()
 
 
 def day_key(trade_date: date, symbol: str, side: str, shares: float, price: float) -> tuple:
@@ -74,16 +86,31 @@ def group_key(trade_date, symbol: str, side: str) -> tuple:
     return (d, symbol.upper(), side.upper())
 
 
-def drop_api_owned(incoming: list[dict], api_groups: set[tuple]) -> tuple[list[dict], int]:
-    """Pure: drop incoming CSV fills whose (day, symbol, side) group the API already
-    covers (see group_key). Returns (kept, dropped_count)."""
+def resolve_group_conflicts(incoming: list[dict], api_totals: dict[tuple, float]) -> tuple[list[dict], int]:
+    """Pure: decide incoming CSV fills against the API per (day, symbol, side) group by
+    TOTAL SHARES — the source accounting for more volume wins the group (tie → API,
+    for its leg-level fidelity).
+
+    Why totals, not mere presence: the API queries orders by ENTERED time, so its
+    first-sync boundary day is only PARTIALLY covered (an order entered before the
+    cutoff but filled inside it is invisible), and a long-resting GTC order can fill
+    inside the window despite being entered before it. 'API touched the group ⇒ API
+    owns it' evicted REAL CSV fills in exactly those cases (found live). The CSV is
+    complete per day by construction, so: csv_total > api_total ⇒ keep the CSV rows
+    (heal_ledger then evicts the API's partial rows); csv_total <= api_total ⇒ the
+    API already accounts for everything ⇒ drop the CSV rows."""
+    csv_totals: Counter = Counter()
+    for f in incoming:
+        csv_totals[group_key(f["trade_date"], f["symbol"], f["side"])] += float(f["shares"])
+    keep_group = {g: (t > api_totals.get(g, 0.0) + _EPS) if g in api_totals else True
+                  for g, t in csv_totals.items()}
     kept: list[dict] = []
     dropped = 0
     for f in incoming:
-        if group_key(f["trade_date"], f["symbol"], f["side"]) in api_groups:
-            dropped += 1
-        else:
+        if keep_group[group_key(f["trade_date"], f["symbol"], f["side"])]:
             kept.append(f)
+        else:
+            dropped += 1
     return kept, dropped
 
 
@@ -108,8 +135,12 @@ async def upsert_api_fills(account_hash: str, fills: list[Fill]) -> dict:
 
     incoming = []
     for f in fills:
-        at = _naive_utc(f.at) if isinstance(f.at, datetime) else datetime(f.at.year, f.at.month, f.at.day)
-        td = at.date()
+        if isinstance(f.at, datetime):
+            td = api_trade_date(f.at)      # EASTERN trade day (matches the CSV's dating)
+            at = _naive_utc(f.at)
+        else:
+            at = datetime(f.at.year, f.at.month, f.at.day)
+            td = f.at
         key = f"api|{account_hash}|{f.order_id}|{at.isoformat()}|{round(float(f.price), 4)}|{round(float(f.shares), 4)}|{f.side.upper()}"
         incoming.append({
             "symbol": f.symbol.upper(), "side": f.side.upper(),
@@ -119,39 +150,24 @@ async def upsert_api_fills(account_hash: str, fills: list[Fill]) -> dict:
             "dkey": day_key(td, f.symbol, f.side, f.shares, f.price),
         })
 
-    added = skipped = upgraded = 0
+    added = skipped = 0
     async with SessionLocal() as s:
         known = set((await s.execute(
             select(FillRecord.fill_key).where(FillRecord.account_hash == account_hash,
                                               FillRecord.source == "api")
         )).scalars().all())
-        # CSV rows grouped at (day, symbol, side): the API reports per-execution LEGS
-        # while the CSV aggregates per ORDER (a partial fill is 5+6 legs vs one 11-share
-        # row), so exact matching can't pair them. When the API contributes anything to
-        # a group it saw EVERY order in that group — evict the group's CSV rows wholesale.
-        csv_rows = (await s.execute(
-            select(FillRecord.id, FillRecord.trade_date, FillRecord.symbol, FillRecord.side)
-            .where(FillRecord.account_hash == account_hash, FillRecord.source == "csv")
-        )).all()
-        csv_ids_by_group: dict[tuple, list[int]] = {}
-        for rid, d, sym, side in csv_rows:
-            csv_ids_by_group.setdefault(group_key(d, sym, side), []).append(rid)
-
         for f in incoming:
             if f["fill_key"] in known:
                 skipped += 1
                 continue
-            gk = group_key(f["trade_date"], f["symbol"], f["side"])
-            ids = csv_ids_by_group.pop(gk, None)
-            if ids:  # the API now owns this (day, symbol, side) — drop its CSV stand-ins
-                await s.execute(delete(FillRecord).where(FillRecord.id.in_(ids)))
-                upgraded += len(ids)
             f.pop("dkey", None)
             s.add(FillRecord(account_hash=account_hash, source="api", **f))
             known.add(f["fill_key"])
             added += 1
         await s.commit()
-    return {"added": added, "skipped": skipped, "upgraded_csv": upgraded}
+    # Cross-source conflicts (a CSV row describing a trade the API now also has) are
+    # resolved centrally by heal_ledger's totals rule — resync runs it right after this.
+    return {"added": added, "skipped": skipped, "upgraded_csv": 0}
 
 
 # --- Schwab Transactions CSV → fills ----------------------------------------
@@ -348,11 +364,14 @@ async def import_csv_fills(account_hash: str, csv_text: str) -> dict:
 
     async with SessionLocal() as s:
         api_rows = (await s.execute(
-            select(FillRecord.trade_date, FillRecord.symbol, FillRecord.side)
+            select(FillRecord.trade_date, FillRecord.symbol, FillRecord.side, FillRecord.shares)
             .where(FillRecord.account_hash == account_hash, FillRecord.source == "api")
         )).all()
-    api_groups = {group_key(d, sym, side) for d, sym, side in api_rows}
-    incoming, dropped_api = drop_api_owned(incoming, api_groups)
+    api_totals: dict[tuple, float] = {}
+    for d, sym, side, sh in api_rows:
+        g = group_key(d, sym, side)
+        api_totals[g] = api_totals.get(g, 0.0) + float(sh)
+    incoming, dropped_api = resolve_group_conflicts(incoming, api_totals)
 
     existing = await _existing_keys(account_hash, source="csv")
     fresh, skipped = dedupe_incoming(incoming, existing)
@@ -383,6 +402,55 @@ async def import_csv_fills(account_hash: str, csv_text: str) -> dict:
             "covers_netted": parsed.get("covers_netted", 0),
             "coverage": {"from": cov["from"].isoformat() if cov["from"] else None,
                          "to": cov["to"].isoformat() if cov["to"] else None}}
+
+
+async def heal_ledger(account_hash: str) -> dict:
+    """Idempotent self-repair, run on every resync before projection:
+      1. Re-stamp any API fill whose trade_date isn't its EASTERN calendar date
+         (rows written before v0.22.1 used the UTC date — after-hours fills off by one).
+      2. Resolve every (day, symbol, side) group where BOTH sources have rows by the
+         TOTALS rule: the source accounting for more shares keeps the group; the other
+         source's rows are evicted (tie → API wins for leg-level fidelity). This both
+         removes duplicates AND lets a complete CSV group displace a partial API one
+         (first-sync boundary day / GTC orders entered before the window).
+    Costs one account scan; a healthy ledger is a no-op."""
+    redated = evicted_csv = evicted_api = 0
+    async with SessionLocal() as s:
+        rows = (await s.execute(
+            select(FillRecord).where(FillRecord.account_hash == account_hash,
+                                     FillRecord.side.in_(["BUY", "SELL"]))
+        )).scalars().all()
+        for r in rows:
+            if r.source == "api":
+                correct = api_trade_date(r.at)
+                if r.trade_date != correct:
+                    r.trade_date = correct
+                    redated += 1
+
+        groups: dict[tuple, dict[str, list]] = {}
+        for r in rows:
+            g = group_key(r.trade_date, r.symbol, r.side)
+            groups.setdefault(g, {"api": [], "csv": []}).setdefault(r.source, []).append(r)
+        doomed_ids: list[int] = []
+        for g, by in groups.items():
+            api_rows, csv_rows = by.get("api", []), by.get("csv", [])
+            if not api_rows or not csv_rows:
+                continue
+            api_tot = sum(float(r.shares) for r in api_rows)
+            csv_tot = sum(float(r.shares) for r in csv_rows)
+            if csv_tot > api_tot + _EPS:      # CSV accounts for more → API rows were partial
+                doomed_ids += [r.id for r in api_rows]
+                evicted_api += len(api_rows)
+            else:                              # API covers it (or tie) → CSV rows redundant
+                doomed_ids += [r.id for r in csv_rows]
+                evicted_csv += len(csv_rows)
+        if doomed_ids:
+            await s.execute(delete(FillRecord).where(FillRecord.id.in_(doomed_ids)))
+        await s.commit()
+    if redated or evicted_csv or evicted_api:
+        print(f"[heal] {account_hash[-4:]} fill ledger: {redated} api dates fixed, "
+              f"{evicted_csv} duplicate csv + {evicted_api} partial api fills evicted")
+    return {"redated": redated, "evicted": evicted_csv, "evicted_api": evicted_api}
 
 
 async def load_fills(account_hash: str) -> list[Fill]:
