@@ -787,8 +787,8 @@ async def data_health() -> dict:
                                "income": round(income, 2),
                                "other_cash": round(other_cash, 2),
                                "margin_debt": round(float(ms.get("debt") or 0.0), 2)},
-                "caveats": "remaining blind spots: per-trade fees (cents each) and any "
-                           "activity newer than the last import",
+                "caveats": "remaining blind spots: activity newer than the last import "
+                           "and same-day settlement timing",
             }
     except Exception as e:
         print(f"[health] cash identity check failed: {e!r}")

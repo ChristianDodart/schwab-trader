@@ -748,7 +748,7 @@ function DataHealth() {
                 <b style={{ color: Math.abs(h.cash_check.residual) > 500 ? "var(--warn)" : "var(--text)" }}>
                   {h.cash_check.residual >= 0 ? "+" : ""}{h.cash_check.residual.toLocaleString("en-US", { style: "currency", currency: "USD" })}
                 </b>{" "}
-                unexplained ({h.cash_check.residual_pct_of_flow}% of traded volume). Shorts, margin debt, interest and adjustments are all accounted for — what remains is per-trade fees and anything newer than your last import. Hover for the math.
+                unexplained ({h.cash_check.residual_pct_of_flow}% of traded volume). Shorts, margin debt, interest, adjustments and per-trade fees are all accounted for — what remains is activity newer than your last import and settlement timing. Hover for the math.
               </p>
             );
           })()}

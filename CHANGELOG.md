@@ -3,6 +3,14 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.24.1 — "To the penny"
+
+The last cash-identity blind spot, closed: per-trade fees (the SEC cents on each
+sell) are now captured exactly from the export's Fees column, aggregated per day
+into the other-cash log on import. After a fresh import the cross-check should
+sit within a few dollars of zero — what remains is only activity newer than the
+import and same-day settlement timing, and the panel says so.
+
 ## v0.24.0 — "Every dollar accounted"
 
 New this version:

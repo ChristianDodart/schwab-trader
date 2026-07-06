@@ -982,15 +982,26 @@ async def import_other_cash_csv(account_hash: str, csv_text: str) -> dict:
         return None
 
     fresh = []
+    fee_by_day: dict[str, float] = {}
+    day_min = day_max = None
     for r in rows:
         action = (col(r, "action") or "").strip()
         a = action.lower()
+        d = _parse_csv_date(col(r, "date"))
+        if d is not None:
+            day_min = d if day_min is None or d < day_min else day_min
+            day_max = d if day_max is None or d > day_max else day_max
+        # Per-trade fees ("Fees & Comm" — SEC fees, cents each) — captured exactly,
+        # aggregated per day, so the cash identity closes to the penny.
+        if a in ("buy", "sell", "sell short") and d is not None:
+            fee = _parse_money(col(r, "fees & comm"))
+            if fee and math.isfinite(fee) and fee != 0:
+                fee_by_day[d.isoformat()] = fee_by_day.get(d.isoformat(), 0.0) + abs(fee)
         if not action or a in _OTHER_CASH_SKIP:
             continue
         if any(k in a for k in _CSV_TRANSFER_KEYS):     # transfers → the deposit log
             continue
         amt = _parse_money(col(r, "amount"))
-        d = _parse_csv_date(col(r, "date"))
         if amt is None or d is None or not math.isfinite(amt) or amt == 0:
             continue
         if dividends_mod.is_dividend_action(action) and amt > 0:
@@ -998,6 +1009,30 @@ async def import_other_cash_csv(account_hash: str, csv_text: str) -> dict:
         fresh.append({"day": d.isoformat(), "amount": round(amt, 2), "type": action.upper()[:32]})
 
     existing = (await get_other_cash(account_hash))["rows"]
+    # TRADE FEES rows are per-day AGGREGATES, so a newer export with more trades on a
+    # boundary day changes the day's sum — REPLACE the file's coverage rather than
+    # dedup (the file is authoritative for its range, same rule as fills). `added`
+    # reports only the NET difference so a same-file re-import reads as a no-op.
+    removed_fees: Counter = Counter()
+    if day_min and day_max:
+        lo, hi = day_min.isoformat(), day_max.isoformat()
+        kept_existing = []
+        for r in existing:
+            if r.get("type") == "TRADE FEES" and lo <= str(r.get("day")) <= hi:
+                removed_fees[(r.get("day"), r.get("amount"))] += 1
+            else:
+                kept_existing.append(r)
+        existing = kept_existing
+    fee_rows = [{"day": day, "amount": round(-total, 2), "type": "TRADE FEES"}
+                for day, total in sorted(fee_by_day.items())]
+    new_fee_count = 0
+    _rf = Counter(removed_fees)
+    for r in fee_rows:
+        if _rf.get((r["day"], r["amount"]), 0) > 0:
+            _rf[(r["day"], r["amount"])] -= 1
+        else:
+            new_fee_count += 1
+
     seen = Counter((r.get("day"), r.get("amount"), r.get("type")) for r in existing)
     added = []
     for r in fresh:
@@ -1006,8 +1041,8 @@ async def import_other_cash_csv(account_hash: str, csv_text: str) -> dict:
             seen[k] -= 1
             continue
         added.append(r)
-    if added:
-        merged = existing + added
+    if added or fee_rows or removed_fees:
+        merged = existing + added + fee_rows
         payload = _json.dumps(merged)
         async with SessionLocal() as s:
             await s.execute(
@@ -1015,7 +1050,8 @@ async def import_other_cash_csv(account_hash: str, csv_text: str) -> dict:
                 .on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": payload})
             )
             await s.commit()
-    return {"ok": True, "added": len(added), "parsed": len(fresh)}
+    return {"ok": True, "added": len(added) + new_fee_count, "parsed": len(fresh),
+            "fees_captured": round(sum(fee_by_day.values()), 2)}
 
 
 _NOTES_KEY = "notes:"  # + account_hash → JSON {SYMBOL: text}
