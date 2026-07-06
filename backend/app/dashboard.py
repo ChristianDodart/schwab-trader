@@ -1,0 +1,336 @@
+"""Dashboard service — computes the Stock Data + Longs views.
+
+All numbers are derived here, server-side, from: DB lots + completed trades,
+the live quote (hub.latest), and the strategy engine (strategy/rules.py). The
+frontend just renders what this returns — no strategy logic in the browser.
+"""
+from __future__ import annotations
+
+from datetime import date, datetime
+
+from sqlalchemy import func, select
+
+from . import avg52, config_store
+from .db import SessionLocal
+from .db.models import CompletedTrade, Lot, Ticker
+from .ledger import MARKET_TZ
+from .schwab import hub
+from .strategy import StrategyConfig, rules
+
+
+def _f(x) -> float:
+    """Numeric/Decimal/None -> float."""
+    return float(x) if x is not None else 0.0
+
+
+def _today() -> date:
+    """Market-local 'today' (matches the ledger), so the YTD boundary and ages
+    don't shift by the UTC offset on a server in another timezone."""
+    return datetime.now(MARKET_TZ).date()
+
+
+async def _load(account_hash: str):
+    async with SessionLocal() as s:
+        lots = (
+            await s.execute(
+                select(Lot).where(Lot.account_hash == account_hash)
+                .order_by(Lot.symbol, Lot.rung)
+            )
+        ).scalars().all()
+        tickers = {
+            t.symbol: t
+            for t in (await s.execute(select(Ticker))).scalars().all()
+        }
+        agg = (
+            await s.execute(
+                select(
+                    CompletedTrade.symbol,
+                    func.sum(CompletedTrade.profit),
+                    func.count(CompletedTrade.id),
+                    func.min(CompletedTrade.completed_at),
+                ).where(CompletedTrade.account_hash == account_hash)
+                .group_by(CompletedTrade.symbol)
+            )
+        ).all()
+        year_start = date(_today().year, 1, 1)
+        agg_year = (
+            await s.execute(
+                select(
+                    CompletedTrade.symbol,
+                    func.sum(CompletedTrade.profit),
+                    func.count(CompletedTrade.id),
+                ).where(CompletedTrade.account_hash == account_hash,
+                        CompletedTrade.completed_at >= year_start)
+                .group_by(CompletedTrade.symbol)
+            )
+        ).all()
+    realized = {r[0]: (_f(r[1]), int(r[2]), r[3]) for r in agg}
+    year_realized = {r[0]: (_f(r[1]), int(r[2])) for r in agg_year}
+    return lots, tickers, realized, year_realized
+
+
+def _group(lots):
+    by: dict[str, list[Lot]] = {}
+    for lot in lots:
+        by.setdefault(lot.symbol, []).append(lot)
+    return by
+
+
+def _lot_sell_target(lot: Lot, cfg: StrategyConfig) -> float:
+    """Stored target if set, else the strategy default for this lot."""
+    if lot.sell_target_price is not None:
+        return _f(lot.sell_target_price)
+    return rules.sell_target_price(_f(lot.buy_price), _f(lot.shares), cfg,
+                                   mode=lot.sell_mode)
+
+
+def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
+                 realized: tuple[float, int, date | None],
+                 year_realized: tuple[float, int], total_invested: float,
+                 cfg: StrategyConfig, deployed_pct: float | None = None) -> dict:
+    quote = hub.latest.get(symbol, {})
+    price = quote.get("last")
+    price = _f(price) if price is not None else None
+    year_high = quote.get("yearHigh") or (_f(ticker.year_high) if ticker and ticker.year_high else None)
+
+    buy_prices = [_f(l.buy_price) for l in lots]
+    shares = sum(_f(l.shares) for l in lots)
+    invested = sum(_f(l.shares) * _f(l.buy_price) for l in lots)
+    positions = len(lots)
+    last = lots[-1]  # highest rung (loaded ordered by rung)
+    last_amount = _f(last.shares) * _f(last.buy_price)
+    min_buy = min(buy_prices) if buy_prices else 0.0
+
+    next_buy = rules.next_buy_price(_f(last.buy_price), positions + 1, cfg, deployed_pct)
+    sell_targets = [_lot_sell_target(l, cfg) for l in lots]
+    log_profit, trades, realized_first = realized
+    year_profit, year_trades = year_realized
+
+    first_buy = min((l.buy_date for l in lots), default=None)
+    # Anchor avg-monthly to when the realized profit was actually earned (first
+    # closed trade), not the age of the oldest open lot — disjoint windows.
+    anchor = realized_first or first_buy
+    days = (_today() - anchor).days if anchor else 0
+    avg_monthly = (log_profit / days * 30) if days > 0 else 0.0
+
+    has_price = price is not None and price > 0
+    return {
+        "symbol": symbol,
+        "name": ticker.name if ticker else None,
+        "sector": ticker.sector if ticker else None,
+        "is_watch": False,
+        "positions": positions,
+        "shares": round(shares, 4),
+        "invested": round(invested, 2),
+        "basis_per_share": round(rules.basis_per_share(invested, shares), 4),
+        "price": round(price, 4) if has_price else None,
+        "current_value": round(shares * price, 2) if has_price else None,
+        "unrealized": round(shares * price - invested, 2) if has_price else None,
+        # today's P/L on the shares still held = per-share day change × shares
+        # (None in demo / when the quote carries no NET_CHANGE).
+        "day_change": round(_f(quote.get("netChange")) * shares, 2)
+        if has_price and quote.get("netChange") is not None else None,
+        "lilo_pct": round(rules.lilo_pct(price, min_buy), 4) if has_price else None,
+        # 52-week average + median of daily closes — "where it spends most of its
+        # time"; below = historical discount, above = rich. Median is spike-robust
+        # (the true typical close). Cached/refreshed in the background (non-blocking);
+        # None until warmed / too new.
+        "avg_52wk": avg52.get(symbol),
+        "median_52wk": avg52.median(symbol),
+        "pct_of_high": round(price / year_high, 4) if has_price and year_high else None,
+        "portfolio_pct": round(invested / total_invested, 4) if total_invested else None,
+        "year_high": year_high,
+        "year_low": quote.get("yearLow"),
+        "next_buy_price": round(next_buy, 4),
+        "buy_mark": rules.is_buy_mark(price, next_buy) if has_price else False,
+        "sell_mark": rules.is_sell_mark(price, sell_targets) if has_price else False,
+        "last_pos_cost": round(last_amount, 2),
+        "last_pos_profit": round(price * _f(last.shares) - last_amount, 2) if has_price else None,
+        "log_profit": round(log_profit, 2),
+        "trades": trades,
+        "year_profit": round(year_profit, 2),
+        "year_trades": year_trades,
+        "avg_monthly": round(avg_monthly, 2),
+        "first_buy_date": first_buy.isoformat() if first_buy else None,
+    }
+
+
+# Short-lived per-account snapshot cache. The ws pushes ~1x/sec PER connected client
+# and the REST endpoint also calls this; without the memo, N clients = N× (~6 queries
+# + avg52 scheduling) every second. A sub-second TTL collapses that to one build/sec
+# with no visible staleness (quotes themselves only refresh ~1/sec).
+_snap: dict[str, tuple[float, dict]] = {}
+_SNAP_TTL_S = 0.9
+
+
+def invalidate_dashboard_cache() -> None:
+    _snap.clear()
+
+
+async def build_dashboard(account_hash: str) -> dict:
+    """The Stock Data view for one account: one summary row per held ticker."""
+    import time as _time
+
+    hit = _snap.get(account_hash)
+    if hit and (_time.monotonic() - hit[0]) < _SNAP_TTL_S:
+        return hit[1]
+    snap = await _build_dashboard_uncached(account_hash)
+    _snap[account_hash] = (_time.monotonic(), snap)
+    return snap
+
+
+async def _deployed_pct_if_scaling(account_hash: str, cfg: StrategyConfig) -> float | None:
+    """Account deployment % for ladder scaling — only when the user enabled it (else
+    None ⇒ the ladder engine no-ops and behaves exactly as the fixed ladder)."""
+    if not cfg.deployment_scaling.enabled:
+        return None
+    from . import accounts as accounts_svc
+    return await accounts_svc.deployed_pct(account_hash)
+
+
+async def _build_dashboard_uncached(account_hash: str) -> dict:
+    cfg = await config_store.get_strategy(account_hash)
+    # Deployment-adjusted ladder: only fetch (cached ~60s) when the user has enabled it.
+    deployed = await _deployed_pct_if_scaling(account_hash, cfg)
+    lots, tickers, realized, year_realized = await _load(account_hash)
+    by = _group(lots)
+    total_invested = sum(
+        _f(l.shares) * _f(l.buy_price) for l in lots
+    )
+    rows = [
+        _summary_row(sym, by[sym], tickers.get(sym), realized.get(sym, (0.0, 0, None)),
+                     year_realized.get(sym, (0.0, 0)), total_invested, cfg, deployed)
+        for sym in by
+    ]
+    rows.sort(key=lambda r: r["portfolio_pct"] or 0, reverse=True)
+
+    # Watchlist tickers (no position in this account) -> watch rows, after held.
+    for t in tickers.values():
+        if t.watch and t.symbol not in by:
+            rows.append(_watch_row(t))
+
+    # Header metric — "Harvestable": the profit you could lock in RIGHT NOW by selling
+    # every profitable last position, measured vs. each last lot's entry price. It is
+    # exactly the sum of the positive "Last Pos P/L" cells in the table, and equals what
+    # the "Sell profitable" bulk action would realize. $0 when every last position is
+    # underwater — a ladder trader harvests winners and holds losers, so the actionable
+    # header number is "what's on the table to take", NOT today's drift vs. yesterday's
+    # close. ALL-OR-NOTHING: None (→ UI hides it) until every held position is priced, so
+    # a warming feed never shows a wrong figure. (Per-row day_change is still emitted for
+    # anyone who wants intraday drift.)
+    held = [r for r in rows if not r["is_watch"]]
+    priced = bool(held) and all(r["last_pos_profit"] is not None for r in held)
+    return {
+        "mode": hub.mode,
+        "account_hash": account_hash,
+        "total_invested": round(total_invested, 2),
+        "harvestable": round(sum(r["last_pos_profit"] for r in held if r["last_pos_profit"] > 0), 2) if priced else None,
+        "rows": rows,
+    }
+
+
+def _watch_row(ticker: Ticker) -> dict:
+    quote = hub.latest.get(ticker.symbol, {})
+    price = quote.get("last")
+    price = _f(price) if price is not None else None
+    year_high = quote.get("yearHigh") or (_f(ticker.year_high) if ticker.year_high else None)
+    has_price = price is not None and price > 0
+    return {
+        "symbol": ticker.symbol, "name": ticker.name, "sector": ticker.sector, "is_watch": True,
+        "positions": 0, "shares": 0, "invested": 0, "basis_per_share": 0,
+        "price": round(price, 4) if has_price else None,
+        "current_value": None, "unrealized": None, "day_change": None, "lilo_pct": None,
+        "avg_52wk": avg52.get(ticker.symbol),
+        "median_52wk": avg52.median(ticker.symbol),
+        "pct_of_high": round(price / year_high, 4) if has_price and year_high else None,
+        "portfolio_pct": None, "year_high": year_high, "year_low": quote.get("yearLow"),
+        "next_buy_price": None, "buy_mark": False, "sell_mark": False,
+        "last_pos_cost": None, "last_pos_profit": None, "log_profit": 0, "trades": 0,
+        "year_profit": 0, "year_trades": 0, "avg_monthly": 0,
+        "first_buy_date": None,
+    }
+
+
+async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
+    """The Longs view for one ticker on one account: lots + projected ladder."""
+    symbol = symbol.upper()
+    cfg = await config_store.get_strategy(account_hash)
+    deployed = await _deployed_pct_if_scaling(account_hash, cfg)
+    async with SessionLocal() as s:
+        lots = (
+            await s.execute(
+                select(Lot).where(Lot.symbol == symbol, Lot.account_hash == account_hash)
+                .order_by(Lot.rung)
+            )
+        ).scalars().all()
+        ticker = (
+            await s.execute(select(Ticker).where(Ticker.symbol == symbol))
+        ).scalar_one_or_none()
+    if not lots:
+        return None
+
+    quote = hub.latest.get(symbol, {})
+    price = quote.get("last")
+    price = _f(price) if price is not None else None
+    has_price = price is not None and price > 0
+
+    buy_prices = [_f(l.buy_price) for l in lots]
+    shares = sum(_f(l.shares) for l in lots)
+    invested = sum(_f(l.shares) * _f(l.buy_price) for l in lots)
+    min_buy = min(buy_prices) if buy_prices else 0.0
+
+    lot_rows = []
+    prev_price = None
+    for l in lots:
+        bp = _f(l.buy_price)
+        sh = _f(l.shares)
+        target = _lot_sell_target(l, cfg)
+        lot_rows.append({
+            "id": l.id,
+            "rung": l.rung,
+            "source": l.source,
+            "buy_date": l.buy_date.isoformat() if l.buy_date else None,
+            "age_days": (_today() - l.buy_date).days if l.buy_date else None,
+            "shares": round(sh, 4),
+            "buy_price": round(bp, 4),
+            "amount": round(sh * bp, 2),
+            "pct_down_from_prev": round(1 - bp / prev_price, 4) if prev_price else None,
+            "sell_target": round(target, 4),
+            "sell_mode": l.sell_mode or cfg.sell.default_mode,
+            "proj_profit": round((target - bp) * sh, 2),
+            # live P/L if this lot were sold right now
+            "pl_now": round((price - bp) * sh, 2) if has_price else None,
+            "next_buy_sug": round(rules.next_buy_price(bp, l.rung + 1, cfg, deployed), 4),
+        })
+        prev_price = bp
+
+    # Projected future rungs continue from the ACTUAL last fill, not an idealized
+    # rung-1 chain — so they reflect real fill drift and match the Stock Data
+    # next-buy (which is derived from the deepest filled lot).
+    projected = []
+    if lots:
+        prev_price = _f(lots[-1].buy_price)
+        for rung in range(len(lots) + 1, cfg.max_rungs + 1):
+            trigger = rules.next_buy_price(prev_price, rung, cfg, deployed)
+            dollars = rules.sizing_dollars(rung - 1, cfg)
+            projected.append({
+                "rung": rung,
+                "trigger_price": round(trigger, 4),
+                "suggested_dollars": dollars,
+                "suggested_shares": round(dollars / trigger, 2) if trigger else None,
+            })
+            prev_price = trigger
+
+    return {
+        "symbol": symbol,
+        "name": ticker.name if ticker else None,
+        "sector": ticker.sector if ticker else None,
+        "price": round(price, 4) if has_price else None,
+        "positions": len(lots),
+        "shares": round(shares, 4),
+        "invested": round(invested, 2),
+        "basis_per_share": round(rules.basis_per_share(invested, shares), 4),
+        "lilo_pct": round(rules.lilo_pct(price, min_buy), 4) if has_price else None,
+        "lots": lot_rows,
+        "projected_ladder": projected,
+    }

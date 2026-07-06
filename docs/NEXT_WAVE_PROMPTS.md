@@ -1,0 +1,334 @@
+# Next-wave task prompts (for delegated execution)
+
+> **STATUS: Wave 1 (P1–P5 below) was EXECUTED 2026-07-05 and shipped in v0.3.0.** Kept
+> here for reference. The **live queue is "Wave 2" at the bottom of this file.**
+
+Five self-contained tasks, designed 2026-07-05. Each prompt below can be handed to a
+separate session/model verbatim. They are ordered by value; they do not depend on each
+other unless noted.
+
+**Rules that apply to EVERY task (paste along with the prompt):**
+
+> - Read `CLAUDE.md` at the repo root first — it's the project brain. Obey its
+>   maintenance rules and update it when you finish (edit lines, don't append history).
+> - Repo: `C:\Users\dodar\projects\schwab-trader`. Backend = Python/FastAPI in
+>   `backend/` (run tests: `cd backend && .venv\Scripts\python.exe -m pytest tests/ -q`
+>   — 57 pass today). Frontend = React/TS/Vite in `frontend/` (verify:
+>   `npx tsc --noEmit` then `npx vite build`). Do not ship with either failing.
+> - **NEVER touch money-path logic** (`orders.place_order` guards, `bulk.py` rails,
+>   sell/oversell/PDT/fat-finger checks) unless the task explicitly says so. Display
+>   layers may READ anything.
+> - **Design system:** colors/spacing ONLY via CSS vars from `frontend/src/tokens.css`
+>   (`--pos`/`--neg` for money, `--accent` = controls, text tiers `--text/-muted/-dim/-faint`);
+>   reuse primitives from `ui.css` (`.btn*`, `.panel`, `.tbl`, `.pill`, `.field`) and
+>   patterns from existing components. Errors via `useToast()`, never `alert()`.
+>   "Only surface exceptions": don't add always-on green/OK indicators.
+> - The dev Schwab token may be dead (shows "Not live") — that's environmental, not
+>   your bug. Anything needing live Schwab data should degrade gracefully.
+> - When done: run backend tests + tsc + vite build, update `CLAUDE.md` (one tight
+>   bullet), and do NOT rebuild the installer (the maintainer batches that).
+
+---
+
+## P1 — Trade journal & performance analytics (Ledger → "Trades" sub-tab)
+
+**Goal.** The app records every closed round-trip (`completed_trade` table) but has no
+per-trade view — the old Google Sheet's "Long Log" was exactly this and it's the biggest
+remaining feature gap. Build a **Trades** sub-tab under Ledger showing the full trade
+log + performance analytics.
+
+**Backend** (new endpoint in `backend/app/main.py` + logic in `backend/app/ledger.py`):
+- `GET /api/ledger/trades?start=&end=&symbol=` → for the SELECTED account (use
+  `await _selected()` like the other ledger endpoints):
+  - `trades`: list of completed trades, newest first — `{id, symbol, shares, buy_price,
+    sell_price, cost, profit, opened_at, completed_at, hold_days (completed−opened, None
+    if opened_at is null), is_day_trade (opened_at == completed_at)}`.
+  - `summary`: `{count, wins, losses, win_rate, total_profit, avg_win, avg_loss,
+    profit_factor (gross wins ÷ |gross losses|, None if no losses), avg_hold_days,
+    day_trade_count, best {symbol, profit}, worst {symbol, profit}}`.
+  - `by_symbol`: per-symbol rollup `{symbol, count, total_profit, win_rate}` sorted by
+    total_profit desc.
+  - All computed in Python from one query (the table is small); guard divide-by-zero.
+- Follow the existing style in `ledger.py` (`_f()` float casts, scoped `account_hash`
+  conditions, `_parse_date` for start/end).
+
+**Frontend** (`frontend/src/LedgerTrades.tsx`, wired into `Ledger.tsx`):
+- Add a third `SubTabs` entry: Historic / Predictive / **Trades** (see `Ledger.tsx` —
+  the SubTabs component + `${tab}-panel` tabpanel pattern already exist; extend the
+  union type).
+- Layout: summary cards on top (use `Card` from `LedgerUI.tsx`): Win rate (e.g. "68% ·
+  34W/16L"), Total P/L (colored via `moneyColor`), Profit factor, Avg hold. Then a
+  `PeriodSelector` (already in `LedgerUI.tsx`) + optional symbol filter (text input).
+  Then the trades table (`.tbl`): Date closed · Symbol · Shares · Buy · Sell · P/L
+  (colored, signed) · Held (e.g. "3d", "same day" chip when is_day_trade) · . Then a
+  compact "By symbol" table.
+- Empty state: friendly text ("No closed trades in this period.").
+- Loading: reuse `SkeletonCards`/`SkeletonPanel` from `Skeleton.tsx`.
+- Add types to `types.ts`.
+
+**Acceptance:** tab renders with real data for the selected account (the dev DB has
+11+ completed trades); switching period/symbol filters correctly; win_rate/profit_factor
+math verified by a small pytest (`tests/test_trade_stats.py`) against a hand-computed
+fixture; tsc + build + all tests green.
+
+---
+
+## P2 — Diagnostics & About panel (Settings)
+
+**Goal.** Surface "what build am I running / is everything healthy" in one place.
+The backend already exposes everything needed: `GET /api/version` (`{version, data_dir}`),
+`GET /health` (`{status, version, database, stream_mode}`), `GET /api/auth/status`
+(liveness: `verified_live`, `last_checked_ago_s`, `latency_ms`, `check_source`),
+`GET /api/backups` (`{dir, db_bytes, keep, backups[]}`), `GET /api/fmp-status`.
+
+**Build** a "About & diagnostics" `Section` at the BOTTOM of `frontend/src/Settings.tsx`
+(follow the existing Section/Field pattern in that file):
+- App version (big-ish, `Schwab Trader v0.2.0`), data directory path (code style,
+  word-break), database size (MB).
+- A small status grid: Database (from /health `database`), Schwab API (from auth/status:
+  "Live · verified Ns ago · Xms" green, or the failure message amber/red),
+  Quote stream (`stream_mode`: schwab=Live / reauth=Offline / demo=Demo / starting=Connecting),
+  Company data (FMP configured ✓/—), Last backup (from /api/backups).
+- A "Copy diagnostics" button that copies a plain-text block of all the above to the
+  clipboard (for pasting into a support conversation).
+- Poll nothing aggressively — fetch once on mount + a manual "Refresh" button.
+- Do NOT duplicate the backup controls (the "Data & backups" section already exists) —
+  link the eye to it with a one-line mention instead.
+
+**Acceptance:** section renders with real values; degraded states readable (kill the
+token → Schwab row shows the failure); tsc + vite build green.
+
+---
+
+## P3 — Orders tab polish (live refresh + working-order visibility)
+
+**Goal.** The Orders tab is a static list; working orders deserve ambient visibility.
+
+1. **Auto-refresh:** `frontend/src/Orders.tsx` — refetch the list every 15s while the
+   tab is visible (clear the interval on unmount; guard out-of-order responses with an
+   `alive` flag like `Screener.tsx` does). Keep the manual refresh button if present.
+2. **Status chips:** render order status as a colored chip (reuse `.pill`):
+   WORKING/QUEUED/ACCEPTED/PENDING_ACTIVATION → amber; FILLED → green (`--pos`);
+   CANCELED/REJECTED/EXPIRED → dim (`--text-faint`). Keep the raw text inside the chip.
+3. **Nav badge:** show a small count of WORKING-ish orders on the "Orders" nav tab
+   (App.tsx `NAV` render) — e.g. "Orders ·2". Backend: add `GET /api/orders/working-count`
+   in `main.py` delegating to a new `orders.working_count()` that reuses the existing
+   `list_orders` fetch and counts statuses in {WORKING, QUEUED, ACCEPTED,
+   PENDING_ACTIVATION} — READ-ONLY, do not touch place/cancel logic. Poll it in App.tsx
+   every 60s; hide the badge at 0 (only-surface-exceptions).
+4. Do NOT add any bulk-cancel button (money-path; out of scope).
+
+**Acceptance:** chips render for the real order history on the dev DB; badge appears
+only when a working order exists (can be simulated by temporarily returning a fake
+count locally — do not place real orders); intervals cleaned up (no leaks on tab
+switch); tsc + build + tests green.
+
+---
+
+## P4 — Frontend test harness (vitest) + pure-logic tests
+
+**Goal.** The frontend has ZERO tests. Stand up vitest and cover the pure logic that
+guards real behavior. NO component/DOM tests in this pass (no jsdom complexity) —
+pure functions only.
+
+1. `cd frontend && npm i -D vitest` ; add `"test": "vitest run"` to package.json
+   scripts; create `vitest.config.ts` (node environment is fine for pure logic).
+2. Extract-and-test (move functions into small exported helpers where needed, WITHOUT
+   changing behavior — keep the same imports working):
+   - `columns.tsx`: the `sanitize` logic inside `useColumnPrefs` (extract to an exported
+     `sanitizeColumnIds(arr, validIds)` used by the hook) — test: drops unknown ids,
+     de-dupes preserving order, honors explicitly-empty, returns null on corrupt input.
+   - `FinancialRules.tsx`: `sizingSentence` (export it) — test the rung-range wording;
+     and the ladder-preview math (extract `ladderPreviewRows(drops, maxRungs)` returning
+     `{rung, price, drop}[]` from `LadderPreview`'s useMemo) — test tier boundaries
+     (rung 2 = 10%, rungs 3+ pick the right drop, caps at 6 rows shown).
+   - `Screener.tsx`: `fmtVol` and `fmtCap` (already module-level) — test the B/M/K
+     thresholds and null handling.
+3. Keep every extraction a pure move (same behavior); run `npx tsc --noEmit`,
+   `npx vite build`, AND the new `npm test` — all green.
+
+**Acceptance:** `npm test` runs ≥12 assertions across ≥3 files and passes; build
+unchanged; no component behavior changed (extractions only).
+
+---
+
+## P5 — Small-fixes bundle (three independent items)
+
+1. **Session dropdown gated by order type** (`frontend/src/OrderTicket.tsx`): Schwab
+   rejects MARKET orders in AM/PM sessions. When order type is MARKET (or STOP/
+   TRAILING_STOP — anything that becomes a market order), restrict the Session select
+   to NORMAL (disable/hide AM/PM/SEAMLESS options and force value NORMAL if currently
+   invalid). LIMIT/STOP_LIMIT keep all sessions. Don't touch the server.
+2. **Skip pointless nightly fills-probes for no-fills accounts** (`backend/app/rebuild.py`
+   area): the managed LLC account exposes NO fills, but every nightly sync still pages
+   7 empty `get_orders` windows. Cache a per-account "exposes_fills" hint in
+   `app_setting` (key `fills_capable:{account_hash}`, value "0"/"1"): set "0" after a
+   sync where fills came back genuinely EMPTY (not None/error) AND the account has no
+   fill-derived data (`_has_fill_derived_data()` false); set "1" whenever any fill is
+   seen. When the hint is "0", `resync_account` may skip the fills fetch and go straight
+   to positions mirroring — BUT still do a full fills probe once every 7 days (store
+   last-probe date in the same setting, e.g. "0:2026-07-05") so a newly-enabled account
+   is eventually rediscovered. SAFETY: any doubt → probe (default to probing). Add a
+   pytest for the hint parse/refresh logic (pure helper).
+3. **Audit-log retention** (`backend/app/notifications.py` or a small helper): the
+   `audit_event` table grows forever. In the nightly snapshot scheduler (or a similar
+   existing daily hook), delete audit rows older than 180 days AND beyond the newest
+   5,000 (both conditions must hold — keep at least 5k rows regardless of age). Log
+   how many were pruned. Add a pytest with an in-memory session if the test harness
+   supports it, else a pure date-cutoff helper test.
+
+**Acceptance:** each item verified as described; 57+ backend tests still pass; tsc +
+build green; CLAUDE.md updated with one bullet per item.
+
+---
+---
+
+# WAVE 2 — EXECUTED 2026-07-05, shipped v0.4.0
+
+> W2-2..W2-5 done and verified. **W2-1 auto-updater is BLOCKED** — no git repo exists
+> yet; wiring is done (`build-installer.ps1 -Publish`) but needs the maintainer to
+> `git init`, create a GitHub repo, and fill `desktop/package.json` build.publish. Once
+> that's set, W2-1's in-app "check for updates" UI is the only remaining piece.
+
+(original prompts kept below for reference)
+
+# WAVE 2 — live queue (designed 2026-07-05)
+
+Same shared-rules header as Wave 1 applies (read CLAUDE.md; never touch money-path
+logic unless told; design-system + toast rules; verify backend `pytest` + `npm test` +
+`tsc` + `vite build`; do NOT rebuild the installer — that's batched via
+`build-installer.ps1`). Ordered by value.
+
+## W2-1 — Auto-updater wiring (finish the distribution story)
+
+**Goal.** The Electron app already bundles `electron-updater` and builds a `latest.yml`,
+but `desktop/package.json` `build.publish` still has `REPLACE_WITH_GH_OWNER/REPO`, so
+silent updates don't work. Wire it to a real GitHub repo so a `build-installer.ps1`
+release actually pushes an update non-tech users receive automatically.
+
+- Ask the maintainer for the GitHub owner/repo (or read it from the git remote:
+  `git -C <repo> remote get-url origin`). Fill `build.publish[0].owner`/`repo`.
+- Add a `release` path to `build-installer.ps1` (a `-Publish` switch → `electron-builder
+  --publish always`, requires `GH_TOKEN` in the env — document this in the script header
+  and `desktop/README.md`).
+- In-app: add an **"Updates" row** to the Settings "About & diagnostics" panel showing
+  the current version + a "Check for updates" button that asks the Electron main process
+  (via a new `preload.js` bridge `window.desktop.checkForUpdates()` →
+  `ipcMain.handle` → `autoUpdater.checkForUpdatesAndNotify()`), and surfaces
+  update-available / downloading / ready states. Guard everything on
+  `window.desktop?.isDesktop` (dev browser shows "desktop app only").
+- **Acceptance:** package.json has a real repo; `-Publish` documented; the Settings
+  updates row renders in-app and no-ops gracefully in the browser. (Actual GitHub
+  release upload needs the maintainer's token — don't attempt it, just wire it.)
+
+## W2-2 — "Rules health" checks on the Financial Rules tab
+
+**Goal.** The Rules tab lets you edit the strategy freely — including into nonsensical
+states (drops that don't increase with depth, sizing tiers with gaps, a deployment
+tier at >100%). Add a **non-blocking validation panel** that surfaces suspicious config.
+
+- Pure backend helper `strategy.validate.check(cfg_mapping) -> list[{level, message}]`
+  (level = "warn"|"info"). Checks: ladder drops non-monotonic vs rung depth; sizing
+  tiers with a gap or non-ascending dollars; `max_rungs` < deepest tier; deployment
+  tiers not descending / a `min_deployed_pct` >100 or `drop_multiplier` <1; sell
+  `pct_above` <=0; universe `market_cap_min` >= `market_cap_max`. Pure + unit-tested.
+- `GET /api/strategy/validate` runs it on the SELECTED account's config.
+- Frontend: a subtle panel at the top of `FinancialRules.tsx` listing any findings
+  (amber for warn), or a quiet "✓ Rules look consistent" when clean. Re-run on save.
+- **Acceptance:** feed it a deliberately broken config → the right warnings; clean
+  config → the ok state; pure checker unit-tested; never blocks saving (advisory only).
+
+## W2-3 — Dashboard totals footer
+
+**Goal.** The dashboard table has per-row numbers but no bottom-line. Add a **totals
+row** (or footer band) summing the meaningful columns for the visible held positions:
+total Invested, total Market value, total Unrealized P/L (colored), total Day P/L,
+and total Harvestable — matching whatever money columns are currently shown.
+
+- Frontend-only if the dashboard payload already carries the per-row fields (it does:
+  invested, current_value, unrealized, day_change, last_pos_profit). Compute the sums
+  in `DashboardTable.tsx` over `rows.filter(r => !r.is_watch)`; render a sticky `<tfoot>`
+  styled distinctly (heavier top border, `--panel-2`). Respect the dynamic column set —
+  only total the columns that are numeric money columns AND currently visible; blank the
+  rest. Skip totals for columns where a sum is meaningless (price, %s, basis/share).
+- **Acceptance:** totals match a hand sum of the visible rows; hiding/showing/reordering
+  columns keeps totals under the right columns; watch rows excluded; tsc + build green.
+
+## W2-4 — CSV export (trades + deposits)
+
+**Goal.** Christian imports a Schwab CSV; let him get his OWN data back out (taxes,
+spreadsheets, records). Add CSV export for the trade journal and the deposit log.
+
+- Backend: `GET /api/ledger/trades.csv` and `GET /api/ledger/cashflows.csv` (reuse
+  `build_trades` / `list_cashflows`), returning `text/csv` with a
+  `Content-Disposition: attachment` filename incl. the account mask + date. A tiny
+  shared `_rows_to_csv(headers, rows)` helper (stdlib `csv` + `io.StringIO`).
+- Frontend: an "⬇ Export CSV" button on the Trades sub-tab and the deposit-log panel
+  (respects the current period/symbol filter via query params — just forward them).
+- **Acceptance:** files open cleanly in Excel with correct headers/values scoped to the
+  current filter; no new deps; verified against the dev account's real trades.
+
+## W2-5 — Small-fixes bundle #2
+
+1. **Bundle chunk-size:** the vite build warns ">500 kB chunk". Add
+   `build.rollupOptions.output.manualChunks` in `frontend/vite.config.ts` to split
+   `lightweight-charts` (and optionally react) into a separate chunk. Acceptance: build
+   warning gone; app still loads (verify via preview).
+2. **`get_trading_account()` clarity:** when an order is refused because the account
+   isn't trading-enabled, the toast just says so. Add the account mask to the message
+   ("…8719 isn't trading-enabled — enable it in Settings") so multi-account users know
+   WHICH one. Backend message only; no logic change.
+3. **Backup restore affordance:** the backups list is backend-only. Add a read-only
+   list of recent backups (filename + date + size) under Settings "Data & backups" (from
+   the existing `GET /api/backups`), each with a "Reveal in folder"-style hint text
+   (`explorer /select,<path>` is NOT wired — just show the full path + a copy button).
+   Acceptance: list renders newest-first; no delete/restore buttons (too dangerous to
+   automate — restore stays a manual file swap, documented).
+
+---
+---
+
+# WAVE 3 — EXECUTED 2026-07-05, shipped v0.5.0
+
+- **W3-1 Strategy-trigger notifications** — `strategy_triggers.py` watcher pushes a bell+desktop
+  alert when a held position crosses its next-buy trigger or a sell target (edge-detected,
+  reuses build_dashboard marks). Advisory only.
+- **W3-2 Equity curve** — `EquityCurve.tsx` charts the nightly daily_balance `series` on Ledger→Historic.
+
+# WAVE 4 — candidate queue (designed 2026-07-05, unstarted)
+
+Same shared-rules header as Wave 1. Ordered by value.
+
+## W4-1 — Chart overlays (ladder rungs + 52wk avg on PriceChart)
+Overlay the position's projected ladder rungs (from `/api/positions/{sym}` `projected_ladder`
+`trigger_price`s) as horizontal price lines on `PriceChart`, plus the 52wk avg/median as
+faint reference lines. Use lightweight-charts `series.createPriceLine(...)`. So the chart
+shows WHERE the next buys sit vs the current price. Frontend-only (data already exists).
+
+## W4-2 — Cash/buying-power awareness in buy suggestions
+`orders.suggest_buy` + bulk buy plans size by the strategy tier but ignore available buying
+power. Add an informational `affordable` flag + the current buying power to the suggestion
+payload (from `accounts.margin_summary`), and in OrderTicket/BulkReviewModal show a soft
+"exceeds buying power (~$X available)" note when the order notional > buying power. ADVISORY
+only — do NOT add a hard block (margin/day-trade rules are the broker's job now). 
+
+## W4-3 — Phone reach for notifications (email or ntfy)
+Notifications are bell+desktop only. Add an OPTIONAL outbound channel so alerts reach the
+phone: simplest zero-cost path is **ntfy.sh** (a topic URL, no account) OR SMTP email
+(user provides host/from/to/app-password in Settings, Fernet-encrypted like the FMP key).
+Fire it from `post_system_notification` + `_fire` for RESTING fills & strategy triggers only
+(not every tick). Gate behind a Settings toggle; degrade silently when unconfigured.
+
+## W4-4 — Ledger "since inception" summary card + XIRR
+Add a top-line performance summary to Ledger→Historic: total deposited, current value,
+absolute gain, simple ROI (have), AND a time-weighted / money-weighted return (XIRR over the
+cashflow + current-value stream) so the % accounts for WHEN money went in. Pure Python XIRR
+(Newton's method, guard non-convergence) + unit tests; one card in the Historic tab.
+
+## W4-5 — Small-fixes bundle #3
+1. Dashboard: a subtle "as of" timestamp / staleness indicator when the quote feed is offline
+   (reuse the liveness `verified_live` — dim prices + a "prices may be stale" note when not live).
+2. Trades sub-tab: a tiny cumulative-P/L sparkline or a "this year vs all-time" toggle on the
+   summary cards.
+3. Screener candidate pool: remember the last index/sort in localStorage so "Screen now" reuses
+   the user's usual filter across sessions.

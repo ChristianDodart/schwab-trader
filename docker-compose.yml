@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgres:17
+    container_name: schwab-trader-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: schwab
+      POSTGRES_PASSWORD: schwab_local_dev
+      POSTGRES_DB: schwab_trader
+    ports:
+      # Host 5433 -> container 5432, so this never collides with any other
+      # local/work Postgres you might run on the default 5432.
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U schwab -d schwab_trader"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

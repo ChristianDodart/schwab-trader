@@ -1,0 +1,40 @@
+# Secrets & tokens — NEVER commit
+.env
+backend/.env
+backend/token.json
+*.token
+# Per-profile encrypted Schwab tokens + the Fernet master key
+backend/tokens/
+*.token.enc
+master.key
+# Local SQLite database (the app's data lives here after the Postgres->SQLite swap)
+backend/data/
+*.db
+# Desktop packaging build artifacts (PyInstaller + Electron); keep the .spec (source)
+backend/build/
+backend/dist/
+desktop/node_modules/
+desktop/dist/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Postgres data (if bind-mounted)
+pgdata/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# database backups (local data, never commit)
+backend/backups/

@@ -1,0 +1,104 @@
+/* ============================================================================
+   Schwab Trader — design tokens.
+   The single source of truth for color, type, spacing, radius, and elevation.
+   Imported once (main.tsx). Components read these via var() in their inline
+   styles. These are REFINED from the palette already in the app — deduped into
+   named semantic roles, not a new theme, so the app still looks like itself.
+   ============================================================================ */
+:root {
+  /* --- SURFACES (elevation ramp; collapses #1b1b20/#1c1c22/#1b1b22/#202028) --- */
+  --bg:            #16161a;  /* page */
+  --panel:         #1b1b20;  /* cards, panels, modals */
+  --panel-2:       #23232b;  /* inputs, secondary buttons, inset/selected rows */
+  --pop:           #1c1c22;  /* popovers / menus (float above panels) */
+  --panel-header:  #202028;  /* tab strips, table-header fills */
+
+  /* --- BORDERS (3 tiers; collapses #333/#2c2c33/#3a3a44/#34343e/#2f2f38/#242428) --- */
+  --border-hairline: #242428; /* table-row & list dividers */
+  --border:          #2c2c33; /* panel / card / modal edges */
+  --border-strong:   #3a3a44; /* inputs, buttons, th underline, focused controls */
+
+  /* --- TEXT (4 tiers; floor raised so small figures pass WCAG AA on dark) --- */
+  --text:        #e9e9ea; /* primary */
+  --text-muted:  #c9c9cc; /* secondary body, field labels */
+  --text-dim:    #9a9aa0; /* captions, eyebrows, table headers (~5.2:1) */
+  --text-faint:  #8a8a90; /* hints, captions, disabled — WCAG-AA (≥4.5:1) on panel/popover surfaces */
+
+  /* --- BRAND / ACCENT (split from gain: blue = "a control", green = "an outcome") --- */
+  --accent:        #4a90e2; /* primary actions: Save, Add, Vet, active toggles */
+  --accent-hover:  #5a9ff0;
+  --accent-quiet:  #85b7eb; /* links, info text, focus ring */
+
+  /* --- SEMANTIC MONEY (text vs fill pair — impossible to drift apart) --- */
+  --pos:         #5dcaa5; /* positive numbers / text (P/L, %) */
+  --pos-strong:  #1d9e75; /* positive fills: BUY chip, buy button */
+  --neg:         #f0997b; /* negative numbers / text */
+  --neg-strong:  #d4537e; /* negative fills: SELL chip, sell button */
+  --warn:        #e0a83e; /* single caution yellow */
+  --danger:      #d4537e; /* destructive / LIVE-order (alias of neg-strong) */
+
+  /* soft tinted backgrounds (banners, soft chips, row tints) */
+  --pos-bg:    rgba(93,202,165,0.12);
+  --neg-bg:    rgba(240,153,123,0.12);
+  --danger-bg: rgba(212,83,126,0.14);
+  --warn-bg:   #3a3013;  --warn-border: #6e5a1f;
+  --info-bg:   rgba(133,183,235,0.12);
+  --accent-bg: rgba(74,144,226,0.14);
+
+  /* --- TYPE SCALE (maps the scattered 10–26px literals) --- */
+  --fs-2xs: 11px; /* eyebrows, table headers, tags */
+  --fs-xs:  12px; /* captions, badges, hints */
+  --fs-sm:  13px; /* dense body, controls, table cells */
+  --fs-md:  14px; /* default body, nav tabs */
+  --fs-lg:  17px; /* section titles, modal banners */
+  --fs-xl:  20px; /* panel hero numbers */
+  --fs-2xl: 26px; /* page title, header KPI hero */
+  --fw-normal: 400; --fw-medium: 500; --fw-semibold: 600; --fw-bold: 700;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+
+  /* --- SPACING (4/8 base) --- */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px;
+  --sp-6: 24px; --sp-8: 32px;
+
+  /* --- RADII --- */
+  --r-sm:   4px;   /* chips, badges */
+  --r-md:   6px;   /* buttons, inputs, selects */
+  --r-lg:   10px;  /* panels, cards, popovers, modals */
+  --r-pill: 999px; /* status pills, unread badge */
+
+  /* --- ELEVATION + Z (z tiers fix the popover/overlay collision) --- */
+  --shadow-pop:   0 12px 32px rgba(0,0,0,0.5);
+  --shadow-modal: 0 20px 50px rgba(0,0,0,0.55);
+  --z-popover: 60; --z-overlay: 99; --z-modal: 100; --z-toast: 120;
+
+  /* --- MOTION --- */
+  --dur-fast: 0.12s; --dur-base: 0.2s;
+}
+
+/* Global base — replaces per-component fontFamily/bg redeclarations. */
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+/* One focus ring, app-wide. Hand-styled buttons killed the default outline; this
+   restores a visible, on-brand indicator for every keyboard user. */
+:focus-visible {
+  outline: 2px solid var(--accent-quiet);
+  outline-offset: 2px;
+}
+
+::selection { background: rgba(74,144,226,0.30); }
+
+/* Subtle dark scrollbars (Chromium) so overflow regions match the theme. */
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--r-pill); }
+*::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

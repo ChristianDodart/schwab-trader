@@ -1,0 +1,213 @@
+"""Rebuild an account's open lots + completed trades from Schwab, reconciled to truth.
+
+Schwab is the source of truth. Two Schwab inputs combine:
+  - FILLS (filled orders) → LIFO reconstruction → the per-rung ladder + closed trades.
+  - POSITIONS (current holdings) → the authoritative CURRENT quantity per symbol.
+We reconstruct the ladder from fills, then RECONCILE it against live positions so
+each symbol's open total always equals what Schwab says you hold — recovering any
+shares whose buys fall outside the fill window (or aren't exposed at all, e.g. a
+managed account) as a backfilled `source=position` lot.
+
+Safety (a rebuild WIPES then re-inserts, scoped to the account) — a wipe may only
+proceed on TRUSTWORTHY inputs; an empty/partial read is never trusted to delete data:
+  - fills FETCH FAILED (None) → NO-OP. Never flatten a good ladder on a transient error.
+  - EMPTY positions map ({}) → treated as 'no positions' (untrustworthy as 'hold
+    nothing'); reconcile is skipped so it can't zero out real holdings.
+  - EMPTY fills ([]) + positions present, but the account ALREADY holds fill-derived
+    data → REFUSE. Empty fills is normal for a managed account (no fills exposed) but
+    an anomaly for a full-access account (its sells are fills); trusting it would wipe
+    real completed trades and flatten the ladder into synthetic lots.
+  - positions unavailable + no fills → NO-OP; positions unavailable + oversold → REFUSE.
+  - fetch + write run inside ONE PER-ACCOUNT lock so a stale snapshot can't clobber a
+    newer one, WITHOUT serializing unrelated accounts against each other.
+"""
+from __future__ import annotations
+
+import asyncio
+from datetime import date, timedelta
+
+from sqlalchemy import delete, func, select
+
+from .db import SessionLocal, dialect_insert as pg_insert
+from .db.models import CompletedTrade, Lot, Ticker
+from .reconstruct import Fill, reconcile_open_lots, reconstruct
+
+_locks: dict[str, asyncio.Lock] = {}
+
+
+def _lock_for(account_hash: str) -> asyncio.Lock:
+    """Per-account lock: serialize an account's own fetch+write as one snapshot
+    without blocking unrelated accounts — so a near-real-time fill poke for one
+    account isn't stuck behind another account's full nightly sync. Created lazily;
+    safe on a single-threaded event loop (no await between get and set)."""
+    lk = _locks.get(account_hash)
+    if lk is None:
+        lk = _locks[account_hash] = asyncio.Lock()
+    return lk
+
+
+def _as_date(x):
+    return x.date() if hasattr(x, "date") else x
+
+
+async def _has_fill_derived_data(account_hash: str) -> bool:
+    """True if the account currently holds data only a real fill history could have
+    produced — completed (realized) trades, or open lots sourced from fills. Used to
+    refuse an anomalous empty-fills read that would otherwise destroy it. (A managed
+    account has only source='position' lots and no completed trades → returns False,
+    so it still backfills from positions normally.)"""
+    async with SessionLocal() as s:
+        if (await s.execute(
+            select(func.count()).select_from(CompletedTrade)
+            .where(CompletedTrade.account_hash == account_hash)
+        )).scalar():
+            return True
+        fill_lots = (await s.execute(
+            select(func.count()).select_from(Lot)
+            .where(Lot.account_hash == account_hash, Lot.source == "fill")
+        )).scalar()
+    return bool(fill_lots)
+
+
+async def _fetch_positions_map(account_hash: str):
+    """Schwab CURRENT holdings for the account: {symbol: (shares, avg_price)}, or
+    None if it couldn't be read (so the caller skips reconciliation rather than wipe)."""
+    from .positions_sync import _fetch_positions_sync
+    from .schwab.auth import get_client
+
+    client = get_client()
+    if client is None:
+        return None
+    try:
+        rows = await asyncio.to_thread(_fetch_positions_sync, client, account_hash)
+    except Exception as e:
+        print(f"[rebuild] positions fetch failed for {account_hash[-4:]}: {e!r}")
+        return None
+    if rows is None:
+        return None
+    return {sym: (qty, avg) for sym, qty, avg in rows}
+
+
+async def _write(account_hash: str, fills, positions=None) -> dict:
+    """Reconstruct (+ reconcile against positions if given) + scoped replace. Holds a per-account lock."""
+    if not account_hash:
+        return {"ok": False, "error": "no account_hash — refusing to rebuild"}
+    if fills is None:
+        # Could NOT fetch fills → unknown state → NEVER wipe/flatten a good ladder.
+        return {"ok": False, "error": "fills unavailable (fetch error) — left existing data intact"}
+
+    # An EMPTY positions map is indistinguishable from a degraded/partial 200 read,
+    # so it is NOT trustworthy as 'you hold nothing'. Treat it like 'no positions'
+    # (skip reconcile) rather than letting it zero out real holdings.
+    if positions is not None and not positions:
+        positions = None
+
+    result = reconstruct(fills)  # fills is [] or [Fill...]
+    open_by_symbol = result["open_lots"]
+    closed = result["closed"]
+    oversold = result["oversold"]
+
+    if positions is not None:
+        # Empty fills + positions present: normal for a managed account (exposes no
+        # fills → backfill open lots from positions), but an ANOMALY for an account
+        # that already has fill-derived history (a full-access account's sells are
+        # themselves fills). Trusting it would wipe real completed trades and flatten
+        # the ladder into synthetic lots — so refuse and leave the account untouched.
+        if not fills and await _has_fill_derived_data(account_hash):
+            print(f"[rebuild] {account_hash[-4:]} REFUSED — empty fills but account has "
+                  f"fill-derived history (transient/misconfigured read); left data intact")
+            return {"ok": False, "refused": "empty fills on an account with fill-derived history "
+                    "— left existing data intact"}
+        # Positions are the authoritative CURRENT holdings — reconcile to them
+        # (backfills shares whose buys are outside the fill window). oversold becomes
+        # informational: the position totals are the truth we align to.
+        horizon = date.today() - timedelta(days=366)
+        open_by_symbol = reconcile_open_lots(open_by_symbol, positions, horizon)
+        if oversold:
+            print(f"[rebuild] {account_hash[-4:]} oversold reconciled against positions: {oversold}")
+    else:
+        # No positions truth to reconcile against → be conservative.
+        if not fills:
+            return {"ok": True, "skipped": "no fills, no positions — left existing data intact",
+                    "open_lots": 0, "closed": 0}
+        if oversold:
+            print(f"[rebuild] {account_hash[-4:]} REFUSED — oversold, no positions to reconcile: {oversold}")
+            return {"ok": False, "refused": "oversold, no positions to reconcile — left existing data intact",
+                    "oversold": len(oversold)}
+
+    symbols = set(open_by_symbol) | {c.symbol for c in closed}
+    n_lots = n_backfill = 0
+    async with SessionLocal() as s:
+        for sym in symbols:  # Ticker FK; never delete reference rows
+            await s.execute(
+                pg_insert(Ticker).values(symbol=sym)
+                .on_conflict_do_nothing(index_elements=[Ticker.symbol])
+            )
+        await s.execute(delete(Lot).where(Lot.account_hash == account_hash))
+        await s.execute(delete(CompletedTrade).where(CompletedTrade.account_hash == account_hash))
+
+        for lots in open_by_symbol.values():
+            for ol in lots:
+                s.add(Lot(account_hash=account_hash, symbol=ol.symbol, rung=ol.rung,
+                          buy_date=_as_date(ol.at), shares=ol.shares, buy_price=ol.price,
+                          source=getattr(ol, "source", "fill")))
+                n_lots += 1
+                if getattr(ol, "source", "fill") == "position":
+                    n_backfill += 1
+        for ct in closed:
+            s.add(CompletedTrade(
+                account_hash=account_hash, symbol=ct.symbol, shares=ct.shares,
+                buy_price=ct.buy_price, sell_price=ct.sell_price,
+                cost=ct.cost, profit=ct.profit,
+                opened_at=_as_date(ct.opened_at), completed_at=_as_date(ct.completed_at),
+            ))
+        await s.commit()
+
+    print(f"[rebuild] {account_hash[-4:]}: {n_lots} open lots ({n_backfill} backfilled from "
+          f"positions), {len(closed)} closed trades from {len(fills)} fills")
+    return {"ok": True, "open_lots": n_lots, "backfilled": n_backfill,
+            "closed": len(closed), "fills": len(fills)}
+
+
+async def rebuild_account(account_hash: str, fills: list[Fill]) -> dict:
+    """Rebuild from an explicit fills list (fills-only, no reconciliation). Used by
+    tests / callers that already have fills."""
+    async with _lock_for(account_hash):
+        return await _write(account_hash, fills)
+
+
+async def resync_account(account_hash: str) -> dict:
+    """The production entry point: fetch fills + current positions, reconstruct the
+    ladder, reconcile it to the positions (so the total always matches Schwab), and
+    write — all under one lock. Then announce new fills in the bell feed."""
+    from . import fills as fills_svc
+    from . import fills_hint
+
+    async with _lock_for(account_hash):
+        # Skip the (always-empty) fills probe for an account we KNOW exposes none — the
+        # LLC — going straight to positions mirroring. Re-probes every ~7 days; any
+        # doubt probes. The _write refuse-guard still protects a full-access account.
+        capable, last_probe = await fills_hint.get_hint(account_hash)
+        today = date.today()
+        probe = fills_hint.should_probe(capable, last_probe, today)
+        fills = await fills_svc.fetch_fills(account_hash) if probe else []
+        positions = await _fetch_positions_map(account_hash)
+        result = await _write(account_hash, fills, positions)
+
+        # Update the hint ONLY after a real probe with a trustworthy result (fills is a
+        # list, not None=error). Empty + no fill-derived history ⇒ this account exposes
+        # no fills; anything else ⇒ it does (probe next time).
+        if probe and fills is not None:
+            if fills:
+                await fills_hint.set_hint(account_hash, True, today)
+            elif not await _has_fill_derived_data(account_hash):
+                await fills_hint.set_hint(account_hash, False, today)
+            else:
+                await fills_hint.set_hint(account_hash, True, today)
+
+    try:
+        from . import notifications as notifications_svc
+        await notifications_svc.notify_fills(account_hash, fills or [])
+    except Exception as e:
+        print(f"[resync] notify_fills failed: {e!r}")
+    return result

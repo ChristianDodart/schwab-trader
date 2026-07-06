@@ -1,0 +1,25 @@
+# Web framework
+fastapi>=0.115
+uvicorn[standard]>=0.32
+
+# Schwab API: OAuth, REST, and the streaming (websocket) client
+schwab-py>=1.5
+httpx>=0.27            # direct HTTP for the optional FMP company-profile calls (also a schwab-py dep)
+
+# Database — async SQLAlchemy. Postgres (psycopg3) for dev/server; SQLite
+# (aiosqlite) is the DEFAULT when DATABASE_URL is unset — the packaged desktop app.
+sqlalchemy[asyncio]>=2.0.36
+psycopg[binary]>=3.2
+aiosqlite>=0.20        # async SQLite driver (packaged-app default DB)
+alembic>=1.13          # schema migrations (versioned ALTERs, not drop/recreate)
+cryptography>=43       # Fernet — encrypts per-profile tokens + the app secret at rest
+
+# Config & strategy
+pydantic-settings>=2.6
+PyYAML>=6.0
+
+# One-time spreadsheet import (seed_from_sheet.py)
+openpyxl>=3.1
+
+# Tests
+pytest>=8.0

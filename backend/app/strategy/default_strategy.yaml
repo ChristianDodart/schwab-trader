@@ -1,0 +1,64 @@
+# =============================================================================
+# TRADING STRATEGY CONFIG
+# -----------------------------------------------------------------------------
+# This file is the ONLY place strategy numbers live. The engine (rules.py) reads
+# these values and never hardcodes them. Tweak a %, add a rung, or change a sell
+# rule here — no plumbing code needs to change.
+# Decoded from "Christian - Stock Trading for 2026" (LIFO progressive ladder).
+# =============================================================================
+
+# --- Position sizing: how many DOLLARS to deploy on the next buy, based on how
+# --- many rungs (lots) are already filled for THIS ticker. shares = dollars / price.
+sizing_tiers:
+  - up_to_rungs: 2      # rungs 1-2
+    dollars: 500
+  - up_to_rungs: 7      # rungs 3-7
+    dollars: 1000
+  - up_to_rungs: 10     # rungs 8-10
+    dollars: 1500
+
+# --- Buy ladder: each new rung's trigger price = previous rung price * (1 - drop).
+# --- The deeper the rung, the larger the required drop.
+buy_ladder:
+  max_rungs: 10
+  drops:
+    - up_to_rung: 2     # rung 2 triggers 10% below rung 1
+      drop_pct: 0.10
+    - up_to_rung: 7     # rungs 3-7 each 13% below the prior rung
+      drop_pct: 0.13
+    - up_to_rung: 10    # rungs 8-10 each 16% below the prior rung
+      drop_pct: 0.16
+
+# --- OPTIONAL: scale the ladder's required drop % by how deployed the account is
+# --- (the sheet's Tier 1/2/3 behavior). Heavily deployed ⇒ larger multiplier ⇒ wait
+# --- for deeper dips before adding, conserving buying power. Disabled by default:
+# --- with enabled:false the ladder is fixed (drop_pct as written above), unchanged.
+# --- deployed_pct = market value in play ÷ (that value + remaining buying power).
+deployment_scaling:
+  enabled: true               # recommended ON: only ever requires DEEPER dips, never shallower
+  tiers:
+    - min_deployed_pct: 90     # >=90% deployed: require 40% deeper dips (defensive)
+      drop_multiplier: 1.4
+    - min_deployed_pct: 70     # 70-90% deployed: 15% deeper
+      drop_multiplier: 1.15
+    - min_deployed_pct: 0      # <70% deployed: normal ladder
+      drop_multiplier: 1.0
+
+# --- Sell targets are set PER LOT, in one of two modes (user's choice each time):
+sell:
+  default_mode: dollar_gain        # or: pct_above
+  dollar_gain: 50.0                # take profit when this $ gain on the lot is reached
+  pct_above: 0.11                  # ...or this % above the lot's buy price
+
+# --- Guardrails (informational + future enforcement)
+guardrails:
+  max_position_pct_of_portfolio: 0.05   # keep each stock under 5%
+  target_lots_deep: 6                    # ~6 lots deep on average
+  cash_reserve_pct: 0.30                 # hold 30% of total available in reserve
+
+# --- Universe screening (informational for now)
+universe:
+  market_cap_min: 1000000000      # $1B
+  market_cap_max: 30000000000     # $30B
+  country: US
+  exclude: [china, biotech]
