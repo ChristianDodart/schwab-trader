@@ -239,7 +239,11 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
     notes = await get_notes(account_hash)
     last_held = await get_last_held(account_hash)
     for r in rows:
-        r["has_note"] = r["symbol"] in notes
+        note_txt = notes.get(r["symbol"])
+        r["has_note"] = bool(note_txt)
+        # A short preview for the dashboard hover tooltip (full text lives on the
+        # detail page). Truncated so a long journal entry doesn't bloat the payload.
+        r["note_preview"] = (note_txt[:240] + "…") if note_txt and len(note_txt) > 240 else (note_txt or None)
         r["has_rules"] = r["symbol"] in sym_overrides   # per-ticker rule override active
         # Watch rows that used to be held show the last price they were held at.
         r["last_held"] = last_held.get(r["symbol"]) if r["is_watch"] else None

@@ -1,8 +1,35 @@
 // Shared presentational bits for the two ledger sub-tabs (Historic / Predictive).
 // Kept dependency-light (only App's formatters) so both tabs — and the shell —
 // can import from here without a cycle.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usd } from "./App";
+import { API } from "./api";
+
+// The selected account + active profile, resolved for print headers so a saved/
+// printed page identifies WHOSE account it is. Fetched once; degrades to a plain
+// label when Schwab isn't connected. Renders as a line inside a `.print-only` block.
+export function AccountStamp() {
+  const [label, setLabel] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    Promise.all([
+      fetch(`${API}/accounts`).then((r) => r.json()).catch(() => null),
+      fetch(`${API}/profiles`).then((r) => r.json()).catch(() => null),
+    ]).then(([acc, prof]) => {
+      if (!alive) return;
+      const sel = acc?.accounts?.find((a: { hash: string }) => a.hash === acc.selected_hash);
+      const active = Array.isArray(prof?.profiles) ? prof.profiles.find((p: { active: boolean }) => p.active) : null;
+      const parts = [
+        sel ? `Account ${sel.mask}${sel.type ? ` · ${sel.type}` : ""}` : null,
+        active?.name ? `Profile: ${active.name}` : null,
+      ].filter(Boolean);
+      setLabel(parts.length ? parts.join("  ·  ") : null);
+    });
+    return () => { alive = false; };
+  }, []);
+  if (!label) return null;
+  return <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 600 }}>{label}</p>;
+}
 
 // ---- sub-tab segmented control (Historic | Predictive) ----
 export type SubTab = { id: string; label: string; hint?: string };

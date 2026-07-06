@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usd } from "./App";
 import { SkeletonCards, SkeletonPanel } from "./Skeleton";
-import { ALL_TIME, Card, Panel, PeriodSelector, S, moneyColor, type Period } from "./LedgerUI";
+import { AccountStamp, ALL_TIME, Card, Panel, PeriodSelector, S, moneyColor, type Period } from "./LedgerUI";
 import type { TradeLog } from "./types";
 
 import { API } from "./api";
@@ -61,6 +61,7 @@ export function LedgerTrades() {
       {/* Printable closed-trades journal (hidden on screen; see .print-only in ui.css). */}
       <div className="print-only">
         <h2 style={{ margin: "0 0 2px" }}>Schwab Trader — Trade Journal</h2>
+        <AccountStamp />
         <p style={{ margin: "0 0 4px", fontSize: 12 }}>{scope.label}{sym ? ` · ${sym.toUpperCase()}` : ""}</p>
         <p style={{ margin: "0 0 12px", fontSize: 12 }}>
           {s.count} trades · win rate {winStr} · total P/L {usd(s.total_profit)}

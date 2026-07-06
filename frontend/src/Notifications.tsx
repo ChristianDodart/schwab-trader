@@ -27,6 +27,38 @@ function fireDesktop(n: Notification) {
   }
 }
 
+// Classify a feed row for its scannable type glyph. Live pushes carry `kind`;
+// stored rows don't, so infer: an alert_id ⇒ a price alert; else read the message
+// (fills say bought/sold/filled; strategy triggers say dipped/target/trigger).
+function inferKind(n: Notification): "alert" | "trigger" | "fill" {
+  if (n.kind) return n.kind;
+  if (n.alert_id != null) return "alert";
+  const m = (n.message || "").toLowerCase();
+  if (/\b(bought|sold|filled|fill)\b/.test(m)) return "fill";
+  if (/\b(dip|dipped|target|trigger|rung|next buy)\b/.test(m)) return "trigger";
+  return "alert";
+}
+
+// Emoji-free glyphs (matches the app's ●/▲/▼ language), color-coded per type.
+const KIND_ICON: Record<string, { glyph: string; color: string; label: string }> = {
+  alert: { glyph: "!", color: "var(--warn)", label: "Price alert" },
+  trigger: { glyph: "▸", color: "var(--accent)", label: "Strategy trigger" },
+  fill: { glyph: "✓", color: "var(--pos)", label: "Order fill" },
+};
+
+function KindIcon({ n }: { n: Notification }) {
+  const k = KIND_ICON[inferKind(n)];
+  return (
+    <span title={k.label} aria-label={k.label}
+      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center",
+               width: 16, minWidth: 16, height: 16, borderRadius: 4, marginTop: 1,
+               fontSize: 11, fontWeight: 700, color: k.color,
+               border: `1px solid ${k.color}`, lineHeight: 1 }}>
+      {k.glyph}
+    </span>
+  );
+}
+
 export function NotificationsBell({
   prefill,
   onPrefillConsumed,
@@ -313,6 +345,7 @@ export function NotificationsBell({
                         {sep}
                         <div style={{ ...S.note, opacity: n.read ? 0.55 : 1 }}>
                           {!n.read && <span style={S.dot} />}
+                          <KindIcon n={n} />
                           <div style={{ flex: 1 }}>
                             <div style={S.noteMsg}>{n.message}</div>
                             <div style={S.noteTime}>{fmtTime(n.created_at)}</div>

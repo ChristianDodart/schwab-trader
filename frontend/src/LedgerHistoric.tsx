@@ -4,7 +4,7 @@ import { EquityCurve } from "./EquityCurve";
 import { SkeletonCards, SkeletonPanel } from "./Skeleton";
 import { useToast } from "./Toast";
 import {
-  ALL_TIME, Card, Panel, PeriodSelector, Row, S, moneyColor, type Period,
+  AccountStamp, ALL_TIME, Card, Panel, PeriodSelector, Row, S, moneyColor, type Period,
 } from "./LedgerUI";
 import type { CashFlowRow, LedgerHistoric as Historic, MarginSummary } from "./types";
 
@@ -461,6 +461,7 @@ function PrintSummary({ h, bench, div }: { h: Historic; bench: Benchmark | null;
   return (
     <div className="print-only">
       <h2 style={{ margin: "0 0 2px" }}>Schwab Trader — Ledger Summary</h2>
+      <AccountStamp />
       <p style={{ margin: "0 0 12px", fontSize: 12 }}>As of {h.as_of}</p>
       <table><tbody>
         {rowsFig.map(([k, v]) => (

@@ -571,24 +571,32 @@ see CHANGELOG.) This wave, from Christian's live report on Andrew's account:
   (informational), not "missing data". (INMB investigated: reconstruction was
   CORRECT — deepest lot exactly the expected 10/07 1,006 @ 1.9899.)
 
-# WAVE 22 — candidate queue (older polish, rolled forward)
+# WAVE 22 (CASH IDENTITY & POLISH) — EXECUTED 2026-07-06, shipped v0.24.0/0.24.1
 
-Same shared-rules header as Wave 1. Ordered by value.
+From the live cash-residual question ($33.5k on Andrew's margin account):
+- **Airtight cash identity** — short activity stored in fill_record (sides SSEL/BCOV,
+  excluded from the long-only projection via load_fills) + counted in trading_net; new
+  other-cash log (`ledger.import_other_cash_csv`: margin interest, div adjustments, cash
+  in lieu, awards, distributions, and PER-TRADE FEES from the Fees column — all deduped);
+  actual = cash MINUS margin debt. Residual collapsed 33.5k → ~$20 (post-import), all
+  named components in the health tooltip. (v0.24.1 added the exact fee capture.)
+- **Dashboard sorting** — click-to-sort every column (desc→asc→default), persisted,
+  applied before ETF nesting so children travel with their parent.
+- **Peak-capital ROI** — return % divides by the MAX cumulative net contribution (most of
+  your own money ever in at once), immune to out-and-back-in cycling; XIRR stays headline.
+- Removed the Profit-factor card from Trades.
 
-## W22-1 — Account label in print headers (was W14-2/W16-1)
-Include the selected account's mask/name (and profile) in the Ledger + Trades print blocks. Resolve the
-label from accounts_svc / the active profile (degrade to unlabeled when Schwab isn't connected).
+# WAVE 23 (POLISH BACKLOG) — EXECUTED 2026-07-06, shipped v0.25.0
 
-## W22-2 — Bell type icons
-Now that the push carries `kind`, show a small per-type icon in the bell feed (price alert vs trigger vs
-fill) so the history scans faster. (Historical rows lack kind → infer from alert_id / message, or add the
-`kind` column in a later migration if it proves worth it.)
-
-## W22-3 — Dashboard note preview on hover
-Upgrade the W14-3 note dot: a hover tooltip/popover showing the note text (needs the note text on the row
-or a lightweight fetch on hover).
-
-## W22-4 — Small-fixes bundle #13
-1. Empty-state polish across tabs (friendly "nothing yet" copy where sparse).
-2. A subtle "saved" flash on the position note after autosave.
-3. Consistent number formatting audit (thousands separators everywhere).
+The long-deferred polish queue:
+- **W23-1 Account label in print headers** — `AccountStamp` (LedgerUI) fetches accounts +
+  profiles, renders "Account …719 · MARGIN · Profile: Andrew" in the Ledger + Trades
+  print blocks; degrades to nothing when unresolved.
+- **W23-2 Bell type icons** — per-row glyph in the notification feed (! alert / ▸ trigger /
+  ✓ fill), color-coded; `inferKind` from `kind` else alert_id/message. Emoji-free.
+- **W23-3 Dashboard note preview on hover** — backend adds truncated `note_preview` to the
+  row; `NoteDot` shows a themed hover popover with the text.
+- **W23-4 Small-fixes #13** — "Saved"/"unsaved" inline state on the position note;
+  projected-ladder suggested-shares comma-formatted; empty states already friendly.
+- Verified live vs a DB copy (note tooltip, bell icons, sorting-with-nesting); 131 backend
+  + 21 frontend tests.

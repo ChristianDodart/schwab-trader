@@ -3,6 +3,21 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.25.0 — "Polish pass"
+
+Small quality-of-life touches:
+- Position notes preview on hover. The note dot on the dashboard now shows the
+  note's text in a hover tooltip, so you can read your thesis without opening the
+  ticker.
+- The notification bell tags each entry with a small icon by type — price alert,
+  strategy trigger, or order fill — so the history scans at a glance.
+- Printed/PDF Ledger and Trade Journal pages now carry an account line (mask,
+  type, and active profile) in the header, so a saved page says whose account
+  it is.
+- A note now shows a brief "Saved" confirmation when it autosaves, and an
+  "unsaved" hint while you're mid-edit.
+- Suggested-share counts in the projected ladder are comma-formatted.
+
 ## v0.24.1 — "To the penny"
 
 The last cash-identity blind spot, closed: per-trade fees (the SEC cents on each

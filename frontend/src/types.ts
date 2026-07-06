@@ -32,6 +32,7 @@ export type DashboardRow = {
   dividends: number;      // income received for this name (held rows)
   total_return: number;   // realized + unrealized + dividends
   has_note?: boolean;     // a saved journal note exists for this symbol
+  note_preview?: string | null; // truncated note text for the dashboard hover tooltip
   last_held?: number | null; // watch rows previously held: last held price
   risk?: string;          // "low"|"medium"|"elevated"|"high" — drives ticker coloring
   underlying?: string | null; // leveraged ETF -> its underlying stock symbol (nesting)

@@ -159,7 +159,9 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
                     <td className="left">{p.rung}</td>
                     <td style={{ textAlign: "right", color: "var(--accent-quiet)" }}>{usd(p.trigger_price)}</td>
                     <td style={{ textAlign: "right" }}>{usd(p.suggested_dollars)}</td>
-                    <td style={{ textAlign: "right" }}>{p.suggested_shares ?? "—"}</td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                      {p.suggested_shares == null ? "—" : p.suggested_shares.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -212,6 +214,7 @@ function PositionNote({ symbol, onSaved, onError }: { symbol: string; onSaved: (
   const [note, setNote] = useState("");
   const [saved, setSaved] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [flash, setFlash] = useState(false);   // brief inline "Saved" confirmation
   useEffect(() => {
     let alive = true;
     fetch(`${API}/positions/${symbol}/note`)
@@ -220,17 +223,27 @@ function PositionNote({ symbol, onSaved, onError }: { symbol: string; onSaved: (
       .catch(() => { if (alive) setLoaded(true); });
     return () => { alive = false; };
   }, [symbol]);
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(false), 1800);
+    return () => clearTimeout(t);
+  }, [flash]);
   const save = () => {
     if (note === saved) return;
     fetch(`${API}/positions/${symbol}/note`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: note }) })
       .then((r) => r.json())
-      .then((j) => { if (j?.ok) { setSaved(j.note ?? note); onSaved("Note saved."); } else onError("Couldn't save note."); })
+      .then((j) => { if (j?.ok) { setSaved(j.note ?? note); setFlash(true); onSaved("Note saved."); } else onError("Couldn't save note."); })
       .catch(() => onError("Couldn't save note."));
   };
   if (!loaded) return null;
+  const dirty = note !== saved;
   return (
     <div style={{ marginTop: 14 }}>
-      <label style={{ fontSize: "var(--fs-xs)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-dim)" }}>Notes</label>
+      <label style={{ fontSize: "var(--fs-xs)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-dim)", display: "inline-flex", alignItems: "center", gap: 8 }}>
+        Notes
+        {flash && <span style={{ color: "var(--pos)", textTransform: "none", letterSpacing: 0, fontWeight: 600, transition: "opacity .2s" }}>✓ Saved</span>}
+        {!flash && dirty && <span style={{ color: "var(--text-faint)", textTransform: "none", letterSpacing: 0 }}>unsaved — click away to save</span>}
+      </label>
       <textarea value={note} onChange={(e) => setNote(e.target.value)} onBlur={save}
         placeholder="Your thesis, targets, reminders for this position — saved to this account."
         className="field" style={{ width: "100%", minHeight: 62, marginTop: 4, resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }} />

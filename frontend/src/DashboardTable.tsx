@@ -225,7 +225,7 @@ export function DashboardTable({
                       {childCount > 0 && (
                         <span className="tag" style={S.parentTag} title="Has a linked leveraged ETF below">▾ ETF</span>
                       )}
-                      {r.has_note && <span style={S.noteDot} title="Has a saved note — open to read it" aria-label="has note">●</span>}
+                      {r.has_note && <NoteDot preview={r.note_preview} />}
                       {r.has_rules && <span style={S.rulesDot} title="Uses its own ticker rules (sell target / dip depth) — open to see or edit them" aria-label="custom rules">◆</span>}
                       {rowSignalChips(r, signalRules)}
                       {r.is_watch && (
@@ -299,8 +299,29 @@ export function DashboardTable({
   );
 }
 
+// The note dot with a hover popover previewing the saved note (full text on the
+// detail page). Custom tooltip (not native title) so it's readable + on-theme.
+function NoteDot({ preview }: { preview?: string | null }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <span style={{ position: "relative", display: "inline-flex" }}
+      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <span style={S.noteDot} aria-label="has note"
+        title={preview ? undefined : "Has a saved note — open to read it"}>●</span>
+      {hover && preview && (
+        <span role="tooltip" style={S.noteTip} onClick={(e) => e.stopPropagation()}>{preview}</span>
+      )}
+    </span>
+  );
+}
+
 const S: Record<string, React.CSSProperties> = {
   hint: { color: "var(--text-dim)", fontSize: "var(--fs-xs)", margin: "0 0 10px" },
+  noteTip: { position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 30, width: 260,
+    background: "var(--pop)", color: "var(--text)", border: "1px solid var(--border)",
+    borderRadius: "var(--r-md)", boxShadow: "var(--shadow-pop)", padding: "8px 10px",
+    fontSize: "var(--fs-xs)", fontWeight: 400, lineHeight: 1.45, whiteSpace: "pre-wrap",
+    textAlign: "left", cursor: "default" },
   totalsRow: { borderTop: "2px solid var(--border-strong)", background: "var(--panel-2)" },
   totalsSub: { fontWeight: 400, color: "var(--text-faint)", fontSize: "var(--fs-2xs)" },
   // Inline drill-down drawer: full-width cell under the clicked row. Override the
