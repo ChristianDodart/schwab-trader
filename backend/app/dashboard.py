@@ -87,7 +87,8 @@ def _lot_sell_target(lot: Lot, cfg: StrategyConfig) -> float:
 def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
                  realized: tuple[float, int, date | None],
                  year_realized: tuple[float, int], total_invested: float,
-                 cfg: StrategyConfig, deployed_pct: float | None = None) -> dict:
+                 cfg: StrategyConfig, deployed_pct: float | None = None,
+                 sym_div: float = 0.0) -> dict:
     quote = hub.latest.get(symbol, {})
     price = quote.get("last")
     price = _f(price) if price is not None else None
@@ -152,6 +153,9 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
         "year_trades": year_trades,
         "avg_monthly": round(avg_monthly, 2),
         "first_buy_date": first_buy.isoformat() if first_buy else None,
+        # Dividends received for this name + full total return (realized + unrealized + divs).
+        "dividends": round(sym_div, 2),
+        "total_return": round(log_profit + sym_div + (shares * price - invested if has_price else 0.0), 2),
     }
 
 
@@ -197,9 +201,17 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
     total_invested = sum(
         _f(l.shares) * _f(l.buy_price) for l in lots
     )
+    # Dividends grouped by symbol (loaded once) for the opt-in total-return column.
+    div_data = await get_dividends(account_hash)
+    div_by_sym: dict[str, float] = {}
+    for d in div_data.get("rows", []):
+        k = (d.get("symbol") or "").upper()
+        if k:
+            div_by_sym[k] = round(div_by_sym.get(k, 0.0) + _f(d.get("amount")), 2)
     rows = [
         _summary_row(sym, by[sym], tickers.get(sym), realized.get(sym, (0.0, 0, None)),
-                     year_realized.get(sym, (0.0, 0)), total_invested, cfg, deployed)
+                     year_realized.get(sym, (0.0, 0)), total_invested, cfg, deployed,
+                     sym_div=div_by_sym.get(sym, 0.0))
         for sym in by
     ]
     rows.sort(key=lambda r: r["portfolio_pct"] or 0, reverse=True)

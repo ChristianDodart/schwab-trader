@@ -29,6 +29,8 @@ export type DashboardRow = {
   year_trades: number;
   avg_monthly: number;
   first_buy_date: string | null;
+  dividends: number;      // income received for this name (held rows)
+  total_return: number;   // realized + unrealized + dividends
 };
 
 export type Dashboard = {

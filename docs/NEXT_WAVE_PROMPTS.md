@@ -386,23 +386,35 @@ spreadsheets, records). Add CSV export for the trade journal and the deposit log
 - **W10-4 Small fixes #8** — top-payers breakdown on the dividends panel; "g"+letter vim tab jumps;
   screener "add all passing to watchlist".
 
-# WAVE 11 — candidate queue (unstarted)
+# WAVE 11 — EXECUTED 2026-07-05, shipped v0.13.0
+
+- **W11-1 Dashboard total-return column** — `build_dashboard` loads dividends once (grouped by symbol) and
+  `_summary_row` returns `dividends` + `total_return` (realized + unrealized + dividends); two opt-in
+  columns in the registry (watchNA for watch rows).
+- **W11-2 Alert templates** — `AlertTemplates` on PositionDetail: one-click "−5% from last buy" / "above
+  52wk avg" that compute the threshold from live data and POST the existing create_alert. Hidden when data
+  is missing.
+- **W11-3 Printable ledger summary** — a `PrintSummary` (.print-only) block + `@media print` CSS trick
+  (visibility) so `window.print()` emits a clean one-pager; "Print / Save PDF" button on the Ledger.
+- **W11-4 Small fixes #9** — dividends-by-year table; a "press ? for shortcuts" tip in Settings.
+
+# WAVE 12 — candidate queue (unstarted)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## W11-1 — Dashboard "total return" column (opt-in)
-Add a per-position total-return column to the dashboard column registry (realized + unrealized + dividends),
-so the full-picture number the position detail now shows is available in the table too.
+## W12-1 — Alert templates in more places
+Surface the one-click alert templates on the dashboard row actions too (not just position detail), and add a
+"back to break-even" template (threshold = basis/share).
 
-## W11-2 — Alert rule templates
-Common one-click alert setups ("−X% from last buy", "back above 52wk avg") on a symbol, reusing the price
-alert system, so creating useful alerts doesn't mean typing thresholds by hand.
+## W12-2 — Print/PDF for the trade journal & tax lots
+Extend the print stylesheet to the Trades tab (a clean closed-trades table) so the tax-lot report can be
+printed/saved as PDF directly, not just CSV.
 
-## W11-3 — Ledger PDF / print summary
-A clean printable one-pager of the since-inception numbers + capital-by-year + dividends, for records or an
-accountant. (Browser print stylesheet, no new deps.)
+## W12-3 — Configurable dashboard refresh + "paused" indicator
+Let the user set the dashboard poll interval (or pause it) in Settings; show a small "updates paused" chip
+when paused. Reduces churn for users who watch rather than trade actively.
 
-## W11-4 — Small-fixes bundle #9
-1. Dividends: a per-year breakdown table (like capital-by-year).
-2. Position detail: link each dividend to its date in a small popover.
-3. Settings: show which keyboard shortcuts exist (link the "?" overlay from a Settings row).
+## W12-4 — Small-fixes bundle #10
+1. Total-return column: a matching footer total in the dashboard totals row.
+2. Notifications: group the feed by day with subtle date separators.
+3. Screener: remember the "add all passing" confirmation preference.

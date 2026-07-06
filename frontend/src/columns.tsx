@@ -101,6 +101,8 @@ export const DASH_COLUMN_LIST: DashCol[] = [
   { id: "day_change", label: "Day P/L", align: "right", watchNA: true, render: (r) => <Colored v={usd(r.day_change)} n={r.day_change} /> },
   { id: "basis_per_share", label: "Basis / Share", align: "right", watchNA: true, render: (r) => usd(r.basis_per_share) },
   { id: "log_profit", label: "Profit (all-time)", align: "right", watchNA: true, render: (r) => <Colored v={usd(r.log_profit)} n={r.log_profit} /> },
+  { id: "dividends", label: "Dividends", align: "right", watchNA: true, render: (r) => (r.dividends ? <span style={{ color: "var(--pos)" }}>{usd(r.dividends)}</span> : <Dash />) },
+  { id: "total_return", label: "Total Return", align: "right", watchNA: true, render: (r) => <Colored v={usd(r.total_return)} n={r.total_return} /> },
   { id: "trades", label: "Trades (all-time)", align: "right", watchNA: true, render: (r) => num(r.trades) },
   { id: "next_buy_price", label: "Next Buy Trigger", align: "right", watchNA: true, render: (r) => usd(r.next_buy_price) },
   { id: "year_high", label: "52wk High", align: "right", render: (r) => usd(r.year_high) },

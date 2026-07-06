@@ -77,6 +77,8 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
 
       <ChartToggle d={d} />
 
+      <AlertTemplates d={d} onSet={(msg, kind) => toast(msg, kind)} />
+
       <h3 className="section-title" style={S.h3}>Buy Ladder</h3>
       <div style={{ overflowX: "auto" }}>
         <table className="tbl">
@@ -141,6 +143,35 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
 
       {ticket && <OrderTicket suggestion={ticket} mode={mode} onClose={() => setTicket(null)} />}
     </section>
+  );
+}
+
+// One-click price alerts from live position data — no threshold typing. Uses the same
+// /api/alerts create as the manual form; degrades (button hidden) when data is missing.
+function AlertTemplates({ d, onSet }: { d: PositionDetailData; onSet: (msg: string, kind?: "success" | "error") => void }) {
+  const lastBuy = d.lots.length ? d.lots[d.lots.length - 1].buy_price : null;
+  const make = (direction: "above" | "below", threshold: number, note: string) => {
+    fetch(`${API}/alerts`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol: d.symbol, direction, threshold: Number(threshold.toFixed(2)), note, repeat: false }),
+    })
+      .then((r) => r.json())
+      .then((j) => onSet(j?.ok ? (j.warning || `Alert set: ${d.symbol} ${direction} ${usd(threshold)}`) : (j?.error || "Couldn't set alert."), j?.ok ? "success" : "error"))
+      .catch(() => onSet("Couldn't set alert — network error.", "error"));
+  };
+  if (!lastBuy && d.avg_52wk == null) return null;
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", margin: "10px 0 0" }}>
+      <span style={{ fontSize: "var(--fs-xs)", color: "var(--text-dim)" }}>Quick alert:</span>
+      {lastBuy != null && lastBuy > 0 && (
+        <button className="btn btn-ghost btn-sm" onClick={() => make("below", lastBuy * 0.95, "5% below last buy")}
+          title={`Notify if ${d.symbol} falls to ${usd(lastBuy * 0.95)}`}>−5% from last buy</button>
+      )}
+      {d.avg_52wk != null && (
+        <button className="btn btn-ghost btn-sm" onClick={() => make("above", d.avg_52wk!, "back above 52wk avg")}
+          title={`Notify if ${d.symbol} rises above its 52wk average (${usd(d.avg_52wk)})`}>Above 52wk avg</button>
+      )}
+    </div>
   );
 }
 

@@ -168,6 +168,14 @@ export function LedgerHistoric() {
 
   return (
     <div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+        <button className="btn btn-secondary btn-sm" onClick={() => window.print()}
+          title="Print a one-page summary or save it as a PDF">Print / Save PDF</button>
+      </div>
+
+      {/* ---- Printable one-pager (hidden on screen; only the .print-only block prints) ---- */}
+      <PrintSummary h={h} bench={bench} div={div} />
+
       {/* ---- Right now (live, point-in-time) ---- */}
       <div style={S.panelHead}>
         <h3 className="section-title" style={{ margin: "6px 0 0" }}>Right now</h3>
@@ -357,6 +365,7 @@ export function LedgerHistoric() {
           <span style={{ color: "var(--text-faint)" }}>{div?.summary.count ?? 0} payment{(div?.summary.count ?? 0) === 1 ? "" : "s"}</span>
         </div>
         {div && div.rows.length > 0 && <TopPayers rows={div.rows} />}
+        {div && div.rows.length > 0 && <DividendsByYear rows={div.rows} />}
         {div && div.rows.length > 0 ? (
           <div style={{ overflowX: "auto" }}>
             <table className="tbl">
@@ -426,6 +435,76 @@ function BenchmarkCard({ b }: { b: Benchmark }) {
     <Card label={`If it were all ${b.symbol}`} value={usd(idx)}
       accent={ahead ? "var(--pos)" : "var(--neg)"} sub={sub}
       hint={`What your exact deposits (same dates, same amounts) would be worth today in ${b.symbol} buy-and-hold. Colored by whether your active strategy is ahead of (green) or behind (red) just holding the index.`} />
+  );
+}
+
+// Hidden on screen; the only thing that prints (see .print-only in ui.css). A clean
+// one-pager of the since-inception numbers + capital-by-year + dividends for records.
+function PrintSummary({ h, bench, div }: { h: Historic; bench: Benchmark | null; div: Dividends | null }) {
+  const now = h.now, r = h.realized;
+  const rowsFig: [string, string][] = [
+    ["Account value", usd(now.account_value)],
+    ["Deposited (all-time)", usd(h.deposited_all_time)],
+    ...(h.withdrawn_all_time < 0 ? [["Withdrawn (all-time)", usd(h.withdrawn_all_time)] as [string, string]] : []),
+    ...(h.gain_vs_contributed != null ? [["Total gain", usd(h.gain_vs_contributed)] as [string, string]] : []),
+    ...(h.roi_pct != null ? [["Simple ROI", `${h.roi_pct}%`] as [string, string]] : []),
+    ...(h.xirr_pct != null ? [["Annualized (XIRR)", `${h.xirr_pct}%/yr`] as [string, string]] : []),
+    ...(bench?.available ? [[`If it were all ${bench.symbol}`, `${usd(bench.benchmark_value)}${bench.benchmark_xirr_pct != null ? ` (${bench.benchmark_xirr_pct}%/yr)` : ""}`] as [string, string]] : []),
+    ["Realized capital gains (all-time)", usd(r.cap_gains)],
+    ["Dividends (all-time)", usd(div?.summary.total ?? 0)],
+  ];
+  return (
+    <div className="print-only">
+      <h2 style={{ margin: "0 0 2px" }}>Schwab Trader — Ledger Summary</h2>
+      <p style={{ margin: "0 0 12px", fontSize: 12 }}>As of {h.as_of}</p>
+      <table><tbody>
+        {rowsFig.map(([k, v]) => (
+          <tr key={k}><th>{k}</th><td className="num">{v}</td></tr>
+        ))}
+      </tbody></table>
+      {h.capital_by_year.length > 0 && (
+        <>
+          <h3 style={{ margin: "16px 0 4px" }}>Capital by year</h3>
+          <table>
+            <thead><tr><th>Year</th><th>Deposits</th><th>Withdrawals</th><th>Net</th></tr></thead>
+            <tbody>
+              {h.capital_by_year.map((y) => (
+                <tr key={y.year}>
+                  <td>{y.year}</td><td className="num">{usd(y.deposits)}</td>
+                  <td className="num">{usd(y.withdrawals)}</td><td className="num">{usd(y.net)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Dividends totalled by calendar year (newest first) — mirrors capital-by-year.
+function DividendsByYear({ rows }: { rows: DivRow[] }) {
+  const byYear = new Map<string, number>();
+  for (const d of rows) {
+    const y = (d.day || "").slice(0, 4);
+    if (y) byYear.set(y, (byYear.get(y) ?? 0) + d.amount);
+  }
+  const years = [...byYear.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  if (years.length < 2) return null;
+  return (
+    <div style={{ overflowX: "auto", marginBottom: 12 }}>
+      <table className="tbl">
+        <thead><tr><th className="left">Year</th><th>Dividends</th></tr></thead>
+        <tbody>
+          {years.map(([y, v]) => (
+            <tr key={y}>
+              <td className="left">{y}</td>
+              <td style={{ textAlign: "right", color: "var(--pos)", fontVariantNumeric: "tabular-nums" }}>{usd(v)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

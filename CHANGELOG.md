@@ -3,6 +3,18 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.13.0 — "For the record"
+
+New this version:
+- Print or save your ledger as a PDF. A "Print / Save PDF" button on the Ledger produces a clean
+  one-page summary - account value, deposits, gain, ROI, XIRR, benchmark, dividends, and capital by
+  year - ready for your records or an accountant.
+- One-click price alerts. On any position, set "−5% from last buy" or "back above 52-week average"
+  without typing a single number.
+- A Total Return column for the dashboard (turn it on via Columns) - realized, unrealized, and
+  dividends for each name, added up.
+- The Dividends view now breaks your income down by year, too.
+
 ## v0.12.0 — "The whole picture"
 
 New this version:
