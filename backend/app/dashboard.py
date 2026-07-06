@@ -217,9 +217,13 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
         k = (d.get("symbol") or "").upper()
         if k:
             div_by_sym[k] = round(div_by_sym.get(k, 0.0) + _f(d.get("amount")), 2)
+    # Per-symbol rule overrides: each row is computed against its EFFECTIVE strategy
+    # (global config + that ticker's overrides — sell target / dip depth).
+    sym_overrides = await config_store.get_symbol_overrides(account_hash)
     rows = [
         _summary_row(sym, by[sym], tickers.get(sym), realized.get(sym, (0.0, 0, None)),
-                     year_realized.get(sym, (0.0, 0)), total_invested, cfg, deployed,
+                     year_realized.get(sym, (0.0, 0)), total_invested,
+                     config_store.apply_symbol_override(cfg, sym_overrides.get(sym)), deployed,
                      sym_div=div_by_sym.get(sym, 0.0))
         for sym in by
     ]
@@ -236,6 +240,7 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
     last_held = await get_last_held(account_hash)
     for r in rows:
         r["has_note"] = r["symbol"] in notes
+        r["has_rules"] = r["symbol"] in sym_overrides   # per-ticker rule override active
         # Watch rows that used to be held show the last price they were held at.
         r["last_held"] = last_held.get(r["symbol"]) if r["is_watch"] else None
 
@@ -297,6 +302,9 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
     """The Longs view for one ticker on one account: lots + projected ladder."""
     symbol = symbol.upper()
     cfg = await config_store.get_strategy(account_hash)
+    # This ticker's EFFECTIVE strategy (global + per-symbol override, if any).
+    sym_override = (await config_store.get_symbol_overrides(account_hash)).get(symbol)
+    cfg = config_store.apply_symbol_override(cfg, sym_override)
     deployed = await _deployed_pct_if_scaling(account_hash, cfg)
     async with SessionLocal() as s:
         lots = (
@@ -343,6 +351,7 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
             "total_return": round(_f(realized) + sym_div, 2),
             "is_watch": True, "last_held": last_held,
             "underlying": etf_underlying, "is_leveraged": etf_is_lev,
+            "rules_override": sym_override,
             "lots": [], "projected_ladder": [],
         }
 
@@ -425,6 +434,7 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
         "dividends": sym_dividends,
         "total_return": round(_f(realized) + sym_dividends + (shares * price - invested if has_price else 0.0), 2),
         "underlying": etf_underlying, "is_leveraged": etf_is_lev,
+        "rules_override": sym_override,   # per-ticker override (None = global rules)
         "lots": lot_rows,
         "projected_ladder": projected,
     }

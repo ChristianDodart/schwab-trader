@@ -3,6 +3,29 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.23.0 — "Rules per ticker"
+
+New this version:
+- Per-ticker rules. Any symbol can now override the global strategy — its own sell
+  target ($ gain or % above cost) and its own dip depth (a percentage of the global
+  ladder: 50% buys dips half as deep, 200% waits for twice the drop). Set it from
+  the ticker's detail page under "Ticker rules"; buy triggers, sell flags, the
+  ladder and projections all follow immediately, and an amber diamond marks the
+  ticker on the dashboard. One click puts it back on the global rules.
+- The Ledger's Activity view gained a Profit column — the realized gain booked in
+  each day/week/month/year (sell price minus that lot's buy price, times shares,
+  summed across the period's closed trades) plus a Realized Profit total up top.
+  Activity is also now sourced from the full stored history, so imported years
+  show up, not just recent live activity.
+
+Fixes:
+- Dropdowns no longer clip their text vertically on Windows display scaling —
+  anywhere in the app.
+- The Data health panel now tells the difference between a real cost-basis gap
+  (missing data) and a lot-accounting difference: when share counts match Schwab
+  exactly, a basis difference is just LIFO (this app's ladder view) vs your Schwab
+  tax-lot election, and it's labeled as informational instead of a warning.
+
 ## v0.22.1 — "Self-healing, proven"
 
 A field-found fix. Importing a real two-year account exposed two subtle defects in

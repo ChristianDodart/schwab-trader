@@ -1,14 +1,16 @@
 """Per-account configuration: strategy (full LIFO config), trading enablement,
-and tax settings. Strategy is stored as JSON per account; NULL => YAML defaults.
-Auto-creates a row on first access (MARGIN accounts default to trading-enabled).
+tax settings, and PER-SYMBOL rule overrides. Strategy is stored as JSON per
+account; NULL => YAML defaults. Auto-creates a row on first access.
 """
 from __future__ import annotations
 
 import json
+from dataclasses import replace as _dc_replace
 
-from .db import SessionLocal
-from .db.models import AccountConfig
+from .db import SessionLocal, dialect_insert as _insert
+from .db.models import AccountConfig, AppSetting
 from .strategy import StrategyConfig
+from .strategy.config import SellConfig
 
 _DEFAULTS = StrategyConfig.load()
 
@@ -84,6 +86,95 @@ async def get_config(account_hash: str) -> dict:
         "strategy": strat.to_mapping(),
         "strategy_is_default": row.strategy_json is None,
     }
+
+
+# --- Per-symbol rule overrides -----------------------------------------------
+# A ticker can override the GLOBAL strategy's sell target and/or its dip depth —
+# "Disney wants smaller percentages than a 2x ETF". Stored per account in
+# app_setting JSON (no migration): {SYM: {sell_mode, sell_value, dip_scale}}.
+#   sell_mode  : "dollar_gain" | "pct_above"; sell_value in $ or FRACTION (0.05 = 5%)
+#   dip_scale  : multiplies every ladder drop_pct (0.5 = half-depth dips), 0.1–3.0
+# Everything downstream (buy triggers, sell marks, detail ladder, projections,
+# strategy-trigger notifications) flows through apply_symbol_override().
+
+_SYMBOL_RULES_KEY = "symbol_rules:"   # + account_hash
+
+
+def _sanitize_override(ov: dict) -> dict | None:
+    out: dict = {}
+    mode = ov.get("sell_mode")
+    try:
+        val = float(ov.get("sell_value") or 0)
+    except (TypeError, ValueError):
+        val = 0.0
+    if mode in ("dollar_gain", "pct_above") and val > 0:
+        out["sell_mode"] = mode
+        out["sell_value"] = round(val, 6)
+    try:
+        scale = float(ov.get("dip_scale") or 0)
+    except (TypeError, ValueError):
+        scale = 0.0
+    if scale > 0 and abs(scale - 1.0) > 1e-9:
+        out["dip_scale"] = max(0.1, min(3.0, round(scale, 4)))
+    return out or None
+
+
+def apply_symbol_override(cfg: StrategyConfig, ov: dict | None) -> StrategyConfig:
+    """Pure: the EFFECTIVE strategy for one symbol — the global config with this
+    symbol's overrides applied. No override (or an empty one) returns cfg as-is."""
+    if not ov:
+        return cfg
+    out = cfg
+    mode = ov.get("sell_mode")
+    val = ov.get("sell_value")
+    if mode in ("dollar_gain", "pct_above") and val:
+        out = _dc_replace(out, sell=SellConfig(
+            default_mode=mode,
+            dollar_gain=float(val) if mode == "dollar_gain" else cfg.sell.dollar_gain,
+            pct_above=float(val) if mode == "pct_above" else cfg.sell.pct_above,
+        ))
+    scale = ov.get("dip_scale")
+    if scale and float(scale) > 0:
+        s = max(0.1, min(3.0, float(scale)))
+        out = _dc_replace(out, ladder_drops=tuple(
+            _dc_replace(d, drop_pct=round(d.drop_pct * s, 6)) for d in cfg.ladder_drops
+        ))
+    return out
+
+
+async def get_symbol_overrides(account_hash: str) -> dict:
+    """{SYMBOL: override} for the account. Empty when none set."""
+    if not account_hash:
+        return {}
+    async with SessionLocal() as s:
+        row = await s.get(AppSetting, _SYMBOL_RULES_KEY + account_hash)
+    try:
+        data = json.loads(row.value) if row and row.value else {}
+    except Exception:
+        data = {}
+    return data if isinstance(data, dict) else {}
+
+
+async def set_symbol_override(account_hash: str, symbol: str, ov: dict | None) -> dict:
+    """Set (or clear, with None/empty) one symbol's override. Returns all overrides."""
+    symbol = (symbol or "").strip().upper()
+    if not account_hash or not symbol:
+        return {"ok": False, "error": "missing account or symbol"}
+    rules = await get_symbol_overrides(account_hash)
+    clean = _sanitize_override(ov or {})
+    if clean:
+        rules[symbol] = clean
+    else:
+        rules.pop(symbol, None)
+    rules = {str(k)[:16]: v for k, v in list(rules.items())[:200]}
+    payload = json.dumps(rules)
+    async with SessionLocal() as s:
+        await s.execute(
+            _insert(AppSetting).values(key=_SYMBOL_RULES_KEY + account_hash, value=payload)
+            .on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": payload})
+        )
+        await s.commit()
+    return {"ok": True, "rules": rules}
 
 
 # Sentinel so callers can explicitly CLEAR a nullable field (set it to None) vs.

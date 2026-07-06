@@ -6,7 +6,7 @@ import { OrderTicket } from "./OrderTicket";
 import { PriceChart } from "./PriceChart";
 import { SkeletonPanel } from "./Skeleton";
 import { useToast } from "./Toast";
-import type { PositionDetailData, Suggestion } from "./types";
+import type { PositionDetailData, Suggestion, SymbolRuleOverride } from "./types";
 
 import { API } from "./api";
 
@@ -96,6 +96,10 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
       )}
 
       <ChartToggle d={d} />
+
+      <TickerRules symbol={d.symbol} current={d.rules_override ?? null}
+        onSaved={(ov) => { setD((p) => (p ? { ...p, rules_override: ov } : p)); toast(ov ? `${d.symbol} now uses its own rules.` : `${d.symbol} back on the global rules.`, "success"); }}
+        onError={(m) => toast(m, "error")} />
 
       <AlertTemplates d={d} onSet={(msg, kind) => toast(msg, kind)} />
 
@@ -288,6 +292,106 @@ function SectorEditor({ symbol, sector, onSaved }: { symbol: string; sector: str
     </button>
   );
 }
+
+// Per-ticker rule overrides: this symbol can use its own sell target and/or dip depth
+// instead of the global Rules — e.g. a calm large-cap on tighter percentages than a
+// 2x ETF. Buy triggers, sell marks, the ladder and projections all follow immediately.
+function TickerRules({ symbol, current, onSaved, onError }: {
+  symbol: string;
+  current: SymbolRuleOverride | null;
+  onSaved: (ov: SymbolRuleOverride | null) => void;
+  onError: (msg: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<string>(current?.sell_mode ?? "");
+  const [value, setValue] = useState<string>(
+    current?.sell_value != null
+      ? String(current.sell_mode === "pct_above" ? +(current.sell_value * 100).toFixed(4) : current.sell_value)
+      : "");
+  const [dip, setDip] = useState<string>(current?.dip_scale != null ? String(+(current.dip_scale * 100).toFixed(2)) : "");
+  const [busy, setBusy] = useState(false);
+
+  const post = (body: Record<string, unknown>, next: SymbolRuleOverride | null) => {
+    setBusy(true);
+    fetch(`${API}/symbol-rules`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol, ...body }),
+    })
+      .then((r) => r.json())
+      .then((j) => { if (j?.ok) { onSaved(next); setOpen(false); } else onError(j?.error || "Couldn't save ticker rules."); })
+      .catch(() => onError("Couldn't save ticker rules — network error."))
+      .finally(() => setBusy(false));
+  };
+
+  const save = () => {
+    const v = Number(value);
+    const dipPct = Number(dip);
+    const ov: SymbolRuleOverride = {};
+    if (mode && v > 0) {
+      ov.sell_mode = mode as SymbolRuleOverride["sell_mode"];
+      ov.sell_value = mode === "pct_above" ? v / 100 : v;   // UI edits %, engine stores a fraction
+    }
+    if (dipPct > 0 && Math.abs(dipPct - 100) > 0.01) ov.dip_scale = dipPct / 100;
+    if (!ov.sell_mode && ov.dip_scale == null) { onError("Set a sell target or a dip depth (or Clear)."); return; }
+    post({ sell_mode: ov.sell_mode ?? null, sell_value: ov.sell_value ?? null, dip_scale: ov.dip_scale ?? null }, ov);
+  };
+
+  const summary = current
+    ? [
+        current.sell_mode === "dollar_gain" && current.sell_value != null ? `sell at +$${current.sell_value}` : null,
+        current.sell_mode === "pct_above" && current.sell_value != null ? `sell at +${(current.sell_value * 100).toFixed(1)}%` : null,
+        current.dip_scale != null ? `dips at ${(current.dip_scale * 100).toFixed(0)}% of global depth` : null,
+      ].filter(Boolean).join(" · ")
+    : null;
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <h3 className="section-title" style={{ margin: 0 }}>Ticker rules</h3>
+        {current
+          ? <span className="tag" style={{ color: "var(--warn)", border: "1px solid var(--warn-border)" }}>custom · {summary}</span>
+          : <span style={{ color: "var(--text-dim)", fontSize: "var(--fs-xs)" }}>using the global rules</span>}
+        <button className="btn btn-ghost btn-sm" onClick={() => setOpen((o) => !o)}>{open ? "close" : current ? "edit" : "override"}</button>
+      </div>
+      {open && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8, padding: 10, background: "var(--panel-2)", borderRadius: "var(--r-md)" }}>
+          <span style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)" }}>Sell target</span>
+          <select className="field" value={mode} onChange={(e) => setMode(e.target.value)} aria-label="Sell target mode" style={{ minWidth: 130, paddingRight: 24 }}>
+            <option value="">Global</option>
+            <option value="dollar_gain">$ gain per lot</option>
+            <option value="pct_above">% above cost</option>
+          </select>
+          {mode && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <input className="field" type="number" min={0} step={mode === "pct_above" ? "0.5" : "5"} value={value}
+                onChange={(e) => setValue(e.target.value)} style={{ width: 90, textAlign: "right" }}
+                aria-label="Sell target value" placeholder={mode === "pct_above" ? "11" : "50"} />
+              <span style={{ color: "var(--text-dim)" }}>{mode === "pct_above" ? "%" : "$"}</span>
+            </span>
+          )}
+          <span style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)", marginLeft: 8 }}
+            title="Scales every ladder drop for this ticker. 50 = dips trigger at half the global depth (buys sooner); 200 = twice as deep (waits longer).">
+            Dip depth
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <input className="field" type="number" min={10} max={300} step={5} value={dip}
+              onChange={(e) => setDip(e.target.value)} style={{ width: 80, textAlign: "right" }}
+              aria-label="Dip depth as percent of global" placeholder="100" />
+            <span style={{ color: "var(--text-dim)" }}>% of global</span>
+          </span>
+          <span style={{ marginLeft: "auto", display: "inline-flex", gap: 6 }}>
+            {current && (
+              <button className="btn btn-secondary btn-sm" disabled={busy}
+                onClick={() => post({ clear: true }, null)}>Back to global</button>
+            )}
+            <button className="btn btn-primary btn-sm" disabled={busy} onClick={save}>Save</button>
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 // Inline editor for a leveraged ETF's underlying stock (drives dashboard nesting).
 // Auto-detected from the fund name; click to override or clear. Enter/blur saves.

@@ -640,7 +640,7 @@ type HealthReport = {
   fill_ledger: { total: number; by_source: Record<string, number>; earliest: string | null; latest: string | null };
   projection: { open_lots: number; synthetic_lots: { symbol: string; shares: number }[]; completed_trades: number; earliest_completed: string | null };
   position_diffs: { symbol: string; reconstructed: number; actual: number; diff: number }[];
-  basis_diffs?: { symbol: string; our_cost: number; schwab_basis: number; diff: number }[];
+  basis_diffs?: { symbol: string; our_cost: number; schwab_basis: number; diff: number; count_matches?: boolean }[];
   cash_check?: {
     expected_cash: number; actual_cash: number; residual: number; residual_pct_of_flow: number;
     components: { net_deposits: number; trading_net: number; income: number };
@@ -719,9 +719,15 @@ function DataHealth() {
               Share-count differences vs Schwab: {h.position_diffs.map((d) => `${d.symbol} ${d.diff > 0 ? "+" : ""}${d.diff}`).join(", ")} — a resync or CSV import usually resolves this.
             </p>
           )}
-          {(h.basis_diffs?.length ?? 0) > 0 && (
+          {(h.basis_diffs?.some((b) => !b.count_matches) ?? false) && (
             <p style={{ ...S.credStatus, color: "var(--warn)" }}>
-              Cost basis differs from Schwab: {h.basis_diffs!.map((b) => `${b.symbol} ${b.diff > 0 ? "+" : "-"}$${Math.abs(b.diff).toFixed(0)}`).join(", ")} — usually an estimated backfill; a CSV covering those buys fixes it exactly.
+              Cost basis differs from Schwab: {h.basis_diffs!.filter((b) => !b.count_matches).map((b) => `${b.symbol} ${b.diff > 0 ? "+" : "-"}$${Math.abs(b.diff).toFixed(0)}`).join(", ")} — usually an estimated backfill; a CSV covering those buys fixes it exactly.
+            </p>
+          )}
+          {(h.basis_diffs?.some((b) => b.count_matches) ?? false) && (
+            <p style={S.credStatus}
+              title="Same trades, different surviving lots: this app assigns sells to the newest lots (LIFO — the ladder strategy), while Schwab's remaining-cost figure follows your account's tax-lot election (often FIFO). With share counts matching, nothing is missing.">
+              Lot-accounting note on {h.basis_diffs!.filter((b) => b.count_matches).map((b) => `${b.symbol} (${b.diff > 0 ? "+" : "-"}$${Math.abs(b.diff).toFixed(0)})`).join(", ")}: share counts match Schwab exactly; the cost difference is LIFO (this app) vs your Schwab tax-lot method. Informational — hover for the why.
             </p>
           )}
           {h.cash_check && (

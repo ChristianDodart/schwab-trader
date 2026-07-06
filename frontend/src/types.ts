@@ -35,6 +35,14 @@ export type DashboardRow = {
   last_held?: number | null; // watch rows previously held: last held price
   risk?: string;          // "low"|"medium"|"elevated"|"high" — drives ticker coloring
   underlying?: string | null; // leveraged ETF -> its underlying stock symbol (nesting)
+  has_rules?: boolean;    // a per-ticker rule override is active for this symbol
+};
+
+// Per-ticker override of the global strategy (sell target / dip depth).
+export type SymbolRuleOverride = {
+  sell_mode?: "dollar_gain" | "pct_above";
+  sell_value?: number;   // $ or FRACTION (0.05 = 5%)
+  dip_scale?: number;    // multiplies ladder drop %s; 0.5 = half-depth dips
 };
 
 export type Dashboard = {
@@ -108,11 +116,12 @@ export type TradeLog = {
 
 export type ActivityRow = {
   period: string; bought: number; sold: number; net: number; buy_count: number; sell_count: number;
+  profit: number;   // realized LIFO profit booked in the period (sum of closed-trade P/L)
 };
 export type LedgerActivity = {
   grain: string;
   rows: ActivityRow[];
-  totals: { bought: number; sold: number; net: number; buy_count: number; sell_count: number };
+  totals: { bought: number; sold: number; net: number; buy_count: number; sell_count: number; profit: number };
 };
 
 export type LedgerTax = {
@@ -406,6 +415,7 @@ export type PositionDetailData = {
   risk?: string;              // risk band for ticker coloring
   underlying?: string | null; // leveraged ETF -> underlying stock symbol
   is_leveraged?: boolean;     // this instrument is a leveraged/inverse ETF
+  rules_override?: SymbolRuleOverride | null; // per-ticker rules (null = global)
   lots: Lot[];
   projected_ladder: ProjectedRung[];
 };

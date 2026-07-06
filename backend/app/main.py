@@ -714,6 +714,7 @@ async def data_health() -> dict:
     # shares vs our open-lot cost. A sizeable gap = mispriced/missing lots even when
     # the share COUNTS agree (counts alone can't catch a wrong-priced backfill).
     basis_diffs = []
+    count_diff_syms = {d["symbol"] for d in diffs}
     if positions is not None:
         our_cost: dict[str, float] = {}
         for sym, _src, sh, bp in lots:
@@ -725,8 +726,13 @@ async def data_health() -> dict:
             ours = our_cost.get(sym, 0.0)
             gap = ours - schwab_basis
             if schwab_basis > 0 and abs(gap) > max(50.0, 0.02 * schwab_basis):
+                # When the share COUNT matches, a basis gap is normally a lot-ATTRIBUTION
+                # difference, not missing data: the app assigns sells LIFO (the ladder
+                # strategy), while Schwab's remaining-cost figure follows the account's
+                # tax-lot election (FIFO/optimizer). Same trades, different surviving lots.
                 basis_diffs.append({"symbol": sym, "our_cost": round(ours, 2),
-                                    "schwab_basis": round(schwab_basis, 2), "diff": round(gap, 2)})
+                                    "schwab_basis": round(schwab_basis, 2), "diff": round(gap, 2),
+                                    "count_matches": sym not in count_diff_syms})
 
     # --- VALIDATION vs Schwab #2: the GLOBAL CASH IDENTITY (advisory). In any account,
     # cash ~= net deposits + (sells - buys) + recorded income. A big residual points at
@@ -775,9 +781,10 @@ async def data_health() -> dict:
         recs.append(f"Some holdings predate the stored history (earliest fill {earliest}). "
                     f"Export a Transactions CSV covering earlier dates and import it under "
                     f"Settings to recover the full ladder and realized history.")
-    if basis_diffs:
+    real_basis_gaps = [b for b in basis_diffs if not b["count_matches"]]
+    if real_basis_gaps:
         recs.append("Cost basis differs from Schwab on: "
-                    + ", ".join(b["symbol"] for b in basis_diffs)
+                    + ", ".join(b["symbol"] for b in real_basis_gaps)
                     + " — usually a backfilled lot at an estimated price; importing a CSV "
                     "covering those buys fixes the basis exactly.")
     if cash_check and abs(cash_check["residual"]) > max(100.0, 0.01 * abs(cash_check["expected_cash"]) if cash_check["expected_cash"] else 100.0):
@@ -824,6 +831,32 @@ class SignalRulesBody(BaseModel):
 async def set_signal_rules(body: SignalRulesBody) -> dict:
     """Replace the extra signal rules for the selected account."""
     return await ledger_svc.set_signal_rules(await _selected(), body.rules)
+
+
+@app.get("/api/symbol-rules")
+async def get_symbol_rules() -> dict:
+    """Per-ticker overrides of the global strategy (sell target / dip depth)."""
+    return {"rules": await config_store.get_symbol_overrides(await _selected())}
+
+
+class SymbolRuleBody(BaseModel):
+    symbol: str
+    sell_mode: str | None = None    # "dollar_gain" | "pct_above"
+    sell_value: float | None = None  # $ or FRACTION (0.05 = 5%)
+    dip_scale: float | None = None   # 0.1–3.0; 1.0/None = global depth
+    clear: bool = False
+
+
+@app.post("/api/symbol-rules")
+async def set_symbol_rule(body: SymbolRuleBody) -> dict:
+    """Set (or clear) one ticker's rule override. Signals, buy triggers, sell targets,
+    the detail ladder and projections all follow it immediately."""
+    ov = None if body.clear else {"sell_mode": body.sell_mode, "sell_value": body.sell_value,
+                                  "dip_scale": body.dip_scale}
+    res = await config_store.set_symbol_override(await _selected(), body.symbol, ov)
+    from . import dashboard as dashboard_svc
+    dashboard_svc.invalidate_dashboard_cache()
+    return res
 
 
 @app.get("/api/etf-links")

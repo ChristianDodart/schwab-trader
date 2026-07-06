@@ -548,24 +548,47 @@ Hardening from Andrew's real 1,554-row export (2yr, splits/shorts/journals):
   Christian regression: re-import 0 added; his live app had already auto-upgraded all
   33 CSV rows to API fidelity (group-eviction proven in production).
 
-# WAVE 21 — candidate queue (older polish, rolled forward)
+# WAVE 21 (FIELD FEEDBACK) — EXECUTED 2026-07-06, shipped v0.23.0
+
+(v0.22.1 hotfix preceded this: Eastern trade dates + totals-rule dedup + heal_ledger —
+see CHANGELOG.) This wave, from Christian's live report on Andrew's account:
+
+- **W21-2 Per-ticker rule overrides** — `config_store.get/set_symbol_overrides`
+  (app_setting `symbol_rules:{account}`, no migration) + pure `apply_symbol_override`
+  (frozen-dataclass replace: sell mode/value + dip_scale 0.1–3.0 scaling every
+  ladder drop). Applied per-symbol in build_dashboard + build_position_detail (so
+  signals/triggers/ladder/projections all follow); `has_rules` row marker (amber
+  diamond); `rules_override` in the detail payload; GET/POST /api/symbol-rules;
+  `TickerRules` editor on PositionDetail. 6 unit tests; live-verified numerically
+  (WIX +5% sell = exact; 50% dip depth raised the trigger 41.10 -> 45.01).
+- **W21-3 Activity profit column** — build_activity now reads the FILL LEDGER (full
+  imported history, not just API-era audit events) and sums CompletedTrade.profit
+  per period; Profit column + Realized Profit card.
+- **W21-1 Select clipping** — global `select.field { height:auto !important }` in
+  ui.css (fixed 28px heights clipped text at Windows DPI scaling).
+- **W21-4 Basis messaging** — basis_diffs carry `count_matches`; when share counts
+  match Schwab the gap is labeled a LIFO-vs-tax-lot-election lot-accounting note
+  (informational), not "missing data". (INMB investigated: reconstruction was
+  CORRECT — deepest lot exactly the expected 10/07 1,006 @ 1.9899.)
+
+# WAVE 22 — candidate queue (older polish, rolled forward)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## W21-1 — Account label in print headers (was W14-2/W16-1)
+## W22-1 — Account label in print headers (was W14-2/W16-1)
 Include the selected account's mask/name (and profile) in the Ledger + Trades print blocks. Resolve the
 label from accounts_svc / the active profile (degrade to unlabeled when Schwab isn't connected).
 
-## W21-2 — Bell type icons
+## W22-2 — Bell type icons
 Now that the push carries `kind`, show a small per-type icon in the bell feed (price alert vs trigger vs
 fill) so the history scans faster. (Historical rows lack kind → infer from alert_id / message, or add the
 `kind` column in a later migration if it proves worth it.)
 
-## W21-3 — Dashboard note preview on hover
+## W22-3 — Dashboard note preview on hover
 Upgrade the W14-3 note dot: a hover tooltip/popover showing the note text (needs the note text on the row
 or a lightweight fetch on hover).
 
-## W21-4 — Small-fixes bundle #13
+## W22-4 — Small-fixes bundle #13
 1. Empty-state polish across tabs (friendly "nothing yet" copy where sparse).
 2. A subtle "saved" flash on the position note after autosave.
 3. Consistent number formatting audit (thousands separators everywhere).

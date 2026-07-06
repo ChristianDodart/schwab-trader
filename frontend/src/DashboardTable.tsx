@@ -175,6 +175,7 @@ export function DashboardTable({
                         <span className="tag" style={S.parentTag} title="Has a linked leveraged ETF below">▾ ETF</span>
                       )}
                       {r.has_note && <span style={S.noteDot} title="Has a saved note — open to read it" aria-label="has note">●</span>}
+                      {r.has_rules && <span style={S.rulesDot} title="Uses its own ticker rules (sell target / dip depth) — open to see or edit them" aria-label="custom rules">◆</span>}
                       {rowSignalChips(r, signalRules)}
                       {r.is_watch && (
                         <span className="tag" style={S.watchTag}>
@@ -263,5 +264,6 @@ const S: Record<string, React.CSSProperties> = {
   parentTag: { color: "var(--text-faint)", border: "1px solid var(--border)", fontSize: "var(--fs-2xs)" },
   underlyingCtx: { fontSize: "var(--fs-2xs)", color: "var(--accent-quiet)", marginTop: 2 },
   noteDot: { color: "var(--accent-quiet)", fontSize: 8, cursor: "help", lineHeight: 1 },
+  rulesDot: { color: "var(--warn)", fontSize: 8, cursor: "help", lineHeight: 1 },
   bell: { background: "transparent", border: "none", cursor: "pointer", fontSize: "var(--fs-xs)", padding: 0, verticalAlign: "middle" },
 };

@@ -71,8 +71,10 @@ export function LedgerActivity() {
         <Card label="Sold" value={usd(t.sold)} accent="var(--accent-quiet)"
           sub={t.sell_count ? `${t.sell_count} sell${t.sell_count === 1 ? "" : "s"}` : undefined}
           hint="Gross proceeds from selling over the selected span (every executed sell fill)." />
-        <Card label="Net cash flow" value={`${t.net > 0 ? "+" : ""}${usd(t.net)}`} accent={moneyColor(t.net)} big
+        <Card label="Net cash flow" value={`${t.net > 0 ? "+" : ""}${usd(t.net)}`} accent={moneyColor(t.net)}
           hint="Sold minus bought. Positive = more cash came back out of the market than went in." />
+        <Card label="Realized profit" value={`${t.profit > 0 ? "+" : ""}${usd(t.profit)}`} accent={moneyColor(t.profit)} big
+          hint="Profit booked by the sells in this span — (sell price minus that lot's buy price) times shares, summed across every closed trade (LIFO, matching the ladder)." />
       </div>
 
       <Panel
@@ -97,7 +99,7 @@ export function LedgerActivity() {
               <thead>
                 <tr>
                   <th className="left">Period</th>
-                  <th>Bought</th><th>Sold</th><th>Net</th><th className="left">Flow</th>
+                  <th>Bought</th><th>Sold</th><th>Net</th><th>Profit</th><th className="left">Flow</th>
                 </tr>
               </thead>
               <tbody>
@@ -107,6 +109,10 @@ export function LedgerActivity() {
                     <td style={S2.num}>{usd(r.bought)}</td>
                     <td style={S2.num}>{usd(r.sold)}</td>
                     <td style={{ ...S2.num, color: moneyColor(r.net) }}>{r.net > 0 ? "+" : ""}{usd(r.net)}</td>
+                    <td style={{ ...S2.num, color: moneyColor(r.profit), fontWeight: 600 }}
+                      title="Realized P/L booked this period — (sell − buy) × shares across its closed trades">
+                      {r.profit > 0 ? "+" : ""}{usd(r.profit)}
+                    </td>
                     <td className="left" style={{ minWidth: 120 }}><FlowBar bought={r.bought} sold={r.sold} max={maxFlow} /></td>
                   </tr>
                 ))}

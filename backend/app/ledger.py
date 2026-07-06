@@ -249,45 +249,58 @@ async def build_cap_gains(grain: str = "month", account_hash: str = "",
 
 async def build_activity(grain: str = "week", account_hash: str = "",
                          from_date: date | None = None, to_date: date | None = None) -> dict:
-    """Gross dollars BOUGHT and SOLD per period — "what did I actually do this
-    week/month?". Sourced from the fill audit log (every executed buy/sell), so it
-    reflects real activity, not just closed round-trips. Net = sold - bought (cash
-    that moved back into the account). Bucketed in Python, dialect-neutral."""
+    """Gross dollars BOUGHT and SOLD per period + the realized PROFIT booked in that
+    period — "what did I actually do this week/month, and what did it make?".
+    Bought/sold come from the persistent fill ledger (full history, including CSV-
+    imported years). Profit comes from completed trades (LIFO: (sell - buy) x shares,
+    summed across every close that landed in the period). Bucketed in Python."""
+    from .db.models import FillRecord
+
     grain = grain if grain in _GRAINS else "week"
-    conds = [AuditEvent.account_hash == account_hash, AuditEvent.kind == "fill"]
     async with SessionLocal() as s:
         rows = (
             await s.execute(
-                select(AuditEvent.at, AuditEvent.created_at, AuditEvent.side,
-                       AuditEvent.shares, AuditEvent.price).where(*conds)
+                select(FillRecord.trade_date, FillRecord.side, FillRecord.shares, FillRecord.price)
+                .where(FillRecord.account_hash == account_hash,
+                       FillRecord.side.in_(["BUY", "SELL"]))
+            )
+        ).all()
+        trade_rows = (
+            await s.execute(
+                select(CompletedTrade.completed_at, CompletedTrade.profit)
+                .where(CompletedTrade.account_hash == account_hash)
             )
         ).all()
 
-    # bucket -> [bought$, sold$, buy_count, sell_count]
+    def in_scope(d: date) -> bool:
+        return not ((from_date is not None and d < from_date)
+                    or (to_date is not None and d > to_date))
+
+    # bucket -> [bought$, sold$, buy_count, sell_count, profit$]
     buckets: dict[str, list] = {}
-    for at, created_at, side, shares, price in rows:
-        when = at or created_at
-        if when is None:
-            continue
-        d = when.date() if isinstance(when, datetime) else when
-        if from_date is not None and d < from_date:
-            continue
-        if to_date is not None and d > to_date:
+    for d, side, shares, price in rows:
+        if d is None or not in_scope(d):
             continue
         notional = _f(shares) * _f(price)
         if notional <= 0:
             continue
-        b = buckets.setdefault(_period_key(d, grain), [0.0, 0.0, 0, 0])
+        b = buckets.setdefault(_period_key(d, grain), [0.0, 0.0, 0, 0, 0.0])
         if str(side or "").upper() == "SELL":
             b[1] += notional
             b[3] += 1
         else:
             b[0] += notional
             b[2] += 1
+    for completed_at, profit in trade_rows:
+        if completed_at is None or not in_scope(completed_at):
+            continue
+        b = buckets.setdefault(_period_key(completed_at, grain), [0.0, 0.0, 0, 0, 0.0])
+        b[4] += _f(profit)
 
     out = [
         {"period": k, "bought": round(v[0], 2), "sold": round(v[1], 2),
-         "net": round(v[1] - v[0], 2), "buy_count": int(v[2]), "sell_count": int(v[3])}
+         "net": round(v[1] - v[0], 2), "buy_count": int(v[2]), "sell_count": int(v[3]),
+         "profit": round(v[4], 2)}
         for k, v in sorted(buckets.items(), reverse=True)
     ]
     totals = {
@@ -296,6 +309,7 @@ async def build_activity(grain: str = "week", account_hash: str = "",
         "net": round(sum(r["net"] for r in out), 2),
         "buy_count": sum(r["buy_count"] for r in out),
         "sell_count": sum(r["sell_count"] for r in out),
+        "profit": round(sum(r["profit"] for r in out), 2),
     }
     return {"grain": grain, "rows": out, "totals": totals}
 

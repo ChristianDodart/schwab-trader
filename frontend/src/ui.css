@@ -62,6 +62,10 @@
 }
 .field:hover { border-color: var(--text-faint); }
 .field::placeholder { color: var(--text-faint); }
+/* Native selects render extra internal chrome on Windows: a fixed pixel height clips
+   the text vertically at >100% DPI scaling. Let them size to their content instead —
+   any inline `height` is overridden so no call site can reintroduce the clipping. */
+select.field { height: auto !important; min-height: 30px; padding-top: 3px; padding-bottom: 3px; }
 
 /* --- panels / cards --- */
 .panel {
