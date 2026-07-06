@@ -231,6 +231,11 @@ async def screen_candidates(account_hash: str = "", index: str = "EQUITY_ALL",
     return {"ok": True, "index": index, "sort": sort, "count": len(candidates),
             "passing": sum(1 for c in candidates if c["passes"]),
             "pool_note": f"{len(mv_rows)} movers + {len(watch)} watchlist (deduped, capped at {pool_limit})",
+            # The active universe rules, so the UI can show WHY names pass/fail as chips.
+            "filters": {
+                "market_cap_min": cap_min, "market_cap_max": cap_max,
+                "country": want_country, "exclude": uni.get("exclude") or [], "no_etfs": True,
+            },
             "candidates": candidates}
 
 

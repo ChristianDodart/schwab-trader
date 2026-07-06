@@ -68,6 +68,20 @@ export function Orders() {
       ) : orders.length === 0 ? (
         <p style={S.note}>No orders on the selected account in the last 7 days.</p>
       ) : (
+        <>
+          {(() => {
+            const working = orders.filter((o) => CANCELABLE.has(o.status)).length;
+            const filled = orders.filter((o) => o.status === "FILLED").length;
+            const other = orders.length - working - filled;
+            return (
+              <p style={S.summary}>
+                <b style={{ color: working ? "var(--warn)" : "var(--text-muted)" }}>{working} working</b>
+                <span style={S.dot}>·</span>
+                <b style={{ color: "var(--pos)" }}>{filled} filled</b>
+                {other > 0 && <><span style={S.dot}>·</span><span style={{ color: "var(--text-dim)" }}>{other} other</span></>}
+              </p>
+            );
+          })()}
         <div style={{ overflowX: "auto", marginTop: 12 }}>
           <table className="tbl">
             <thead>
@@ -103,6 +117,7 @@ export function Orders() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </section>
   );
@@ -113,4 +128,6 @@ const S: Record<string, React.CSSProperties> = {
   head: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" },
   sub: { fontSize: "var(--fs-sm)", fontWeight: 400, color: "var(--text-dim)" },
   note: { color: "var(--text-dim)", fontSize: "var(--fs-sm)", marginTop: 12 },
+  summary: { display: "flex", alignItems: "center", gap: 8, fontSize: "var(--fs-sm)", margin: "10px 0 0" },
+  dot: { color: "var(--text-faint)" },
 };

@@ -1,8 +1,20 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createChart, ColorType, type IChartApi } from "lightweight-charts";
 
 type Point = { day: string; balance: number; capital_gains: number };
 type BenchPoint = { day: string; value: number };
+
+const RANGES = { "3M": 90, "1Y": 365, All: 0 } as const;
+type RangeKey = keyof typeof RANGES;
+// Keep only points on/after (latest day − `days`). days=0 → keep all.
+function sliceByRange<T extends { day: string }>(pts: T[], days: number): T[] {
+  if (days === 0 || pts.length === 0) return pts;
+  const last = new Date(pts[pts.length - 1].day);
+  const cutoff = new Date(last);
+  cutoff.setDate(cutoff.getDate() - days);
+  const iso = cutoff.toISOString().slice(0, 10);
+  return pts.filter((p) => p.day >= iso);
+}
 
 // Account value over time, from the nightly daily_balance snapshots (build_historic's
 // `series`). A quiet area line — it's a reference of where the account has been, not a
@@ -19,8 +31,10 @@ export function EquityCurve({
   benchmarkLabel?: string;
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const points = (series || []).filter((p) => p.balance != null && p.balance > 0);
-  const bench = (benchmark || []).filter((p) => p.value != null && p.value > 0);
+  const [range, setRange] = useState<RangeKey>("All");
+  const allPoints = (series || []).filter((p) => p.balance != null && p.balance > 0);
+  const points = sliceByRange(allPoints, RANGES[range]);
+  const bench = sliceByRange((benchmark || []).filter((p) => p.value != null && p.value > 0), RANGES[range]);
   const showBench = bench.length >= 2;
 
   useEffect(() => {
@@ -58,20 +72,34 @@ export function EquityCurve({
     }
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [points.length, points[0]?.day, points[points.length - 1]?.day, showBench, bench.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [range, points.length, points[0]?.day, points[points.length - 1]?.day, showBench, bench.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (points.length < 2) {
+  if (allPoints.length < 2) {
     return <p style={{ color: "var(--text-faint)", fontSize: "var(--fs-sm)", margin: 0 }}>
       Not enough daily snapshots yet — the account-value line fills in as they accrue (one per trading day).
     </p>;
   }
   return (
     <div>
-      <div style={{ display: "flex", gap: 16, marginBottom: 6, fontSize: "var(--fs-xs)", color: "var(--text-dim)" }}>
-        <Legend color="#4a90e2" label="Your account" />
-        {showBench && <Legend color="#c9a227" label={`${benchmarkLabel || "Benchmark"} (same deposits)`} dashed />}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <div style={{ display: "flex", gap: 16, fontSize: "var(--fs-xs)", color: "var(--text-dim)" }}>
+          <Legend color="#4a90e2" label="Your account" />
+          {showBench && <Legend color="#c9a227" label={`${benchmarkLabel || "Benchmark"} (same deposits)`} dashed />}
+        </div>
+        <span role="group" aria-label="Range" style={{ display: "flex", gap: 4 }}>
+          {(Object.keys(RANGES) as RangeKey[]).map((k) => (
+            <button key={k} className="btn btn-sm" aria-pressed={range === k}
+              style={{ padding: "2px 9px", fontSize: "var(--fs-xs)",
+                background: range === k ? "var(--accent)" : "transparent",
+                color: range === k ? "#fff" : "var(--text-muted)",
+                borderColor: range === k ? "var(--accent)" : "var(--border)" }}
+              onClick={() => setRange(k)}>{k}</button>
+          ))}
+        </span>
       </div>
-      <div ref={container} style={{ width: "100%" }} />
+      {points.length < 2
+        ? <p style={{ color: "var(--text-faint)", fontSize: "var(--fs-sm)", margin: "8px 0" }}>Not enough snapshots in this range.</p>
+        : <div ref={container} style={{ width: "100%" }} />}
     </div>
   );
 }

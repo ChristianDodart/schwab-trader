@@ -350,23 +350,36 @@ spreadsheets, records). Add CSV export for the trade journal and the deposit log
 - **W7-4 Realized/unrealized split** — `build_position_detail` adds `realized` (summed round-trips) +
   `unrealized` (mark-to-market); PositionDetail shows both as header stats.
 
-# WAVE 8 — candidate queue (unstarted)
+# WAVE 8 — EXECUTED 2026-07-05, shipped v0.10.0
+
+- **W8-1 Quick symbol jump** — "/" focuses a ticker filter on the dashboard (App keydown + `symInputRef`);
+  narrows the table (SectorStrip/bulk keep the full row set); Escape clears.
+- **W8-2 Screener filter chips** — candidates payload now returns a `filters` summary (cap band, country,
+  excluded sectors, no-ETF); `FilterChips` renders them read-only with a pointer to Rules.
+- **W8-4 Small fixes #6** — EquityCurve range switch (3M/1Y/All, client-side slice); click a SectorStrip
+  chip to filter the table to that sector (removable); Orders tab working/filled/other tally.
+- **W8-3 DEFERRED → W9-1** — dividend tracking needs a schema migration + live Schwab transaction parsing
+  that can't be verified against the running DB; moved to Wave 9 to do carefully.
+
+# WAVE 9 — candidate queue (unstarted)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## W8-1 — Quick symbol jump ("/") on the dashboard
-"/" focuses a jump-to box that filters/scrolls the positions table to a ticker (deferred from W6-3).
-Fast keyboard-first navigation for a long watchlist.
+## W9-1 — Dividend / income tracking (was W8-3)
+Pull dividend transactions from Schwab (reuse `accounts.get_transactions`, like `fetch_transfers`) into a
+new income store (Alembic migration for a `dividend` table or a typed CashFlow) + a small income view on
+the Ledger, so total return includes dividends. NEEDS live verification of the Schwab dividend record
+shape before shipping; degrade to an empty view when unavailable.
 
-## W8-2 — Screener active-filter chips
-Show the Screener's active constraints (market-cap band, country, excluded sectors, ETF filter) as
-removable chips, so it's obvious WHY a candidate was included/excluded and easy to relax one rule.
+## W9-2 — Total-return rollup
+Once dividends land, add a "total return" figure = realized trades + unrealized + dividends, shown on the
+since-inception card next to price-only return.
 
-## W8-3 — Dividend / income tracking
-Pull dividend transactions from Schwab (like the transfer pull) into a small income view on the Ledger,
-so total return includes dividends, not just price gains + realized trades.
+## W9-3 — Alert history / audit polish
+The bell shows recent notifications; add a searchable/filterable history (by symbol/type/date) drawing on
+the existing AuditEvent table.
 
-## W8-4 — Small-fixes bundle #6
-1. Equity curve: a range selector (3M / 1Y / all) like the price chart.
-2. Orders tab: a compact filled-vs-working summary line.
-3. Dashboard: click a sector-strip chip to filter the table to that sector.
+## W9-4 — Small-fixes bundle #7
+1. Persist the equity-curve range choice (localStorage), like the screener filter.
+2. Dashboard: show the active "/" filter as a count ("showing 3 of 20").
+3. Settings: a "copy support bundle" that bundles diagnostics + recent backend.log lines.

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AccountPicker } from "./AccountPicker";
 import { AuthBanner, LiveStatusPill, useLiveness } from "./AuthBanner";
 import { UpdateBanner } from "./UpdateBanner";
@@ -41,6 +41,9 @@ export function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<View>("dashboard");
   const [showHelp, setShowHelp] = useState(false);
+  const [symQuery, setSymQuery] = useState("");        // "/" jump-to filter (by ticker)
+  const [sectorFilter, setSectorFilter] = useState<string | null>(null); // click a sector chip
+  const symInputRef = useRef<HTMLInputElement>(null);
   const [acctKey, setAcctKey] = useState("");
   const [addSym, setAddSym] = useState("");
   const [watchTicket, setWatchTicket] = useState<Suggestion | null>(null);
@@ -56,6 +59,11 @@ export function App() {
   // Prices are stale only when we're MEANT to be live (not demo) but Schwab isn't
   // answering — then dim the table + explain, so a frozen quote isn't mistaken for a real move.
   const pricesStale = data?.mode !== "demo" && live === false;
+  // Dashboard table rows after the "/" ticker filter and any clicked sector filter.
+  // SectorStrip + bulk keep using the FULL row set (whole-portfolio views).
+  const dashRows = (data?.rows ?? []).filter((r) =>
+    (!symQuery || r.symbol.toUpperCase().includes(symQuery)) &&
+    (!sectorFilter || (r.sector || "Untagged") === sectorFilter));
 
   // One-time "you just updated" toast: compare the running version to the last one we saw.
   // Only fires when it actually changed (not on a fresh install), then records the new one.
@@ -101,6 +109,7 @@ export function App() {
       if (e.key === "Escape" && showHelp) { setShowHelp(false); return; }
       if (document.querySelector(".modal-overlay")) return; // don't reach behind a modal
       if (e.key === "?") { e.preventDefault(); setShowHelp((v) => !v); return; }
+      if (e.key === "/" && view === "dashboard") { e.preventDefault(); symInputRef.current?.focus(); return; }
       if (/^[1-9]$/.test(e.key)) {
         const t = NAV[Number(e.key) - 1];
         if (t) { e.preventDefault(); guardedNav(() => setView(t.id)); }
@@ -356,10 +365,25 @@ export function App() {
                     Settings → Schwab connection.
                   </p>
                 )}
-                <SectorStrip rows={data.rows} />
+                <SectorStrip rows={data.rows}
+                  activeSector={sectorFilter}
+                  onSectorClick={(name) => setSectorFilter((cur) => (cur === name ? null : name))} />
+                <div style={S.filterBar}>
+                  <input ref={symInputRef} className="field" value={symQuery} placeholder="Jump to ticker  ( / )"
+                    aria-label="Filter positions by ticker" style={{ height: 30, width: 190 }}
+                    onChange={(e) => setSymQuery(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => { if (e.key === "Escape") { setSymQuery(""); e.currentTarget.blur(); } }} />
+                  {symQuery && <button className="btn btn-ghost btn-sm" onClick={() => setSymQuery("")}>clear</button>}
+                  {sectorFilter && (
+                    <span style={S.activeFilter}>
+                      Sector: <b>{sectorFilter}</b>
+                      <button aria-label="Clear sector filter" style={S.filterX} onClick={() => setSectorFilter(null)}>✕</button>
+                    </span>
+                  )}
+                </div>
                 <div style={pricesStale ? { opacity: 0.55, transition: "opacity .2s" } : undefined}>
                   <DashboardTable
-                    rows={data.rows}
+                    rows={dashRows}
                     cols={dashCols.ids}
                     selected={selected}
                     onSelect={(sym) => setSelected(sym === selected ? null : sym)}
@@ -514,5 +538,8 @@ const S: Record<string, React.CSSProperties> = {
   addWrap: { display: "flex", gap: 6, alignItems: "center" },
   note: { color: "var(--text-muted)", fontSize: "var(--fs-md)", marginTop: 16 },
   staleNote: { color: "var(--warn)", fontSize: "var(--fs-sm)", margin: "0 0 10px", lineHeight: 1.45 },
+  filterBar: { display: "flex", alignItems: "center", gap: 8, margin: "0 0 10px" },
+  activeFilter: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--fs-xs)", color: "var(--text-muted)", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--r-pill)", padding: "2px 10px" },
+  filterX: { background: "transparent", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "var(--fs-xs)", padding: 0 },
   kbd: { fontFamily: "monospace", fontSize: "var(--fs-xs)", background: "var(--panel-2)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-sm)", padding: "1px 8px", color: "var(--text)", minWidth: 22, textAlign: "center" },
 };

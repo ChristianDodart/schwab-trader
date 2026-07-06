@@ -265,6 +265,13 @@ export type CandidateScreen = {
   count?: number;
   passing?: number;
   pool_note?: string;
+  filters?: {
+    market_cap_min?: number | null;
+    market_cap_max?: number | null;
+    country?: string;
+    exclude?: string[];
+    no_etfs?: boolean;
+  };
   candidates?: Candidate[];
 };
 

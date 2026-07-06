@@ -117,6 +117,7 @@ export function Screener({ onAdded }: { onAdded?: (symbol: string) => void }) {
               <b style={{ color: "var(--pos)" }}>{cands.passing}</b> of {cands.count} fit your rules
               <span style={{ color: "var(--text-faint)" }}> · pool: {cands.pool_note}</span>
             </p>
+            {cands.filters && <FilterChips f={cands.filters} />}
             {(cands.candidates ?? []).length > 0 && (
               <div style={{ overflowX: "auto" }}>
                 <table className="tbl">
@@ -390,6 +391,27 @@ export function fmtCap(n: number | null | undefined): string {
   return usd(n);
 }
 
+// The active universe rules shown as chips, so it's obvious WHY names pass or fail.
+// Read-only summary — edit the rules themselves under the Rules tab.
+function FilterChips({ f }: { f: NonNullable<CandidateScreen["filters"]> }) {
+  const chips: string[] = [];
+  const lo = f.market_cap_min, hi = f.market_cap_max;
+  if (lo != null && hi != null) chips.push(`Cap ${fmtCap(lo)}–${fmtCap(hi)}`);
+  else if (lo != null) chips.push(`Cap ≥ ${fmtCap(lo)}`);
+  else if (hi != null) chips.push(`Cap ≤ ${fmtCap(hi)}`);
+  if (f.country) chips.push(`Country ${f.country}`);
+  if (f.no_etfs) chips.push("Individual stocks only");
+  (f.exclude ?? []).forEach((s) => chips.push(`Excludes ${s}`));
+  if (!chips.length) return null;
+  return (
+    <div style={S.chipRow}>
+      <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-xs)" }}>Filters:</span>
+      {chips.map((c) => <span key={c} style={S.filterChip}>{c}</span>)}
+      <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-2xs)" }}>· adjust under Rules</span>
+    </div>
+  );
+}
+
 // Active toggle uses the ACCENT (blue = "a control"), never the profit-green.
 const pill = (active: boolean): React.CSSProperties => ({
   background: active ? "var(--accent)" : "var(--panel-2)",
@@ -409,7 +431,9 @@ const badge = (status: string): React.CSSProperties => ({
 const S: Record<string, React.CSSProperties> = {
   candPanel: { marginTop: 18, padding: 18 },
   candHead: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 8 },
-  candSummary: { fontSize: "var(--fs-md)", margin: "4px 0 12px" },
+  candSummary: { fontSize: "var(--fs-md)", margin: "4px 0 8px" },
+  chipRow: { display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", margin: "0 0 12px" },
+  filterChip: { fontSize: "var(--fs-2xs)", color: "var(--text-muted)", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--r-pill)", padding: "1px 9px" },
   failReason: { fontSize: "var(--fs-xs)", color: "var(--text-faint)", marginLeft: 6 },
   wrap: { display: "flex", gap: 24, marginTop: 18, alignItems: "flex-start", flexWrap: "wrap" },
   col: { flex: "1 1 480px", minWidth: 360 },

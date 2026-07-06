@@ -3,6 +3,18 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.10.0 — "Find it fast"
+
+New this version:
+- Jump straight to a ticker. Press "/" on the dashboard and start typing - the table narrows
+  to what you're looking for. Escape clears it.
+- Click a sector to focus. Tap any slice in the sector-exposure strip and the table filters to
+  just those positions; tap again (or the x) to clear.
+- The screener now shows its active filters. Cap band, country, excluded sectors, and the
+  no-ETF rule appear as chips, so it's obvious why a name passed or didn't.
+- The equity curve got a range switch - flip between 3 months, 1 year, and all time.
+- The Orders tab shows a quick working / filled tally at a glance.
+
 ## v0.9.0 — "See it, prove it, file it"
 
 New this version:

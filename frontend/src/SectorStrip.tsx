@@ -17,7 +17,11 @@ const readThresh = () => {
 const PALETTE = ["#4a90e2", "#5dcaa5", "#c9a227", "#b57edc", "#e08a5b", "#5bb0c9", "#d1655b", "#8a92a6"];
 const MAX_SEGMENTS = 7; // beyond this, the tail collapses into "Other"
 
-export function SectorStrip({ rows }: { rows: DashboardRow[] }) {
+export function SectorStrip({ rows, activeSector, onSectorClick }: {
+  rows: DashboardRow[];
+  activeSector?: string | null;
+  onSectorClick?: (name: string) => void;
+}) {
   const [thresh, setThresh] = useState(readThresh);
   useEffect(() => { try { localStorage.setItem(LS_THRESH, String(thresh)); } catch { /* private mode */ } }, [thresh]);
   const held = (rows || []).filter((r) => !r.is_watch && (r.current_value ?? 0) > 0);
@@ -67,12 +71,20 @@ export function SectorStrip({ rows }: { rows: DashboardRow[] }) {
         ))}
       </div>
       <div style={S.legend}>
-        {segments.map(([name, val], i) => (
-          <span key={name} style={{ ...S.chip, ...(over && name === over.name ? { color: "var(--warn)", fontWeight: 600 } : null) }}>
-            <span style={{ width: 9, height: 9, borderRadius: 2, background: color(i), flexShrink: 0 }} />
-            {name} <span style={{ color: "var(--text-faint)" }}>{((val / total) * 100).toFixed(0)}%</span>
-          </span>
-        ))}
+        {segments.map(([name, val], i) => {
+          const clickable = !!onSectorClick && name !== "Other";
+          const active = activeSector === name;
+          return (
+            <button key={name} type="button" disabled={!clickable}
+              onClick={() => clickable && onSectorClick!(name)}
+              title={clickable ? `Filter the table to ${name}` : undefined}
+              style={{ ...S.chip, ...(clickable ? S.chipClickable : null), ...(active ? S.chipActive : null),
+                ...(over && name === over.name ? { color: "var(--warn)", fontWeight: 600 } : null) }}>
+              <span style={{ width: 9, height: 9, borderRadius: 2, background: color(i), flexShrink: 0 }} />
+              {name} <span style={{ color: "var(--text-faint)" }}>{((val / total) * 100).toFixed(0)}%</span>
+            </button>
+          );
+        })}
       </div>
       {over && (
         <p style={S.warn}>
@@ -90,7 +102,9 @@ const S: Record<string, React.CSSProperties> = {
   total: { fontSize: "var(--fs-xs)", color: "var(--text-faint)", fontVariantNumeric: "tabular-nums" },
   bar: { display: "flex", height: 10, borderRadius: "var(--r-sm)", overflow: "hidden", gap: 1, background: "var(--border-hairline)" },
   legend: { display: "flex", flexWrap: "wrap", gap: "6px 14px", marginTop: 8 },
-  chip: { display: "inline-flex", alignItems: "center", gap: 5, fontSize: "var(--fs-xs)", color: "var(--text-muted)" },
+  chip: { display: "inline-flex", alignItems: "center", gap: 5, fontSize: "var(--fs-xs)", color: "var(--text-muted)", background: "transparent", border: "1px solid transparent", borderRadius: "var(--r-pill)", padding: "1px 6px" },
+  chipClickable: { cursor: "pointer" },
+  chipActive: { borderColor: "var(--accent)", color: "var(--text)" },
   threshCtl: { display: "inline-flex", alignItems: "center", gap: 4, fontSize: "var(--fs-xs)", color: "var(--text-dim)" },
   threshInput: { width: 44, height: 22, textAlign: "right", padding: "1px 4px", fontSize: "var(--fs-xs)" },
   warn: { fontSize: "var(--fs-xs)", color: "var(--warn)", margin: "8px 0 0", lineHeight: 1.4 },
