@@ -79,7 +79,8 @@ export type LedgerHistoric = {
   capital_by_year: { year: number; deposits: number; withdrawals: number; net: number }[];
   contributions_recorded: number;
   gain_vs_contributed: number | null;
-  roi_pct: number | null;        // gain_vs_contributed / deposited_all_time
+  roi_pct: number | null;        // gain_vs_contributed / deposited_all_time (simple, timing-blind)
+  xirr_pct: number | null;       // money-weighted annual return (accounts for WHEN money went in)
   series: { day: string; balance: number; capital_gains: number }[];
 };
 export type Trade = {
@@ -166,6 +167,8 @@ export type Suggestion = {
   rationale?: string;
   note?: string;
   error?: string;
+  buying_power?: number | null; // advisory: available buying power (BUY only)
+  affordable?: boolean | null;
 };
 
 export type Alert = {
@@ -357,6 +360,8 @@ export type PositionDetailData = {
   invested: number;
   basis_per_share: number;
   lilo_pct: number | null;
+  avg_52wk: number | null;
+  median_52wk: number | null;
   lots: Lot[];
   projected_ladder: ProjectedRung[];
 };

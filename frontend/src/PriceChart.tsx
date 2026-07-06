@@ -1,13 +1,27 @@
 import { useEffect, useRef, useState } from "react";
-import { createChart, ColorType, type IChartApi, type CandlestickData } from "lightweight-charts";
+import {
+  createChart, ColorType, LineStyle,
+  type IChartApi, type ISeriesApi, type IPriceLine, type CandlestickData,
+} from "lightweight-charts";
 import { API } from "./api";
 
 const RANGES = ["1D", "5D", "1M", "6M", "1Y"] as const;
 type Range = (typeof RANGES)[number];
 
-export function PriceChart({ symbol }: { symbol: string }) {
+// `rungs` are projected buy-trigger prices; avg52/median52 are the 52-week
+// reference levels. All optional — the chart works with just a symbol.
+export function PriceChart({
+  symbol, rungs = [], avg52, median52,
+}: {
+  symbol: string;
+  rungs?: number[];
+  avg52?: number | null;
+  median52?: number | null;
+}) {
   const container = useRef<HTMLDivElement>(null);
+  const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const [range, setRange] = useState<Range>("6M");
+  const [chartGen, setChartGen] = useState(0); // bumps each (re)build so the overlay redraws
 
   useEffect(() => {
     if (!container.current) return;
@@ -34,6 +48,8 @@ export function PriceChart({ symbol }: { symbol: string }) {
       wickUpColor: "#5dcaa5",
       wickDownColor: "#f0997b",
     });
+    seriesRef.current = series;
+    setChartGen((n) => n + 1); // let the overlay effect (re)draw its price lines
 
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
@@ -57,8 +73,37 @@ export function PriceChart({ symbol }: { symbol: string }) {
       alive = false;
       clearTimeout(timer);
       chart.remove();
+      seriesRef.current = null;
     };
   }, [symbol, range]);
+
+  // Overlay: buy-rung triggers (dashed blue) + 52wk avg/median (dotted grey) as
+  // horizontal price lines. Managed apart from the candle stream so the parent's
+  // 2s price refresh never rebuilds the chart. Redraws on chart rebuild or when
+  // the levels change; canvas can't read var(), so colors are literal hex.
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+    const lines: IPriceLine[] = [];
+    for (const price of rungs) {
+      if (price > 0)
+        lines.push(series.createPriceLine({
+          price, color: "#4a6fa5", lineWidth: 1, lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true, title: "buy",
+        }));
+    }
+    if (avg52 != null)
+      lines.push(series.createPriceLine({
+        price: avg52, color: "#7a7a82", lineWidth: 1, lineStyle: LineStyle.Dotted,
+        axisLabelVisible: true, title: "52w avg",
+      }));
+    if (median52 != null)
+      lines.push(series.createPriceLine({
+        price: median52, color: "#5c5c63", lineWidth: 1, lineStyle: LineStyle.Dotted,
+        axisLabelVisible: true, title: "52w med",
+      }));
+    return () => { for (const l of lines) { try { series.removePriceLine(l); } catch { /* chart gone */ } } };
+  }, [chartGen, rungs.join(","), avg52, median52]);
 
   return (
     <div style={S.wrap}>

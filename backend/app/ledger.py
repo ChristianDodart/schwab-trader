@@ -21,6 +21,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import case, func, select
 
 from . import config_store
+from . import xirr as xirr_calc
 from .db import SessionLocal, dialect_insert as pg_insert
 from .db.models import CashFlow, CompletedTrade, DailyBalance, Lot
 from .schwab import hub
@@ -573,6 +574,19 @@ async def build_historic(account_hash: str, from_date: date | None = None,
         round(gain_vs_contributed / deposited_all_time * 100, 1)
         if gain_vs_contributed is not None and deposited_all_time > 0 else None
     )
+    # Money-weighted return (XIRR): each contribution as a dated OUTFLOW (-amount), plus
+    # today's account value as the terminal INFLOW — so the % reflects WHEN money went in,
+    # not just how much. Simple ROI above ignores timing; this doesn't. Needs a live value
+    # and ~a month of history (annualizing a few days is noise). None when not computable.
+    xirr_pct = None
+    if acct_value is not None and cap_rows:
+        span_days = (today - min(cd for cd, _ in cap_rows)).days
+        if span_days >= 30:
+            flows = [(cd, -_f(ca)) for (cd, ca) in cap_rows]
+            flows.append((today, _f(acct_value)))
+            r = xirr_calc.xirr(flows)
+            if r is not None:
+                xirr_pct = round(r * 100, 1)
 
     return {
         "as_of": today.isoformat(),
@@ -601,6 +615,7 @@ async def build_historic(account_hash: str, from_date: date | None = None,
         "contributions_recorded": int(all_time_count or 0),
         "gain_vs_contributed": gain_vs_contributed,
         "roi_pct": roi_pct,
+        "xirr_pct": xirr_pct,
         "series": [
             {"day": r.day.isoformat(), "balance": _f(r.balance), "capital_gains": _f(r.capital_gains)}
             for r in series

@@ -144,6 +144,30 @@ export function LedgerHistoric() {
         <p style={S.warn}>Live balances unavailable{now.note ? ` (${now.note})` : ""} — showing the last saved snapshot. Reconnect under Settings → Schwab connection.</p>
       )}
 
+      {/* ---- Since inception (all-time performance headline) ---- */}
+      {h.contributions_recorded > 0 && h.gain_vs_contributed != null && (
+        <>
+          <div style={S.panelHead}>
+            <h3 className="section-title" style={{ margin: "14px 0 0" }}>Since inception</h3>
+          </div>
+          <div style={S.cards}>
+            <Card label="Deposited" value={usd(h.deposited_all_time)}
+              hint="Gross capital you've put in (all time). Withdrawals never reduce this — it's the base for return %." />
+            <Card label="Current value" value={usd(now.account_value)}
+              sub={h.withdrawn_all_time < 0 ? `+ ${usd(-h.withdrawn_all_time)} already withdrawn` : undefined}
+              hint="What the account is worth right now (live liquidation value)." />
+            <Card label="Total gain" value={usd(h.gain_vs_contributed)} accent={moneyColor(h.gain_vs_contributed)}
+              sub={h.roi_pct != null ? `${h.roi_pct > 0 ? "+" : ""}${h.roi_pct}% simple ROI` : undefined}
+              hint="Value now + everything withdrawn − everything deposited. Simple ROI divides that by gross deposits (ignores timing)." />
+            <Card label="Annualized (XIRR)"
+              value={h.xirr_pct != null ? `${h.xirr_pct > 0 ? "+" : ""}${h.xirr_pct}%` : "—"}
+              accent={h.xirr_pct != null ? moneyColor(h.xirr_pct) : undefined}
+              sub={h.xirr_pct != null ? "per year, money-weighted" : "needs ~1 month of history"}
+              hint="Money-weighted annual return: the single rate that values every dated deposit/withdrawal plus today's balance to zero. Unlike simple ROI, it accounts for WHEN money went in — the fair way to compare against a benchmark." />
+          </div>
+        </>
+      )}
+
       {/* ---- Capital & margin (deployment / leverage, live) ---- */}
       {margin && !margin.blocked && <MarginPanel m={margin} />}
 

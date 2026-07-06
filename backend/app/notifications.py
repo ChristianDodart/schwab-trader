@@ -24,6 +24,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, select, update
 
+from . import phone
 from .db import SessionLocal, dialect_insert as pg_insert
 from .db.models import AuditEvent, Notification, PriceAlert
 from .schwab import hub, subscribe
@@ -179,6 +180,7 @@ async def _fire(a: dict, symbol: str, px: float) -> None:
         "id": nid, "alert_id": a["id"], "symbol": symbol, "message": msg,
         "price": px, "read": False, "created_at": _iso(),
     })
+    phone.dispatch(f"{symbol} alert", msg)  # optional phone copy; silent no-op when off
     # ASCII-only log line (Windows console is cp1252 and chokes on ≥/≤)
     print(f"[alerts] fired #{a['id']}: {symbol} {a['direction']} "
           f"{a['threshold']:g} @ {px:g}")
@@ -195,6 +197,7 @@ async def post_system_notification(symbol: str | None, message: str, price: floa
         await s.commit()
     _push({"id": nid, "alert_id": None, "symbol": symbol, "message": message,
            "price": price, "read": False, "created_at": _iso()})
+    phone.dispatch(symbol or "Schwab Trader", message)  # optional phone copy (strategy triggers)
     return nid
 
 
@@ -225,6 +228,7 @@ async def _emit(symbol: str | None, message: str, price: float | None, alert_id=
         await s.commit()
     _push({"id": nid, "alert_id": alert_id, "symbol": symbol, "message": message,
            "price": price, "read": False, "created_at": _iso()})
+    phone.dispatch(symbol or "Fill", message)  # optional phone copy (resting fills)
 
 
 def _naive_utc(dt):

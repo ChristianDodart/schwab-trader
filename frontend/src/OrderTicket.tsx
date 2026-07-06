@@ -293,6 +293,13 @@ export function OrderTicket({
             <span>{isBuy ? "Est. cost" : "Est. proceeds"}</span>
             <b>{est != null ? (needsLimit ? usd(est) : `~ ${usd(est)}`) : "—"}</b>
           </div>
+          {/* Advisory only — the broker enforces margin/settlement. Never blocks placing. */}
+          {isBuy && suggestion.buying_power != null && est != null && est > suggestion.buying_power && (
+            <p style={S.warnNote}>
+              ⚠ Exceeds available buying power ({usd(suggestion.buying_power)}) — advisory only; the broker
+              enforces margin.
+            </p>
+          )}
           {!needsLimit && (
             <p style={S.note}>
               {orderType === "MARKET" ? "Market order" : "Fills at market"} — estimated at the current

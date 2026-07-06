@@ -59,6 +59,21 @@ export function AuthBanner() {
   );
 }
 
+// Lightweight liveness probe for consumers that only need the boolean (e.g. dimming
+// stale dashboard prices). Polls the cached status every 60s. null = not yet known.
+export function useLiveness(): boolean | null {
+  const [live, setLive] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () => fetch(`${API}/auth/status`).then((r) => r.json())
+      .then((s: AuthStatus) => { if (alive) setLive(s.verified_live ?? null); }).catch(() => {});
+    load();
+    const t = setInterval(load, 60_000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  return live;
+}
+
 // Always-visible header pill showing whether Schwab ACTUALLY answered a real
 // authenticated call recently (probe/stream), not just the token-file timestamp.
 // Click to force an immediate check.

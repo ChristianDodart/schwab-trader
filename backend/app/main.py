@@ -20,6 +20,7 @@ from . import ledger as ledger_svc
 from . import market_data as market_svc
 from . import notifications as notifications_svc
 from . import orders as orders_svc
+from . import phone as phone_svc
 from . import profiles as profiles_svc
 from . import rebuild as rebuild_svc
 from . import screener as screener_svc
@@ -233,6 +234,36 @@ async def get_fmp_status() -> dict:
 async def set_fmp_key(body: FmpKeyBody) -> dict:
     """Save the optional FMP key (Fernet-encrypted). Powers sector/industry/country auto-tagging."""
     return await credentials_svc.set_fmp_key(body.key)
+
+
+class PhoneNotifyBody(BaseModel):
+    channel: str | None = None       # "off" | "ntfy" | "email"
+    ntfy_url: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int | None = None
+    smtp_user: str | None = None
+    smtp_pass: str | None = None     # blank = keep the stored one
+    smtp_from: str | None = None
+    smtp_to: str | None = None
+    smtp_tls: bool | None = None
+
+
+@app.get("/api/phone-notify")
+async def get_phone_notify() -> dict:
+    """Phone-notification config, secret-free (never returns the SMTP password)."""
+    return await phone_svc.status()
+
+
+@app.post("/api/phone-notify")
+async def set_phone_notify(body: PhoneNotifyBody) -> dict:
+    """Save the optional phone channel (ntfy topic or SMTP; password Fernet-encrypted)."""
+    return await phone_svc.set_config(body.model_dump(exclude_none=True))
+
+
+@app.post("/api/phone-notify/test")
+async def test_phone_notify() -> dict:
+    """Send a test message on the current config and report success/failure."""
+    return await phone_svc.send_test()
 
 
 class EnrichBody(BaseModel):

@@ -20,9 +20,19 @@ const INDEXES: { key: string; label: string }[] = [
   { key: "NASDAQ", label: "Nasdaq" },
 ];
 
+// Remember the last index/sort across sessions so "Screen now" reuses the user's
+// usual filter instead of resetting to the defaults every launch.
+const LS_INDEX = "screener.index.v1";
+const LS_SORT = "screener.sort.v1";
+const lsGet = (k: string, fallback: string) => {
+  try { return localStorage.getItem(k) || fallback; } catch { return fallback; }
+};
+
 export function Screener({ onAdded }: { onAdded?: (symbol: string) => void }) {
-  const [index, setIndex] = useState("EQUITY_ALL");
-  const [sort, setSort] = useState("PERCENT_CHANGE_UP");
+  const [index, setIndex] = useState(() => lsGet(LS_INDEX, "EQUITY_ALL"));
+  const [sort, setSort] = useState(() => lsGet(LS_SORT, "PERCENT_CHANGE_UP"));
+  useEffect(() => { try { localStorage.setItem(LS_INDEX, index); } catch { /* private mode */ } }, [index]);
+  useEffect(() => { try { localStorage.setItem(LS_SORT, sort); } catch { /* private mode */ } }, [sort]);
   const [movers, setMovers] = useState<Mover[]>([]);
   const [moversErr, setMoversErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);

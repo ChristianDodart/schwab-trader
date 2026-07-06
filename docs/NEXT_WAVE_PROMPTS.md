@@ -295,9 +295,25 @@ spreadsheets, records). Add CSV export for the trade journal and the deposit log
   reuses build_dashboard marks). Advisory only.
 - **W3-2 Equity curve** — `EquityCurve.tsx` charts the nightly daily_balance `series` on Ledger→Historic.
 
-# WAVE 4 — candidate queue (designed 2026-07-05, unstarted)
+# WAVE 4 — EXECUTED 2026-07-05, shipped v0.6.0
+
+- **W4-1 Chart overlays** — `PriceChart` draws projected ladder-rung triggers (dashed) + 52wk avg/median
+  (dotted) via `createPriceLine`; overlay managed apart from the candle stream (no rebuild on price tick).
+  Backend `build_position_detail` now returns `avg_52wk`/`median_52wk`.
+- **W4-2 Buying-power awareness** — `suggest_buy` + `bulk buy_plan` return `buying_power` (+ `affordable`);
+  OrderTicket & BulkReviewModal show a soft "exceeds buying power" note. ADVISORY, never blocks.
+- **W4-3 Phone reach** — `phone.py` optional ntfy.sh / SMTP channel (Fernet-encrypted), fired from the three
+  loud emitters (resting fills, strategy triggers, price alerts) via `dispatch`; Settings panel + test button.
+- **W4-4 XIRR** — pure `xirr.py` (Newton + bisection fallback) + 8 unit tests; `build_historic` adds `xirr_pct`;
+  "Since inception" card on Ledger→Historic (deposited / value / gain+ROI / annualized XIRR).
+- **W4-5 Small fixes #3** — dashboard dims + "prices may be stale" note when not live (reuses verified_live via
+  `useLiveness`); cumulative-P/L sparkline on the Trades sub-tab; Screener remembers index/sort in localStorage.
+
+# WAVE 5 — candidate queue (unstarted)
 
 Same shared-rules header as Wave 1. Ordered by value.
+
+## (originally Wave 4, kept for reference of the exact scope shipped)
 
 ## W4-1 — Chart overlays (ladder rungs + 52wk avg on PriceChart)
 Overlay the position's projected ladder rungs (from `/api/positions/{sym}` `projected_ladder`

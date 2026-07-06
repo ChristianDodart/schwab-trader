@@ -169,7 +169,16 @@ async def buy_plan(account_hash: str) -> dict:
         })
     # qualifying dips first (deepest discount first), then everything else by symbol
     cands.sort(key=lambda c: (not c["qualifies"], c["symbol"]))
-    return {"ok": True, "mode": hub.mode, "count": sum(1 for c in cands if c["qualifies"]), "candidates": cands}
+    # Advisory: buying power so the review modal can flag when the SELECTED total
+    # exceeds it. Informational — never blocks (margin rules are the broker's job).
+    try:
+        from . import accounts as accounts_svc
+        ms = await accounts_svc.margin_summary(account_hash)
+        buying_power = ms.get("buying_power") if not ms.get("blocked") else None
+    except Exception:
+        buying_power = None
+    return {"ok": True, "mode": hub.mode, "buying_power": buying_power,
+            "count": sum(1 for c in cands if c["qualifies"]), "candidates": cands}
 
 
 async def bulk_sell(account_hash: str, items: list[dict], order_type: str = "LIMIT", confirm: bool = False) -> dict:

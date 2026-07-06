@@ -71,7 +71,7 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
         <Stat label="LILO %" value={pct(d.lilo_pct)} color={signColor(d.lilo_pct)} />
       </div>
 
-      <ChartToggle symbol={d.symbol} />
+      <ChartToggle d={d} />
 
       <h3 className="section-title" style={S.h3}>Buy Ladder</h3>
       <div style={{ overflowX: "auto" }}>
@@ -140,14 +140,21 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
   );
 }
 
-function ChartToggle({ symbol }: { symbol: string }) {
+function ChartToggle({ d }: { d: PositionDetailData }) {
   const [open, setOpen] = useState(false);
   return (
     <div style={{ margin: "14px 0 4px" }}>
       <button className="btn btn-ghost btn-sm" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         {open ? "Hide chart" : "Show chart"}
       </button>
-      {open && <PriceChart symbol={symbol} />}
+      {open && (
+        <PriceChart
+          symbol={d.symbol}
+          rungs={d.projected_ladder.map((p) => p.trigger_price)}
+          avg52={d.avg_52wk}
+          median52={d.median_52wk}
+        />
+      )}
     </div>
   );
 }

@@ -70,6 +70,7 @@ export function LedgerTrades() {
           {s.avg_loss != null && <span>Avg loss <b style={{ color: "var(--neg)" }}>{usd(s.avg_loss)}</b></span>}
           {s.best && <span>Best <b style={{ color: "var(--pos)" }}>{s.best.symbol} {usd(s.best.profit)}</b></span>}
           {s.worst && s.worst.profit < 0 && <span>Worst <b style={{ color: "var(--neg)" }}>{s.worst.symbol} {usd(s.worst.profit)}</b></span>}
+          <CumulativeSpark trades={d.trades} />
         </div>
       )}
 
@@ -150,7 +151,38 @@ export function LedgerTrades() {
   );
 }
 
+// Tiny inline-SVG sparkline of cumulative realized P/L across the scoped closed
+// trades (oldest → newest). Inline SVG (unlike canvas) resolves CSS vars, so it
+// matches the theme. Line tinted by the ending sign; a dotted zero baseline anchors it.
+function CumulativeSpark({ trades }: { trades: TradeLog["trades"] }) {
+  const ordered = [...trades]
+    .filter((t) => t.completed_at)
+    .sort((a, b) => (a.completed_at! < b.completed_at! ? -1 : 1));
+  if (ordered.length < 2) return null;
+  let run = 0;
+  const cum = ordered.map((t) => (run += t.profit));
+  const W = 132, H = 30, pad = 2;
+  const lo = Math.min(0, ...cum), hi = Math.max(0, ...cum);
+  const span = hi - lo || 1;
+  const x = (i: number) => pad + (i / (cum.length - 1)) * (W - 2 * pad);
+  const y = (v: number) => pad + (1 - (v - lo) / span) * (H - 2 * pad);
+  const pts = cum.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const end = cum[cum.length - 1];
+  const stroke = end >= 0 ? "var(--pos)" : "var(--neg)";
+  const zeroY = y(0).toFixed(1);
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+      title={`Cumulative realized P/L across ${cum.length} closed trades (oldest → newest)`}>
+      <span style={{ fontSize: "var(--fs-xs)", color: "var(--text-faint)" }}>Cumulative</span>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true" style={{ display: "block" }}>
+        <line x1={pad} y1={zeroY} x2={W - pad} y2={zeroY} stroke="var(--border)" strokeWidth="1" strokeDasharray="2 2" />
+        <polyline points={pts} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+    </span>
+  );
+}
+
 const S2: Record<string, React.CSSProperties> = {
-  subStats: { display: "flex", gap: 20, flexWrap: "wrap", fontSize: "var(--fs-md)", margin: "12px 2px 0", color: "var(--text-muted)" },
+  subStats: { display: "flex", gap: 20, flexWrap: "wrap", fontSize: "var(--fs-md)", margin: "12px 2px 0", color: "var(--text-muted)", alignItems: "center" },
   dayTag: { color: "var(--accent-quiet)", border: "1px solid #3a4a5a" },
 };

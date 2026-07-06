@@ -20,6 +20,7 @@ export function useBulk(rows: DashboardRow[] | undefined, mode: string | undefin
   const [review, setReview] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [result, setResult] = useState<BulkResult | null>(null);
+  const [buyingPower, setBuyingPower] = useState<number | null>(null); // advisory (buy plan only)
 
   // Counts come free from the dashboard rows the client already has.
   const held = (rows || []).filter((r) => !r.is_watch);
@@ -29,10 +30,11 @@ export function useBulk(rows: DashboardRow[] | undefined, mode: string | undefin
   const cancel = () => { setKind(null); setPlan([]); setChecked(new Set()); setReview(false); setResult(null); };
 
   const start = (k: Kind) => {
-    setLoading(true); setKind(k); setPlan([]); setResult(null); setReview(false); setChecked(new Set());
+    setLoading(true); setKind(k); setPlan([]); setResult(null); setReview(false); setChecked(new Set()); setBuyingPower(null);
     fetch(`${API}/bulk/${k === "sell" ? "sell-plan" : "buy-plan"}`)
       .then((r) => r.json())
       .then((d) => {
+        setBuyingPower(typeof d.buying_power === "number" ? d.buying_power : null);
         const cands: (SellCandidate | BuyCandidate)[] = d.candidates || [];
         if (!cands.length) {
           // Nothing selectable at all — don't strand the user in an empty mode.
@@ -78,7 +80,7 @@ export function useBulk(rows: DashboardRow[] | undefined, mode: string | undefin
     ? { kind, candidates: new Set(plan.map((c) => c.symbol)), checked, onToggle: toggle, allChecked, onToggleAll: toggleAll }
     : null;
 
-  return { kind, loading, start, cancel, bulkUI, sellCount, buyCount, selected, review, setReview, confirm, placing, result, mode };
+  return { kind, loading, start, cancel, bulkUI, sellCount, buyCount, selected, review, setReview, confirm, placing, result, mode, buyingPower };
 }
 
 // Gear next to each bulk button: configure the auto-select threshold. Thresholds
@@ -134,7 +136,7 @@ export function BulkGear({ kind }: { kind: Kind }) {
 }
 
 export function BulkReviewModal({
-  kind, items, mode, placing, result, onConfirm, onClose,
+  kind, items, mode, placing, result, onConfirm, onClose, buyingPower,
 }: {
   kind: Kind;
   items: (SellCandidate | BuyCandidate)[];
@@ -143,6 +145,7 @@ export function BulkReviewModal({
   result: BulkResult | null;
   onConfirm: (orderType: string, rows: EditRow[]) => void;
   onClose: () => void;
+  buyingPower?: number | null; // advisory: flag when selected buy total exceeds it
 }) {
   const isDemo = mode === "demo";
   const isSell = kind === "sell";
@@ -259,8 +262,15 @@ export function BulkReviewModal({
             <div style={S.totals}>
               {isSell
                 ? <>Total proceeds <b>{usd(totalProceeds)}</b> · profit <b style={{ color: totalProfit >= 0 ? "var(--pos)" : "var(--neg)" }}>{totalProfit >= 0 ? "+" : ""}{usd(totalProfit)}</b></>
-                : <>Total cost <b>{usd(totalCost)}</b></>}
+                : <>Total cost <b>{usd(totalCost)}</b>{buyingPower != null && <> · buying power <b>{usd(buyingPower)}</b></>}</>}
             </div>
+            {/* Advisory only — never blocks; the broker enforces margin/settlement. */}
+            {!isSell && buyingPower != null && totalCost > buyingPower && (
+              <p style={S.warnNote}>
+                ⚠ Selected total exceeds available buying power ({usd(buyingPower)}) — advisory only; the
+                broker enforces margin.
+              </p>
+            )}
             <p style={S.note}>
               {isSell
                 ? "Edit shares or price per row, or remove any. A limit sells at your price or better — a sudden drop rests instead of filling at a loss. Check the Orders tab after placing."
@@ -324,6 +334,7 @@ const S: Record<string, React.CSSProperties> = {
   title: { fontSize: "var(--fs-md)", fontWeight: 600 },
   totals: { marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)", fontSize: "var(--fs-sm)", color: "var(--text-muted)" },
   note: { fontSize: "var(--fs-xs)", color: "var(--text-dim)", margin: "10px 0 0", lineHeight: 1.45 },
+  warnNote: { fontSize: "var(--fs-xs)", color: "var(--warn)", margin: "8px 0 0", lineHeight: 1.45 },
   actions: { display: "flex", gap: 10, marginTop: 16 },
   resultRow: { display: "flex", gap: 10, alignItems: "center", fontSize: "var(--fs-sm)" },
 };

@@ -331,6 +331,9 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
         "invested": round(invested, 2),
         "basis_per_share": round(rules.basis_per_share(invested, shares), 4),
         "lilo_pct": round(rules.lilo_pct(price, min_buy), 4) if has_price else None,
+        # 52wk reference levels for the chart overlay (None until warmed).
+        "avg_52wk": avg52.get(symbol),
+        "median_52wk": avg52.median(symbol),
         "lots": lot_rows,
         "projected_ladder": projected,
     }

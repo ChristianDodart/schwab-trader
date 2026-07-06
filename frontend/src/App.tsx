@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AccountPicker } from "./AccountPicker";
-import { AuthBanner, LiveStatusPill } from "./AuthBanner";
+import { AuthBanner, LiveStatusPill, useLiveness } from "./AuthBanner";
 import { BulkGear, BulkReviewModal, useBulk } from "./Bulk";
 import { ColumnManager } from "./ColumnManager";
 import { ConfirmDialog } from "./Modal";
@@ -49,6 +49,10 @@ export function App() {
   const [pendingNav, setPendingNav] = useState<(() => void) | null>(null);
   const [workingOrders, setWorkingOrders] = useState(0);
   const bulk = useBulk(data?.rows, data?.mode, toast);
+  const live = useLiveness();
+  // Prices are stale only when we're MEANT to be live (not demo) but Schwab isn't
+  // answering — then dim the table + explain, so a frozen quote isn't mistaken for a real move.
+  const pricesStale = data?.mode !== "demo" && live === false;
 
   // Ambient working-order count for the nav badge (per selected account). Refetch on
   // account switch (acctKey) + every 60s.
@@ -306,19 +310,29 @@ export function App() {
         ) : (
           <>
             {data ? (
-              <DashboardTable
-                rows={data.rows}
-                cols={dashCols.ids}
-                selected={selected}
-                onSelect={(sym) => setSelected(sym === selected ? null : sym)}
-                onRemoveTicker={removeTicker}
-                onBuyWatch={buyWatch}
-                onAlert={onAlert}
-                bulk={bulk.bulkUI}
-                renderDetail={(sym) => (
-                  <PositionDetail symbol={sym} mode={mode} onClose={() => setSelected(null)} embedded />
+              <>
+                {pricesStale && (
+                  <p style={S.staleNote} role="status">
+                    ⚠ Prices may be stale — Schwab isn’t responding to live requests. Reconnect under
+                    Settings → Schwab connection.
+                  </p>
                 )}
-              />
+                <div style={pricesStale ? { opacity: 0.55, transition: "opacity .2s" } : undefined}>
+                  <DashboardTable
+                    rows={data.rows}
+                    cols={dashCols.ids}
+                    selected={selected}
+                    onSelect={(sym) => setSelected(sym === selected ? null : sym)}
+                    onRemoveTicker={removeTicker}
+                    onBuyWatch={buyWatch}
+                    onAlert={onAlert}
+                    bulk={bulk.bulkUI}
+                    renderDetail={(sym) => (
+                      <PositionDetail symbol={sym} mode={mode} onClose={() => setSelected(null)} embedded />
+                    )}
+                  />
+                </div>
+              </>
             ) : (
               <SkeletonTable />
             )}
@@ -334,6 +348,7 @@ export function App() {
             mode={mode}
             placing={bulk.placing}
             result={bulk.result}
+            buyingPower={bulk.buyingPower}
             onConfirm={bulk.confirm}
             onClose={() => { bulk.setReview(false); if (bulk.result) bulk.cancel(); }}
           />
@@ -428,4 +443,5 @@ const S: Record<string, React.CSSProperties> = {
   bulkBar: { display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" },
   addWrap: { display: "flex", gap: 6, alignItems: "center" },
   note: { color: "var(--text-muted)", fontSize: "var(--fs-md)", marginTop: 16 },
+  staleNote: { color: "var(--warn)", fontSize: "var(--fs-sm)", margin: "0 0 10px", lineHeight: 1.45 },
 };

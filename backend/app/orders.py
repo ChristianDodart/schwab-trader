@@ -376,6 +376,15 @@ async def suggest_buy(symbol: str, account_hash: str) -> dict:
     }
     if raw_qty < 1:  # one share already exceeds the rung budget — let the human size it
         out["note"] = f"one share (~${trigger:.0f}) exceeds the ${dollars:.0f} rung budget — set quantity manually"
+    # Advisory only: surface available buying power so the ticket can flag an order
+    # that exceeds it. NEVER a hard block — margin/settlement rules are the broker's job.
+    try:
+        ms = await accounts_svc.margin_summary(account_hash)
+        bp = ms.get("buying_power") if not ms.get("blocked") else None
+    except Exception:
+        bp = None
+    out["buying_power"] = bp
+    out["affordable"] = (out["est_cost"] <= bp) if bp is not None else None
     return out
 
 
