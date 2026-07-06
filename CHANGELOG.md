@@ -3,6 +3,28 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.22.0 — "Weird stuff handled"
+
+Data-integrity hardening, part two — validated against a real 1,554-row,
+two-year account export full of edge cases.
+
+New this version:
+- Reverse splits are handled. When an imported history contains a reverse split,
+  the position is rescaled on the effective date with its cost basis carried over
+  exactly — no phantom shares, no fake profit or loss. Applied before that day's
+  trades, and the import summary tells you how many splits it found.
+- Short sales no longer confuse an import. The ladder is long-only, and Schwab's
+  export labels a short's covering purchase a plain "Buy" — the importer now nets
+  those buys against the open short balance so they never fabricate long
+  positions. Shorts excluded and covers netted are reported on import.
+- Two new validations against Schwab on the Data health panel:
+  - Cost-basis check — your reconstructed cost per holding vs Schwab's average
+    price, flagged when they disagree meaningfully (catches a mispriced or
+    missing lot even when share counts match).
+  - Cash cross-check — deposits + sells - buys + income should roughly equal
+    your actual cash; a large unexplained gap hints at missing history. Advisory,
+    with its blind spots (fees, interest, shorts) listed right next to the number.
+
 ## v0.21.0 — "Your history, whole"
 
 The data-integrity release: complete, self-healing data — built so someone with

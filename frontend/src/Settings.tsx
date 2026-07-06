@@ -640,6 +640,12 @@ type HealthReport = {
   fill_ledger: { total: number; by_source: Record<string, number>; earliest: string | null; latest: string | null };
   projection: { open_lots: number; synthetic_lots: { symbol: string; shares: number }[]; completed_trades: number; earliest_completed: string | null };
   position_diffs: { symbol: string; reconstructed: number; actual: number; diff: number }[];
+  basis_diffs?: { symbol: string; our_cost: number; schwab_basis: number; diff: number }[];
+  cash_check?: {
+    expected_cash: number; actual_cash: number; residual: number; residual_pct_of_flow: number;
+    components: { net_deposits: number; trading_net: number; income: number };
+    caveats: string;
+  } | null;
   positions_checked: boolean;
   recommendations: string[];
 };
@@ -675,6 +681,9 @@ function DataHealth() {
           `${j.cashflows?.added ?? 0} deposits/withdrawals`,
           `${j.dividends?.added ?? 0} dividends`,
         ];
+        if (t.splits) parts.push(`${t.splits} reverse split${t.splits === 1 ? "" : "s"} applied`);
+        if (t.unmatched_splits) parts.push(`${t.unmatched_splits} split row(s) UNMATCHED — tell support`);
+        if (t.shorts_excluded) parts.push(`${t.shorts_excluded} short-sale rows excluded (long-only; covering buys netted out)`);
         const others = Object.entries(j.other_actions || {});
         if (others.length) parts.push(`skipped: ${others.map(([k, v]) => `${k} ×${v}`).join(", ")}`);
         setSummary(parts.join(" · "));
@@ -708,6 +717,21 @@ function DataHealth() {
           {h.position_diffs.length > 0 && (
             <p style={{ ...S.credStatus, color: "var(--warn)" }}>
               Share-count differences vs Schwab: {h.position_diffs.map((d) => `${d.symbol} ${d.diff > 0 ? "+" : ""}${d.diff}`).join(", ")} — a resync or CSV import usually resolves this.
+            </p>
+          )}
+          {(h.basis_diffs?.length ?? 0) > 0 && (
+            <p style={{ ...S.credStatus, color: "var(--warn)" }}>
+              Cost basis differs from Schwab: {h.basis_diffs!.map((b) => `${b.symbol} ${b.diff > 0 ? "+" : "-"}$${Math.abs(b.diff).toFixed(0)}`).join(", ")} — usually an estimated backfill; a CSV covering those buys fixes it exactly.
+            </p>
+          )}
+          {h.cash_check && (
+            <p style={S.credStatus}
+              title={`Expected = deposits ${h.cash_check.components.net_deposits.toLocaleString("en-US", { style: "currency", currency: "USD" })} + trading net ${h.cash_check.components.trading_net.toLocaleString("en-US", { style: "currency", currency: "USD" })} + income ${h.cash_check.components.income.toLocaleString("en-US", { style: "currency", currency: "USD" })}. Advisory only — ${h.cash_check.caveats}.`}>
+              Cash cross-check vs Schwab:{" "}
+              <b style={{ color: Math.abs(h.cash_check.residual) > 100 ? "var(--warn)" : "var(--text)" }}>
+                {h.cash_check.residual >= 0 ? "+" : ""}{h.cash_check.residual.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+              </b>{" "}
+              unexplained ({h.cash_check.residual_pct_of_flow}% of traded volume). Small residuals are normal (fees, interest); a large one hints at missing history. Hover for the math.
             </p>
           )}
           {h.recommendations.map((r, i) => <p key={i} style={S.credStatus}>{r}</p>)}

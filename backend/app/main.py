@@ -657,7 +657,9 @@ async def data_import_csv(body: CsvImportBody) -> dict:
     projection = await rebuild_svc.project_account(acct) if trades.get("added") else {"ok": True, "skipped": "no new fills"}
     return {
         "ok": True,
-        "trades": {k: trades.get(k) for k in ("added", "skipped_known", "bad_rows", "coverage")},
+        "trades": {k: trades.get(k) for k in ("added", "skipped_known", "bad_rows", "coverage",
+                                              "splits", "unmatched_splits",
+                                              "shorts_excluded", "covers_netted")},
         "other_actions": trades.get("other_actions") or {},
         "cashflows": {"added": cash.get("added", 0)},
         "dividends": {"added": divs.get("added", 0)},
@@ -681,7 +683,8 @@ async def data_health() -> dict:
     ledger = await fill_store.ledger_stats(acct)
     async with _SL() as s:
         lots = (await s.execute(
-            _select(_Lot.symbol, _Lot.source, _Lot.shares).where(_Lot.account_hash == acct)
+            _select(_Lot.symbol, _Lot.source, _Lot.shares, _Lot.buy_price)
+            .where(_Lot.account_hash == acct)
         )).all()
         trade_count = (await s.execute(
             _select(_func.count()).select_from(_CT).where(_CT.account_hash == acct)
@@ -689,7 +692,7 @@ async def data_health() -> dict:
         earliest_trade = (await s.execute(
             _select(_func.min(_CT.completed_at)).where(_CT.account_hash == acct)
         )).scalar()
-    synthetic = [{"symbol": sym, "shares": float(sh)} for sym, src, sh in lots if src == "position"]
+    synthetic = [{"symbol": sym, "shares": float(sh)} for sym, src, sh, _bp in lots if src == "position"]
 
     # Reconstructed open totals from the ledger vs Schwab's live positions (when reachable).
     stored = await fill_store.load_fills(acct)
@@ -707,6 +710,62 @@ async def data_health() -> dict:
                 diffs.append({"symbol": sym, "reconstructed": have, "actual": actual,
                               "diff": round(actual - have, 4)})
 
+    # --- VALIDATION vs Schwab #1: per-symbol COST BASIS. Schwab's avg price x held
+    # shares vs our open-lot cost. A sizeable gap = mispriced/missing lots even when
+    # the share COUNTS agree (counts alone can't catch a wrong-priced backfill).
+    basis_diffs = []
+    if positions is not None:
+        our_cost: dict[str, float] = {}
+        for sym, _src, sh, bp in lots:
+            our_cost[sym] = our_cost.get(sym, 0.0) + float(sh) * float(bp)
+        for sym, (qty, avg) in positions.items():
+            if qty <= 1e-9:
+                continue
+            schwab_basis = qty * (avg or 0.0)
+            ours = our_cost.get(sym, 0.0)
+            gap = ours - schwab_basis
+            if schwab_basis > 0 and abs(gap) > max(50.0, 0.02 * schwab_basis):
+                basis_diffs.append({"symbol": sym, "our_cost": round(ours, 2),
+                                    "schwab_basis": round(schwab_basis, 2), "diff": round(gap, 2)})
+
+    # --- VALIDATION vs Schwab #2: the GLOBAL CASH IDENTITY (advisory). In any account,
+    # cash ~= net deposits + (sells - buys) + recorded income. A big residual points at
+    # missing history (deposits or trades). Known blind spots (listed for the user):
+    # commissions/fees, margin/credit interest, income types we don't import, and
+    # short-sale proceeds (shorts are excluded from the long-only ledger).
+    cash_check = None
+    try:
+        from .db.models import CashFlow as _CF
+        from .db.models import FillRecord as _FR
+        async with _SL() as s:
+            net_deposits = float((await s.execute(
+                _select(_func.coalesce(_func.sum(_CF.amount), 0)).where(_CF.account_hash == acct)
+            )).scalar() or 0)
+            frows = (await s.execute(
+                _select(_FR.side, _FR.shares, _FR.price)
+                .where(_FR.account_hash == acct, _FR.side.in_(["BUY", "SELL"]))
+            )).all()
+        trading_net = sum((float(sh) * float(px)) * (1 if side == "SELL" else -1)
+                          for side, sh, px in frows)
+        div_data = await ledger_svc.get_dividends(acct)
+        income = sum(float(d.get("amount") or 0) for d in div_data.get("rows", []))
+        expected = net_deposits + trading_net + income
+        ms = await accounts_svc.margin_summary(acct)
+        actual_cash = None if ms.get("blocked") else ms.get("cash")
+        if actual_cash is not None and ledger["total"] > 0:
+            residual = round(actual_cash - expected, 2)
+            gross = sum(abs(float(sh) * float(px)) for _sd, sh, px in frows) or 1.0
+            cash_check = {
+                "expected_cash": round(expected, 2), "actual_cash": round(actual_cash, 2),
+                "residual": residual, "residual_pct_of_flow": round(abs(residual) / gross * 100, 2),
+                "components": {"net_deposits": round(net_deposits, 2),
+                               "trading_net": round(trading_net, 2), "income": round(income, 2)},
+                "caveats": "excludes fees/commissions, margin & credit interest, unimported "
+                           "income types, and short-sale activity",
+            }
+    except Exception as e:
+        print(f"[health] cash identity check failed: {e!r}")
+
     recs = []
     if ledger["total"] == 0:
         recs.append("No fill history stored yet — connect Schwab (recent trades sync "
@@ -716,6 +775,15 @@ async def data_health() -> dict:
         recs.append(f"Some holdings predate the stored history (earliest fill {earliest}). "
                     f"Export a Transactions CSV covering earlier dates and import it under "
                     f"Settings to recover the full ladder and realized history.")
+    if basis_diffs:
+        recs.append("Cost basis differs from Schwab on: "
+                    + ", ".join(b["symbol"] for b in basis_diffs)
+                    + " — usually a backfilled lot at an estimated price; importing a CSV "
+                    "covering those buys fixes the basis exactly.")
+    if cash_check and abs(cash_check["residual"]) > max(100.0, 0.01 * abs(cash_check["expected_cash"]) if cash_check["expected_cash"] else 100.0):
+        recs.append(f"Cash identity residual of ${cash_check['residual']:,.2f} — if this looks "
+                    f"large relative to your account, some deposits or trades may be missing "
+                    f"(see the listed caveats first).")
     return {
         "ok": True,
         "fill_ledger": ledger,
@@ -726,6 +794,8 @@ async def data_health() -> dict:
             "earliest_completed": earliest_trade.isoformat() if earliest_trade else None,
         },
         "position_diffs": diffs,
+        "basis_diffs": basis_diffs,
+        "cash_check": cash_check,
         "positions_checked": positions is not None,
         "recommendations": recs,
     }

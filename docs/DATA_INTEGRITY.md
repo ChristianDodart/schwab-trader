@@ -90,6 +90,33 @@ total realized P/L is unaffected.
 
 No manual entry unless the user *wants* to patch a hole older than their export.
 
+## Corporate actions & shorts (hardened v0.22.0, validated on a real 1,554-row export)
+
+- **Reverse splits**: Schwab exports a row PAIR on the effective date (new count under
+  the ticker, old count removed under a CUSIP). The importer pairs them into a SPLT
+  ledger record; reconstruction rescales the open stack by new/old — cost basis is
+  preserved exactly, zero P/L is realized, and the split applies before that day's
+  trades. Fractional remainders match the broker's cash-in-lieu; the positions
+  reconcile aligns the final count. Unmatched split rows are REPORTED, never guessed.
+- **Short sales**: the ladder is long-only, and Schwab labels a covering purchase a
+  plain "Buy" — so buys are NETTED against the open short balance chronologically per
+  symbol (canonical same-day order: shorts, buys, sells; you can't be long and short
+  the same equity simultaneously). Only the portion beyond covering becomes a long
+  fill. Shorts excluded and covers netted are reported on import; realized P/L from
+  shorting is intentionally absent (out of scope for the ladder).
+- A mis-ordered same-day edge self-flags as `oversold` at reconstruction (which
+  refuses to commit) rather than silently corrupting.
+
+## Validation against Schwab (three independent cross-checks)
+
+1. **Share counts** (exact): reconstructed open shares per symbol vs live positions.
+2. **Cost basis** (exact-ish): our open-lot cost vs Schwab's shares x average price,
+   flagged over max($50, 2%) — catches a wrong-priced backfill even when counts agree.
+3. **Cash identity** (advisory): cash ~= net deposits + (sells - buys) + recorded
+   income. A large unexplained residual points at missing deposits or trades. Known
+   blind spots are listed with the number: fees/commissions, margin & credit interest,
+   unimported income types, short-sale activity.
+
 ## Self-healing invariants
 
 - **Wipes only ever touch projections** (`lot`, `completed_trade`). Source

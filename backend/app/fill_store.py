@@ -187,10 +187,56 @@ def _parse_date(s) -> date | None:
         return None
 
 
+def _pair_splits(split_rows: list[dict]) -> tuple[list[dict], int]:
+    """Pure: pair Schwab 'Reverse Split' row PAIRS into SPLT adjustments. A split
+    exports as two rows on the effective date: the NEW share count under the ticker
+    (positive qty) and the OLD count removed under a CUSIP (negative qty, description
+    like 'COMPANYXXXREVERSE SPLIT EFF: ...'). Pair positives to negatives per date by
+    description prefix; a lone positive/negative is reported unmatched, never guessed."""
+    out: list[dict] = []
+    unmatched = 0
+    by_date: dict = {}
+    for r in split_rows:
+        by_date.setdefault(r["date"], []).append(r)
+    for d, rows in by_date.items():
+        pos = [r for r in rows if r["qty"] > 0]
+        neg = [r for r in rows if r["qty"] < 0]
+        for p in pos:
+            match = None
+            if len(pos) == 1 and len(neg) == 1:
+                match = neg[0]
+            else:
+                pref = (p["desc"] or "")[:12].upper()
+                match = next((n for n in neg if pref and (n["desc"] or "").upper().startswith(pref)), None)
+            if match is None:
+                unmatched += 1
+                continue
+            neg.remove(match)
+            new_total, old_total = round(p["qty"], 4), round(-match["qty"], 4)
+            out.append({
+                "symbol": p["symbol"], "side": "SPLT", "shares": new_total, "price": old_total,
+                "at": datetime(d.year, d.month, d.day), "trade_date": d,
+                "order_type": None, "order_id": None,
+                "fill_key": f"csvsplit|{d.isoformat()}|{p['symbol']}|{new_total}|{old_total}",
+                "dkey": day_key(d, p["symbol"], "SPLT", new_total, old_total),
+            })
+        unmatched += len(neg)
+    return out, unmatched
+
+
 def parse_csv_trades(csv_text: str) -> dict:
-    """Pure: parse a Schwab Transactions export into trade-fill dicts + a report of
-    what was routed elsewhere / skipped. Never guesses: only exact 'Buy'/'Sell'
-    actions become fills; every other action is counted and surfaced."""
+    """Pure: parse a Schwab Transactions export into fill dicts + a report of what was
+    routed elsewhere / skipped. Handles the real-world hazards:
+
+    - SHORT SALES: 'Sell Short' rows are excluded (long-only ladder), and because
+      Schwab labels the covering purchase a plain 'Buy', buys are NETTED against the
+      open short balance chronologically per symbol — only the portion beyond covering
+      becomes a long BUY fill. Same-day canonical order: shorts, buys, sells (you can't
+      be long and short the same equity simultaneously, so regimes alternate).
+    - REVERSE SPLITS: paired rows become a SPLT adjustment (new/old totals) that the
+      reconstruction applies by rescaling the open stack, preserving cost basis with
+      zero fake P/L.
+    - Everything else is counted and surfaced (other_actions), never silently dropped."""
     text = (csv_text or "").lstrip("﻿")
     if not text.strip():
         return {"ok": False, "error": "The file is empty.", "fills": []}
@@ -209,28 +255,46 @@ def parse_csv_trades(csv_text: str) -> dict:
         return {"ok": False, "error": "This doesn't look like a Schwab transactions export "
                 "(no Date/Action columns).", "fills": []}
 
-    fills: list[dict] = []
+    trades: list[dict] = []      # {date, sym, kind: short|buy|sell, qty, px}
+    split_rows: list[dict] = []
     other_actions: Counter = Counter()
     bad_rows = 0
-    # CSV is newest-first; occurrence numbers must be stable regardless of file order,
-    # so count occurrences per day-key as we go (order within a key doesn't matter —
-    # the rows are interchangeable by definition).
-    occ: Counter = Counter()
     for r in rows:
         action = (col(r, "action") or "").strip()
         a = action.lower()
-        if a not in _TRADE_ACTIONS:
-            if action:
-                other_actions[action] += 1
-            continue
         d = _parse_date(col(r, "date"))
         sym = (col(r, "symbol") or "").strip().upper()
         qty = _parse_money(col(r, "quantity"))
+        if a == "reverse split":
+            if d is None or not sym or not qty:
+                bad_rows += 1
+                continue
+            split_rows.append({"date": d, "symbol": sym, "qty": qty, "desc": col(r, "description")})
+            continue
+        if a not in _TRADE_ACTIONS and a != "sell short":
+            if action:
+                other_actions[action] += 1
+            continue
         px = _parse_money(col(r, "price"))
         if d is None or not sym or not qty or qty <= 0 or not px or px <= 0:
             bad_rows += 1
             continue
-        side = "BUY" if a == "buy" else "SELL"
+        kind = "short" if a == "sell short" else a   # short | buy | sell
+        trades.append({"date": d, "symbol": sym, "kind": kind, "qty": round(qty, 4), "px": round(px, 4)})
+
+    # Chronological, canonical same-day order per symbol: shorts open, buys (cover
+    # first), sells. Ambiguity within a day is irreducible from a date-only export;
+    # a mis-order self-flags as `oversold` at reconstruction rather than corrupting.
+    _KIND_ORD = {"short": 0, "buy": 1, "sell": 2}
+    trades.sort(key=lambda t: (t["date"], _KIND_ORD[t["kind"]]))
+
+    fills: list[dict] = []
+    occ: Counter = Counter()
+    short_open: dict[str, float] = {}
+    shorts_excluded = 0
+    covers_netted = 0.0
+
+    def add_fill(d, sym, side, qty, px):
         dk = day_key(d, sym, side, qty, px)
         n = occ[dk]
         occ[dk] += 1
@@ -241,10 +305,34 @@ def parse_csv_trades(csv_text: str) -> dict:
             "fill_key": f"csv|{d.isoformat()}|{sym}|{side}|{round(qty, 4)}|{round(px, 4)}|#{n}",
             "dkey": dk,
         })
+
+    for t in trades:
+        sym = t["symbol"]
+        if t["kind"] == "short":
+            short_open[sym] = short_open.get(sym, 0.0) + t["qty"]
+            shorts_excluded += 1
+            continue
+        if t["kind"] == "buy":
+            cover = min(t["qty"], short_open.get(sym, 0.0))
+            if cover > _EPS:
+                short_open[sym] = short_open.get(sym, 0.0) - cover
+                covers_netted += cover
+            remainder = t["qty"] - cover
+            if remainder > _EPS:
+                add_fill(t["date"], sym, "BUY", round(remainder, 4), t["px"])
+            continue
+        add_fill(t["date"], sym, "SELL", t["qty"], t["px"])
+
+    splits, unmatched_splits = _pair_splits(split_rows)
+    fills.extend(splits)
+
     span = (min((f["trade_date"] for f in fills), default=None),
             max((f["trade_date"] for f in fills), default=None))
     return {"ok": True, "fills": fills, "other_actions": dict(other_actions),
-            "bad_rows": bad_rows, "coverage": {"from": span[0], "to": span[1]}}
+            "bad_rows": bad_rows, "coverage": {"from": span[0], "to": span[1]},
+            "splits": len(splits), "unmatched_splits": unmatched_splits,
+            "shorts_excluded": shorts_excluded, "covers_netted": round(covers_netted, 4),
+            "short_still_open": {s: round(q, 4) for s, q in short_open.items() if q > _EPS}}
 
 
 async def import_csv_fills(account_hash: str, csv_text: str) -> dict:
@@ -290,6 +378,9 @@ async def import_csv_fills(account_hash: str, csv_text: str) -> dict:
     cov = parsed["coverage"]
     return {"ok": True, "added": added, "skipped_known": skipped,
             "bad_rows": parsed["bad_rows"], "other_actions": parsed["other_actions"],
+            "splits": parsed.get("splits", 0), "unmatched_splits": parsed.get("unmatched_splits", 0),
+            "shorts_excluded": parsed.get("shorts_excluded", 0),
+            "covers_netted": parsed.get("covers_netted", 0),
             "coverage": {"from": cov["from"].isoformat() if cov["from"] else None,
                          "to": cov["to"].isoformat() if cov["to"] else None}}
 

@@ -14,9 +14,9 @@ _EPS = 1e-9
 @dataclass
 class Fill:
     symbol: str
-    side: str          # "BUY" | "SELL"
-    shares: float
-    price: float
+    side: str          # "BUY" | "SELL" | "SPLT" (share split/reverse-split adjustment)
+    shares: float      # SPLT: the NEW total share count after the split
+    price: float       # SPLT: the OLD total share count before the split
     at: date | datetime
     order_type: str = ""   # "MARKET" | "LIMIT" | ... (for audit/notify classification; unused by LIFO)
     order_id: str = ""     # Schwab order id (for a stable audit identity; unused by LIFO)
@@ -50,9 +50,12 @@ class ClosedTrade:
         return (self.sell_price - self.buy_price) * self.shares
 
 
+_SIDE_ORDER = {"SPLT": -1, "BUY": 0}  # splits first (rescale before the day's trades), then buys, then sells
+
+
 def _sort_key(f: Fill):
-    # chronological; on ties a BUY precedes a SELL (can't sell what isn't bought)
-    return (f.at, 0 if f.side.upper() == "BUY" else 1)
+    # chronological; on ties a SPLIT precedes a BUY precedes a SELL
+    return (f.at, _SIDE_ORDER.get(f.side.upper(), 1))
 
 
 def reconstruct(fills: list[Fill]) -> dict:
@@ -65,6 +68,19 @@ def reconstruct(fills: list[Fill]) -> dict:
     for f in sorted(fills, key=_sort_key):
         side = f.side.upper()
         stack = stacks.setdefault(f.symbol, [])
+        if side == "SPLT":
+            # Share split / reverse split: rescale the open stack by new/old. Cost
+            # basis is PRESERVED exactly (shares x price is invariant per lot) and no
+            # P/L is realized — the position just changes denomination. Fractional
+            # remainders (the broker pays cash-in-lieu) are left as-is; the positions
+            # reconcile step aligns the final total to Schwab's actual count.
+            old_total = f.price
+            if old_total > _EPS and f.shares > _EPS:
+                r = f.shares / old_total
+                for lot in stack:
+                    lot.shares *= r
+                    lot.price /= r
+            continue
         if side == "BUY":
             stack.append(OpenLot(f.symbol, f.shares, f.price, f.at))
         else:  # SELL retires the most recent lots first (LIFO)

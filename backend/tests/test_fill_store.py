@@ -77,3 +77,80 @@ def test_reimport_is_idempotent_by_construction():
     existing = [f["dkey"] for f in p["fills"]]
     fresh, skipped = dedupe_incoming(p["fills"], existing)
     assert fresh == [] and skipped == 4
+
+
+# --- corporate actions + shorts (shapes taken verbatim from a real export) ---
+
+SPLIT_CSV = '''"Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount"
+"05/19/2026","Cash In Lieu","PPCB","PROPANC BIOPHARMA INC","","","","$0.68"
+"05/18/2026","Reverse Split","PPCB","PROPANC BIOPHARMA INC","587","","",""
+"05/18/2026","Reverse Split","74346N701","PROPANC BIOPHARMA INCXXXREVERSE SPLIT EFF: 05/18/26","-14,684","","",""
+"05/01/2026","Buy","PPCB","PROPANC BIOPHARMA INC","14,684","$0.034","","-$499.26"
+'''
+
+
+def test_reverse_split_pairs_and_rescales():
+    p = parse_csv_trades(SPLIT_CSV)
+    assert p["ok"] and p["splits"] == 1 and p["unmatched_splits"] == 0
+    splt = next(f for f in p["fills"] if f["side"] == "SPLT")
+    assert splt["symbol"] == "PPCB" and splt["shares"] == 14684 * 0 + 587 and splt["price"] == 14684
+
+    # Reconstruction: 14,684 @ $0.034 then a 25:1-ish reverse split → 587 shares at
+    # a rescaled price; COST BASIS IS PRESERVED (no realized P/L).
+    from app.reconstruct import Fill, reconstruct
+    fills = [Fill(symbol=f["symbol"], side=f["side"], shares=f["shares"], price=f["price"], at=f["at"])
+             for f in p["fills"]]
+    r = reconstruct(fills)
+    assert r["closed"] == [] and r["oversold"] == []
+    lots = r["open_lots"]["PPCB"]
+    assert len(lots) == 1
+    assert abs(lots[0].shares - 587.0) < 0.5           # fractional remainder is cash-in-lieu
+    basis = lots[0].shares * lots[0].price
+    assert abs(basis - 14684 * 0.034) < 0.01           # basis invariant
+
+
+def test_split_applies_before_same_day_sell():
+    csv = '''"Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount"
+"05/18/2026","Sell","PPCB","PROPANC BIOPHARMA INC","587","$1.00","","$587.00"
+"05/18/2026","Reverse Split","PPCB","PROPANC BIOPHARMA INC","587","","",""
+"05/18/2026","Reverse Split","74346N701","PROPANCXXXREVERSE SPLIT EFF: 05/18/26","-14,684","","",""
+"05/01/2026","Buy","PPCB","PROPANC BIOPHARMA INC","14,684","$0.034","","-$499.26"
+'''
+    from app.reconstruct import Fill, reconstruct
+    p = parse_csv_trades(csv)
+    fills = [Fill(symbol=f["symbol"], side=f["side"], shares=f["shares"], price=f["price"], at=f["at"])
+             for f in p["fills"]]
+    r = reconstruct(fills)
+    # Split rescales FIRST, so the same-day 587-share sell closes the whole position.
+    assert not r["oversold"]
+    assert "PPCB" not in r["open_lots"] or sum(l.shares for l in r["open_lots"]["PPCB"]) < 1
+
+
+SHORT_CSV = '''"Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount"
+"01/30/2026","Buy","RUN","SUNRUN INC","100","$19.50","","-$1950.00"
+"01/28/2026","Sell Short","RUN","SUNRUN INC","100","$21.62","$0.02","$2161.98"
+"01/10/2026","Sell","IREN","IREN LTD F","5","$50.00","","$250.00"
+"01/05/2026","Buy","IREN","IREN LTD F","5","$45.00","","-$225.00"
+'''
+
+
+def test_short_cover_netting():
+    p = parse_csv_trades(SHORT_CSV)
+    assert p["shorts_excluded"] == 1
+    assert p["covers_netted"] == 100          # the 100-share buy covered the short
+    assert p["short_still_open"] == {}
+    # RUN contributes NO long fills; IREN's real long round-trip is intact.
+    syms = [(f["symbol"], f["side"], f["shares"]) for f in p["fills"]]
+    assert ("RUN", "BUY", 100) not in syms
+    assert ("IREN", "BUY", 5) in syms and ("IREN", "SELL", 5) in syms
+
+
+def test_partial_cover_leaves_long_remainder():
+    csv = '''"Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount"
+"01/30/2026","Buy","RUN","SUNRUN INC","150","$19.50","","-$2925.00"
+"01/28/2026","Sell Short","RUN","SUNRUN INC","100","$21.62","","$2162.00"
+'''
+    p = parse_csv_trades(csv)
+    assert p["covers_netted"] == 100
+    runs = [f for f in p["fills"] if f["symbol"] == "RUN"]
+    assert len(runs) == 1 and runs[0]["side"] == "BUY" and runs[0]["shares"] == 50

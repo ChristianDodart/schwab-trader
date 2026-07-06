@@ -529,24 +529,43 @@ The data-integrity phase (see docs/DATA_INTEGRITY.md for the full plan/inventory
   the real 33-row CSV reconstructed holdings EXACTLY (LUNR 31/2 lots, RCAX 90, QBTS 21,
   ASTS 5), 15 realized trades, zero synthetic lots; re-import added 0.
 
-# WAVE 20 — candidate queue (older polish, rolled forward)
+# WAVE 20 (DATA INTEGRITY pt.2) — EXECUTED 2026-07-06, shipped v0.22.0
+
+Hardening from Andrew's real 1,554-row export (2yr, splits/shorts/journals):
+- **Reverse splits** — CSV row PAIRS (ticker +new / CUSIP -old) parsed into a SPLT
+  ledger record (side "SPLT", shares=new total, price=old total; fits the 4-char
+  column, no migration); `reconstruct()` rescales the open stack (basis preserved,
+  zero P/L), SPLT sorts before same-day trades.
+- **Short netting** — 'Sell Short' rows excluded; covering 'Buy's netted against the
+  per-symbol open-short balance chronologically (canonical same-day order shorts →
+  buys → sells); only the remainder becomes a long fill. Reported on import.
+- **Schwab validation** in /api/data/health: per-symbol COST-BASIS check (ours vs
+  shares x avgPrice, flag >max($50,2%)) + advisory global CASH IDENTITY (deposits +
+  sells - buys + income vs live cash, caveats listed). Settings panel renders both.
+- **E2E on Andrew's file**: 1,303 fills/0 bad rows, all 3 splits paired (PPCB ends at
+  EXACTLY 587 shares = Schwab's own post-split count), 105 shorts + 33,205 cover-shares
+  netted to a fully-closed short book, ZERO oversold across 2 years, 769 closed trades.
+  Christian regression: re-import 0 added; his live app had already auto-upgraded all
+  33 CSV rows to API fidelity (group-eviction proven in production).
+
+# WAVE 21 — candidate queue (older polish, rolled forward)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## W20-1 — Account label in print headers (was W14-2/W16-1)
+## W21-1 — Account label in print headers (was W14-2/W16-1)
 Include the selected account's mask/name (and profile) in the Ledger + Trades print blocks. Resolve the
 label from accounts_svc / the active profile (degrade to unlabeled when Schwab isn't connected).
 
-## W20-2 — Bell type icons
+## W21-2 — Bell type icons
 Now that the push carries `kind`, show a small per-type icon in the bell feed (price alert vs trigger vs
 fill) so the history scans faster. (Historical rows lack kind → infer from alert_id / message, or add the
 `kind` column in a later migration if it proves worth it.)
 
-## W20-3 — Dashboard note preview on hover
+## W21-3 — Dashboard note preview on hover
 Upgrade the W14-3 note dot: a hover tooltip/popover showing the note text (needs the note text on the row
 or a lightweight fetch on hover).
 
-## W20-4 — Small-fixes bundle #13
+## W21-4 — Small-fixes bundle #13
 1. Empty-state polish across tabs (friendly "nothing yet" copy where sparse).
 2. A subtle "saved" flash on the position note after autosave.
 3. Consistent number formatting audit (thousands separators everywhere).
