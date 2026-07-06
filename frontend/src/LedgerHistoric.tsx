@@ -529,15 +529,18 @@ function TopPayers({ rows }: { rows: DivRow[] }) {
 function MarginPanel({ m }: { m: MarginSummary }) {
   const pct = (x?: number | null) => (x == null ? "—" : `${x.toFixed(1)}%`);
   const dep = m.deployed_pct ?? null;
-  // Deployment bar tint: green when there's dry powder, amber as it fills, red near the cap.
-  const depColor = dep == null ? "var(--text-faint)" : dep >= 90 ? "var(--neg-strong)" : dep >= 70 ? "var(--warn)" : "var(--pos-strong)";
+  // Deployed = long market value ÷ your own equity (margin buying power deliberately
+  // excluded). So ~100% = fully invested with your own cash, and >100% = you're using
+  // margin to hold more than you own. Tint: green with dry powder, amber near full, red
+  // once past 100% (levered).
+  const depColor = dep == null ? "var(--text-faint)" : dep > 100 ? "var(--neg-strong)" : dep >= 85 ? "var(--warn)" : "var(--pos-strong)";
   const cushionLow = m.maint_cushion_pct != null && m.maint_cushion_pct < 25;
   return (
     <Panel title={m.is_margin ? "Capital & margin" : "Capital deployment"}>
       {dep != null && (
         <div style={{ margin: "2px 0 12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--fs-sm)", marginBottom: 5 }}>
-            <span style={{ color: "var(--text-muted)" }}>Deployed — market value vs. total capacity</span>
+            <span style={{ color: "var(--text-muted)" }} title="Long market value divided by your own equity — margin buying power is NOT counted, so over 100% means you're holding more than your own capital (using margin).">Deployed — market value vs. your capital {dep != null && dep > 100 ? "(on margin)" : ""}</span>
             <b style={{ color: depColor, fontVariantNumeric: "tabular-nums" }}>{pct(dep)}</b>
           </div>
           <div style={{ background: "var(--border-hairline)", borderRadius: "var(--r-sm)", height: 10, overflow: "hidden" }}>

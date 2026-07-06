@@ -8,17 +8,39 @@ import { useEffect, useState } from "react";
 // No-op in the dev browser (window.desktop is undefined) and while nothing has downloaded.
 type Downloaded = { version?: string; notes?: string | null };
 
-// The release body is our CHANGELOG section (markdown-ish). Render it readably: drop the
-// "## vX — title" heading line (the banner shows the version already) and the machine
-// "How to update" footer (the banner's button IS the instruction), and strip leading "- ".
-function cleanNotes(raw: string | null | undefined): string {
+// The release notes come from electron-updater. For the GitHub provider these arrive as
+// GitHub's RENDERED HTML (from the releases atom feed) — <p>…</p>, <ul><li>…, entities —
+// NOT the raw markdown, so a naive plaintext pass leaves literal "<p>" tags on screen.
+// Normalize HTML → readable plain text, then strip our own heading + "How to update"
+// footer. (Falls through gracefully if the notes happen to be markdown/plaintext.)
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0*39;|&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)));
+}
+
+function htmlToText(raw: string): string {
+  return decodeEntities(
+    raw
+      .replace(/\r\n/g, "\n")
+      .replace(/<\s*(br|hr)\s*\/?>/gi, "\n")
+      .replace(/<\s*li[^>]*>/gi, "\n• ")                 // list item → bullet
+      .replace(/<\s*\/\s*(p|div|h[1-6]|ul|ol|li|tr)\s*>/gi, "\n")  // block ends → newline
+      .replace(/<[^>]+>/g, "")                            // drop every remaining tag
+  );
+}
+
+export function cleanNotes(raw: string | null | undefined): string {
   if (!raw) return "";
-  const lines = raw.replace(/\r\n/g, "\n").split("\n");
+  const text = /<[a-z!/][^>]*>/i.test(raw) ? htmlToText(raw) : raw.replace(/\r\n/g, "\n");
   const out: string[] = [];
-  for (const line of lines) {
+  for (const line of text.split("\n")) {
     const t = line.trim();
-    if (/^#{1,6}\s/.test(t)) continue;                 // markdown heading
-    if (/^-{3,}$/.test(t)) break;                       // horizontal rule → footer starts
+    if (!t) { if (out.length && out[out.length - 1] !== "") out.push(""); continue; }  // collapse blanks
+    if (/^#{1,6}\s/.test(t)) continue;                  // markdown heading
+    if (/^v?\d+\.\d+\.\d+\b/i.test(t) && out.length === 0) continue;  // leading "vX — title" heading (HTML-stripped)
+    if (/^-{3,}$/.test(t)) break;                        // horizontal rule → footer starts
     if (/^how to update/i.test(t)) break;               // our appended footer
     out.push(t.replace(/^[-*]\s+/, "• "));
   }

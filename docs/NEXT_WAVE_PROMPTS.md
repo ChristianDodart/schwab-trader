@@ -481,24 +481,51 @@ Part 2 of 2 of the user feature batch (Wave 16 was part 1).
   "Activity" sub-tab (`LedgerActivity.tsx`) with day/week/month/year grain + period scope + flow bars.
   All live-verified against a copy of the real DB.
 
-# WAVE 18 — candidate queue (older polish, deferred)
+# WAVE 18 (GROUPING & GET-OUT) — EXECUTED 2026-07-06, shipped v0.20.0
+
+A user feature batch + two UI fixes + a README refresh. (The older polish queue
+below was NOT this wave — it rolls forward to Wave 19.)
+
+- **W18-1 ETF grouping (nested)** — pure `grouping.py` (auto-detect underlying from a
+  leveraged ETF's name against tracked symbols; unit-tested) + per-account manual
+  overrides in app_setting (`etf_links`, no migration); `GET /api/etf-links`,
+  `POST /api/etf-link`. Dashboard row + detail carry `underlying`/`is_leveraged`.
+  `DashboardTable` nests each linked ETF as an indented child directly under its parent
+  (↳ tag + the underlying's % of 52wk high); `EtfLinkEditor` in PositionDetail overrides
+  it. Live-verified: RCAX→RCAT, QBTX→QBTS auto-linked and nested.
+- **W18-2 Bulk Exit + rename** — `bulk.exit_plan`/`bulk_exit` (GTC limit SELL of the full
+  position at last-buy price ± `exit_offset_pct`; none auto-selected; safe by limit-or-
+  better + place_order's held-shares guard); `GET /api/bulk/exit-plan`, `POST /api/bulk/exit`.
+  Bulk.tsx gained the "exit" kind (no order-type toggle, GTC note); buttons renamed
+  **Bulk Buy / Bulk Sell / Bulk Exit**.
+- **W18-3 Deployed % excludes margin** — `accounts.margin_summary` deploys vs. equity
+  (own capital), so >100% now signals margin use; MarginPanel copy + red-over-100 tint.
+- **W18-4 Signals UI** — read-only default rule shows the real thresholds from
+  `/api/strategy` (buy-dip %, sell $/%%); metric/side `<select>`s widened (no clip).
+- **W18-5 Update-banner formatting** — `cleanNotes` now converts electron-updater's
+  GitHub HTML (atom feed) → readable text (block tags→newlines, li→bullets, entities);
+  3 vitest cases.
+- **README** rewritten for the current app (desktop/SQLite/auto-update + full feature set).
+- Verified: 111 backend + 21 frontend tests, tsc + build clean; live-verified vs a DB copy.
+
+# WAVE 19 — candidate queue (older polish, rolled forward from Wave 18)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## W18-1 — Account label in print headers (was W14-2/W16-1)
+## W19-1 — Account label in print headers (was W14-2/W16-1)
 Include the selected account's mask/name (and profile) in the Ledger + Trades print blocks. Resolve the
 label from accounts_svc / the active profile (degrade to unlabeled when Schwab isn't connected).
 
-## W18-2 — Bell type icons
+## W19-2 — Bell type icons
 Now that the push carries `kind`, show a small per-type icon in the bell feed (price alert vs trigger vs
 fill) so the history scans faster. (Historical rows lack kind → infer from alert_id / message, or add the
 `kind` column in a later migration if it proves worth it.)
 
-## W18-3 — Dashboard note preview on hover
+## W19-3 — Dashboard note preview on hover
 Upgrade the W14-3 note dot: a hover tooltip/popover showing the note text (needs the note text on the row
 or a lightweight fetch on hover).
 
-## W18-4 — Small-fixes bundle #13
+## W19-4 — Small-fixes bundle #13
 1. Empty-state polish across tabs (friendly "nothing yet" copy where sparse).
 2. A subtle "saved" flash on the position note after autosave.
 3. Consistent number formatting audit (thousands separators everywhere).

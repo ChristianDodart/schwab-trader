@@ -241,11 +241,12 @@ async def margin_summary(account_hash: str) -> dict:
     is_margin = (b.get("type") == "MARGIN")
     # Borrowed = the negative margin balance (debit). Positive credit ⇒ no loan.
     debt = round(-mbal, 2) if (mbal is not None and mbal < 0) else 0.0
-    # Deployed % = market value in play vs. that value plus what you could still deploy.
-    capacity = (lmv + bp) if (lmv is not None and bp is not None) else None
-    deployed_pct = round(lmv / capacity * 100, 1) if capacity else None
     # Leverage = long exposure / your own equity (1.0 = unlevered, >1 = using margin).
     eq_base = equity if equity is not None else acct_value
+    # Deployed % = long market value vs. YOUR OWN capital (equity), deliberately
+    # NOT counting margin buying power. So all-cash-invested reads ~100% and using
+    # margin to buy more pushes it OVER 100% — the intended "am I stretched?" signal.
+    deployed_pct = round(lmv / eq_base * 100, 1) if (lmv is not None and eq_base) else None
     leverage = round(lmv / eq_base, 2) if (lmv is not None and eq_base) else None
     # Cushion to a maintenance call: equity above the required maintenance.
     maint_cushion = round(eq_base - maint, 2) if (eq_base is not None and maint is not None) else None

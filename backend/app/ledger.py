@@ -875,6 +875,43 @@ async def set_signal_rules(account_hash: str, rules: list) -> dict:
     return {"ok": True, "rules": clean}
 
 
+_ETF_LINKS_KEY = "etf_links:"  # + account_hash → JSON {ETF_SYMBOL: UNDERLYING_SYMBOL} manual overrides
+
+
+async def get_etf_links(account_hash: str) -> dict:
+    """Manual ETF→underlying overrides for this account: {ETF: UNDERLYING}. Authoritative
+    over name-based auto-detection (used when the ETF name isn't available or is wrong)."""
+    async with SessionLocal() as s:
+        row = await s.get(AppSetting, _ETF_LINKS_KEY + account_hash)
+    try:
+        links = _json.loads(row.value) if row and row.value else {}
+    except Exception:
+        links = {}
+    return links if isinstance(links, dict) else {}
+
+
+async def set_etf_link(account_hash: str, etf: str, underlying: str | None) -> dict:
+    """Set (or, with a blank/None/self underlying, clear) one ETF→underlying override."""
+    etf = (etf or "").strip().upper()
+    if not etf:
+        return {"ok": False, "error": "missing ETF symbol"}
+    links = await get_etf_links(account_hash)
+    und = (underlying or "").strip().upper()
+    if und and und != etf:
+        links[etf] = und
+    else:
+        links.pop(etf, None)   # clear the override
+    # Sanitize + cap.
+    links = {str(k)[:16]: str(v)[:16] for k, v in list(links.items())[:200]}
+    async with SessionLocal() as s:
+        await s.execute(
+            pg_insert(AppSetting).values(key=_ETF_LINKS_KEY + account_hash, value=_json.dumps(links))
+            .on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": _json.dumps(links)})
+        )
+        await s.commit()
+    return {"ok": True, "links": links}
+
+
 _NOTES_KEY = "notes:"  # + account_hash → JSON {SYMBOL: text}
 
 

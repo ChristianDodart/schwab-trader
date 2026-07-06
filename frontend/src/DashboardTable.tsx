@@ -1,9 +1,36 @@
 import { Fragment } from "react";
-import { usd } from "./App";
+import { usd, pct } from "./App";
 import { DASH_COLUMNS, PINNED_DASH, rowSignalChips, tickerRiskColor, RISK_LABEL } from "./columns";
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
 import type { SignalRule } from "./signals";
+
+// ETF grouping: order the rows so each linked leveraged ETF sits directly under its
+// underlying stock (depth 1), and tell each parent how many children it has. A child
+// whose parent isn't in this view stays at top level (depth 0).
+type DispRow = { row: DashboardRow; depth: number; parent: DashboardRow | null; childCount: number };
+function nestRows(rows: DashboardRow[]): DispRow[] {
+  const bySym = new Map(rows.map((r) => [r.symbol, r]));
+  const kids = new Map<string, DashboardRow[]>();
+  for (const r of rows) {
+    const u = r.underlying;
+    if (u && u !== r.symbol && bySym.has(u)) {
+      const arr = kids.get(u) ?? [];
+      arr.push(r);
+      kids.set(u, arr);
+    }
+  }
+  const childSyms = new Set<string>();
+  for (const arr of kids.values()) arr.forEach((k) => childSyms.add(k.symbol));
+  const out: DispRow[] = [];
+  for (const r of rows) {
+    if (childSyms.has(r.symbol)) continue; // rendered under its parent instead
+    const mine = kids.get(r.symbol) ?? [];
+    out.push({ row: r, depth: 0, parent: null, childCount: mine.length });
+    for (const k of mine) out.push({ row: k, depth: 1, parent: r, childCount: 0 });
+  }
+  return out;
+}
 
 // Column ids whose per-row values are money that's meaningful to SUM in a totals row.
 // "signed" = a P/L figure (color + sign it); "plain" = a magnitude (Invested, Value).
@@ -24,7 +51,7 @@ const MONEY_SUM: Record<string, "signed" | "plain"> = {
 // Bulk selection state (harvest / buy-the-dip). When present, the table shows a
 // checkbox column; only `candidates` are selectable, `checked` are selected.
 export type BulkUI = {
-  kind: "sell" | "buy";
+  kind: "sell" | "buy" | "exit";
   candidates: Set<string>;
   checked: Set<string>;
   onToggle: (symbol: string) => void;
@@ -98,7 +125,8 @@ export function DashboardTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => {
+            {/* Bulk mode stays flat (nesting would muddle selection); otherwise nest ETFs. */}
+            {(bulk ? rows.map((r) => ({ row: r, depth: 0, parent: null, childCount: 0 } as DispRow)) : nestRows(rows)).map(({ row: r, depth, parent, childCount }) => {
               const isCand = bulk?.candidates.has(r.symbol) ?? false;
               const isChecked = bulk?.checked.has(r.symbol) ?? false;
               const clickable = bulk ? isCand : true; // watch rows now open a (watch-mode) detail too
@@ -136,9 +164,16 @@ export function DashboardTable({
                       )}
                     </td>
                   )}
-                  <td className="left">
+                  <td className="left" style={depth > 0 ? { paddingLeft: 26, boxShadow: "inset 3px 0 0 var(--border-strong)" } : undefined}>
                     <span style={S.tickerLine}>
+                      {depth > 0 && <span style={S.childArrow} aria-hidden="true">↳</span>}
                       <span style={{ fontWeight: 700, color: tickerRiskColor(r.risk) }} title={r.risk ? RISK_LABEL[r.risk] : undefined}>{r.symbol}</span>
+                      {depth > 0 && parent && (
+                        <span className="tag" style={S.linkTag} title={`Leveraged ETF tracking ${parent.symbol}`}>tracks {parent.symbol}</span>
+                      )}
+                      {childCount > 0 && (
+                        <span className="tag" style={S.parentTag} title="Has a linked leveraged ETF below">▾ ETF</span>
+                      )}
                       {r.has_note && <span style={S.noteDot} title="Has a saved note — open to read it" aria-label="has note">●</span>}
                       {rowSignalChips(r, signalRules)}
                       {r.is_watch && (
@@ -173,6 +208,11 @@ export function DashboardTable({
                       )}
                     </span>
                     {r.name && <div style={S.name}>{r.name}</div>}
+                    {depth > 0 && parent && parent.pct_of_high != null && (
+                      <div style={S.underlyingCtx} title={`Read direction from the underlying, ${parent.symbol}`}>
+                        {parent.symbol} at {pct(parent.pct_of_high)} of 52wk high
+                      </div>
+                    )}
                   </td>
                   {PINNED_DASH.map((c) => (
                     <td key={c.id} style={{ textAlign: c.align }}>{cellFor(c, r)}</td>
@@ -218,6 +258,10 @@ const S: Record<string, React.CSSProperties> = {
   tickerLine: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" },
   name: { fontSize: "var(--fs-2xs)", color: "var(--text-dim)", marginTop: 2 },
   watchTag: { color: "var(--accent-quiet)", border: "1px solid #3a4a5a", marginLeft: 2 },
+  childArrow: { color: "var(--text-faint)", fontSize: "var(--fs-sm)", marginRight: -2 },
+  linkTag: { color: "var(--neg)", border: "1px solid var(--neg-border, #5a3a3a)", fontSize: "var(--fs-2xs)" },
+  parentTag: { color: "var(--text-faint)", border: "1px solid var(--border)", fontSize: "var(--fs-2xs)" },
+  underlyingCtx: { fontSize: "var(--fs-2xs)", color: "var(--accent-quiet)", marginTop: 2 },
   noteDot: { color: "var(--accent-quiet)", fontSize: 8, cursor: "help", lineHeight: 1 },
   bell: { background: "transparent", border: "none", cursor: "pointer", fontSize: "var(--fs-xs)", padding: 0, verticalAlign: "middle" },
 };

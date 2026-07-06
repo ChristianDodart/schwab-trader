@@ -552,14 +552,30 @@ function Diagnostics() {
   );
 }
 
+type StrategyInfo = { sell?: { default_mode?: string; dollar_gain?: number; pct_above?: number }; ladder_drops?: { drop_pct?: number }[] };
+
 function SignalRulesEditor() {
   const toast = useToast();
   const [rules, setRules] = useState<SignalRule[] | null>(null);
+  const [strat, setStrat] = useState<StrategyInfo | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     fetch(`${API}/signal-rules`).then((r) => r.json())
       .then((j) => setRules(Array.isArray(j?.rules) ? j.rules : [])).catch(() => setRules([]));
+    fetch(`${API}/strategy`).then((r) => r.json()).then((j) => setStrat(j)).catch(() => {});
   }, []);
+  // Describe the built-in default rule with the ACTUAL strategy numbers it fires at.
+  const sellDefault = (() => {
+    const s = strat?.sell;
+    if (!s) return "the strategy sell target";
+    if (s.default_mode === "pct_above" && s.pct_above != null) return `+${(s.pct_above * 100).toFixed(0)}% above a lot's cost`;
+    if (s.dollar_gain != null) return `+$${s.dollar_gain.toFixed(0)} profit on a lot`;
+    return "the strategy sell target";
+  })();
+  const buyDefault = (() => {
+    const d0 = strat?.ladder_drops?.[0]?.drop_pct;
+    return d0 != null ? `the next ladder rung (first dip −${(d0 * 100).toFixed(0)}%)` : "the next ladder rung";
+  })();
   if (!rules) return <p style={S.credStatus}>Loading…</p>;
   const patch = (i: number, p: Partial<SignalRule>) => setRules((rs) => rs!.map((r, j) => (j === i ? { ...r, ...p } : r)));
   const save = () => {
@@ -572,18 +588,22 @@ function SignalRulesEditor() {
   };
   return (
     <div>
-      <div style={{ ...S.credStatus, display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <span className="chip chip-buy">▲BUY</span><span className="chip chip-sell">▼SELL</span>
-        <span>Default (built in) — at the next ladder rung / strategy sell target.</span>
+      <div style={{ ...S.credStatus, display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+        <span className="chip chip-buy">▲BUY</span>
+        <span>at {buyDefault}</span>
+        <span style={{ color: "var(--text-faint)" }}>·</span>
+        <span className="chip chip-sell">▼SELL</span>
+        <span>at {sellDefault}</span>
+        <span style={{ color: "var(--text-faint)" }}>— built in (change under Rules).</span>
       </div>
       {rules.map((r, i) => (
         <div key={r.id} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", margin: "6px 0", padding: 8, background: "var(--panel-2)", borderRadius: "var(--r-md)" }}>
-          <select value={r.side} className="field" style={{ height: 28 }}
+          <select value={r.side} className="field" style={{ height: 28, minWidth: 76, paddingRight: 24 }}
             onChange={(e) => { const side = e.target.value as "buy" | "sell"; patch(i, { side, metric: SIGNAL_METRICS[side][0].key }); }}>
             <option value="sell">Sell</option><option value="buy">Buy</option>
           </select>
           <span style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)" }}>when</span>
-          <select value={r.metric} className="field" style={{ height: 28 }} onChange={(e) => patch(i, { metric: e.target.value })}>
+          <select value={r.metric} className="field" style={{ height: 28, minWidth: 200, paddingRight: 24 }} onChange={(e) => patch(i, { metric: e.target.value })}>
             {SIGNAL_METRICS[r.side].map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
           </select>
           <select value={r.op} className="field" style={{ height: 28, width: 54 }} onChange={(e) => patch(i, { op: e.target.value as ">=" | "<=" })}>

@@ -3,6 +3,30 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.20.0 — "Group up, get out"
+
+New this version:
+- Leveraged ETFs now group under the stock they track. If you hold, say, a 2x QBTS
+  fund, it shows as an indented row right beneath QBTS — tagged "tracks QBTS" and
+  showing QBTS's % of 52-week high, since that's what really tells you the direction.
+  The link is auto-detected from the fund name; you can set or clear it by hand on the
+  ETF's detail page.
+- New "Bulk Exit" button — the "get me out" companion to Bulk Buy and Bulk Sell. It
+  places a good-till-canceled limit sell of each selected position at its last-buy
+  price (nothing is pre-selected; the price offset is adjustable). The aim is to exit,
+  not to profit — a limit only ever fills at your price or better, so it rests until
+  filled. The three bulk buttons are now named Bulk Buy / Bulk Sell / Bulk Exit.
+- Deployed % now measures against your own capital, not your margin. So fully invested
+  with cash reads ~100%, and using margin to hold more pushes it over 100% — an at-a-
+  glance "am I stretched?" number.
+
+Fixes:
+- The Signals settings now show the exact numbers the built-in rule fires at (e.g. "BUY
+  at the next ladder rung, first dip -10% · SELL at +$50 profit"), and the rule dropdowns
+  no longer clip their text before you open them.
+- The "update ready" banner now renders its release notes cleanly (no more stray HTML
+  tags) — matching the formatting you already see under Settings › What's new.
+
 ## v0.19.0 — "At a glance"
 
 New this version:

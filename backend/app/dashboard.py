@@ -10,10 +10,10 @@ from datetime import date, datetime
 
 from sqlalchemy import func, select
 
-from . import avg52, config_store, risk as risk_mod
+from . import avg52, config_store, grouping, risk as risk_mod
 from .db import SessionLocal
 from .db.models import CompletedTrade, Lot, Ticker
-from .ledger import MARKET_TZ, get_dividends, get_last_held
+from .ledger import MARKET_TZ, get_dividends, get_etf_links, get_last_held
 from .schwab import hub
 from .strategy import StrategyConfig, rules
 
@@ -239,6 +239,17 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
         # Watch rows that used to be held show the last price they were held at.
         r["last_held"] = last_held.get(r["symbol"]) if r["is_watch"] else None
 
+    # ETF grouping: link each leveraged single-stock ETF to its underlying stock (auto from
+    # the fund name, per-account manual override wins) so the UI can nest it under the parent.
+    etf_overrides = await get_etf_links(account_hash)
+    known_syms = {r["symbol"] for r in rows}
+    for r in rows:
+        t = tickers.get(r["symbol"])
+        r["underlying"] = grouping.resolve_underlying(
+            t.name if t else None, t.industry if t else None,
+            known_syms, r["symbol"], etf_overrides,
+        )
+
     # Header metric — "Harvestable": the profit you could lock in RIGHT NOW by selling
     # every profitable last position, measured vs. each last lot's entry price. It is
     # exactly the sum of the positive "Last Pos P/L" cells in the table, and equals what
@@ -297,12 +308,20 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
         ticker = (
             await s.execute(select(Ticker).where(Ticker.symbol == symbol))
         ).scalar_one_or_none()
+        known_syms = set((await s.execute(select(Ticker.symbol))).scalars().all())
         realized = (
             await s.execute(
                 select(func.coalesce(func.sum(CompletedTrade.profit), 0))
                 .where(CompletedTrade.symbol == symbol, CompletedTrade.account_hash == account_hash)
             )
         ).scalar()
+    # ETF grouping context (auto from name + per-account manual override).
+    etf_overrides = await get_etf_links(account_hash)
+    etf_underlying = grouping.resolve_underlying(
+        ticker.name if ticker else None, ticker.industry if ticker else None,
+        known_syms, symbol, etf_overrides) if ticker else None
+    etf_is_lev = grouping.is_leveraged_etf(ticker.name, ticker.industry) if ticker else False
+
     if not lots:
         # No open position — a watch ticker (or a fully-sold name). Return a minimal
         # "watch mode" payload so the detail view can still show chart / 52wk / notes /
@@ -323,6 +342,7 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
             "unrealized": None, "realized": round(_f(realized), 2), "dividends": sym_div,
             "total_return": round(_f(realized) + sym_div, 2),
             "is_watch": True, "last_held": last_held,
+            "underlying": etf_underlying, "is_leveraged": etf_is_lev,
             "lots": [], "projected_ladder": [],
         }
 
@@ -404,6 +424,7 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
         "realized": round(_f(realized), 2),
         "dividends": sym_dividends,
         "total_return": round(_f(realized) + sym_dividends + (shares * price - invested if has_price else 0.0), 2),
+        "underlying": etf_underlying, "is_leveraged": etf_is_lev,
         "lots": lot_rows,
         "projected_ladder": projected,
     }

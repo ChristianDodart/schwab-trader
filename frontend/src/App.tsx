@@ -21,7 +21,7 @@ import { Settings } from "./Settings";
 import { FinancialRules } from "./FinancialRules";
 import { SkeletonTable } from "./Skeleton";
 import { useToast } from "./Toast";
-import type { AlertPrefill, BuyCandidate, Dashboard, DashboardRow, SellCandidate, Suggestion } from "./types";
+import type { AlertPrefill, BuyCandidate, Dashboard, DashboardRow, ExitCandidate, SellCandidate, Suggestion } from "./types";
 
 import { API, wsUrl } from "./api";
 
@@ -327,7 +327,7 @@ export function App() {
           {view === "dashboard" && (bulk.kind ? (
             <span style={S.bulkBar}>
               {bulk.loading ? (
-                <span style={S.note}>Loading {bulk.kind === "sell" ? "profitable positions" : "dip candidates"}…</span>
+                <span style={S.note}>Loading {bulk.kind === "sell" ? "profitable positions" : bulk.kind === "exit" ? "open positions" : "dip candidates"}…</span>
               ) : (
                 <>
                   <span style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
@@ -335,17 +335,19 @@ export function App() {
                     {bulk.kind === "sell" ? (
                       <> · proceeds <b>{usd(bulk.selected.reduce((s, c) => s + ((c as SellCandidate).est_proceeds || 0), 0))}</b>
                         {" · "}profit <b style={{ color: "var(--pos)" }}>+{usd(bulk.selected.reduce((s, c) => s + ((c as SellCandidate).est_profit || 0), 0))}</b></>
+                    ) : bulk.kind === "exit" ? (
+                      <> · proceeds if filled <b>{usd(bulk.selected.reduce((s, c) => s + ((c as ExitCandidate).est_proceeds || 0), 0))}</b></>
                     ) : (
                       <> · cost <b>{usd(bulk.selected.reduce((s, c) => s + ((c as BuyCandidate).est_cost || 0), 0))}</b></>
                     )}
                   </span>
                   <button className="btn btn-secondary" onClick={bulk.cancel}>Cancel</button>
                   <button
-                    className={`btn ${bulk.kind === "sell" ? "btn-danger" : "btn-buy"}`}
+                    className={`btn ${bulk.kind === "buy" ? "btn-buy" : "btn-danger"}`}
                     disabled={!bulk.selected.length}
                     onClick={() => bulk.setReview(true)}
                   >
-                    Review {bulk.kind === "sell" ? "sells" : "buys"}
+                    Review {bulk.kind === "sell" ? "sells" : bulk.kind === "exit" ? "exits" : "buys"}
                   </button>
                 </>
               )}
@@ -371,20 +373,28 @@ export function App() {
               </button>
               <span style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
                 <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <button className="btn btn-secondary"
+                    title="Bulk buy: the next rung on dips — or select any stock (incl. ones you don't hold) to enter"
+                    onClick={() => { setSelected(null); bulk.start("buy"); }}>
+                    Bulk Buy · {bulk.buyCount}
+                  </button>
+                  <BulkGear kind="buy" />
+                </span>
+                <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
                   <button className="btn btn-secondary" disabled={bulk.sellCount === 0}
-                    title="Sell the profitable last position on each holding, at the current price"
+                    title="Bulk sell: harvest the profitable last position on each holding, at the current price"
                     onClick={() => { setSelected(null); bulk.start("sell"); }}>
-                    Sell profitable · {bulk.sellCount}
+                    Bulk Sell · {bulk.sellCount}
                   </button>
                   <BulkGear kind="sell" />
                 </span>
                 <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                  <button className="btn btn-secondary"
-                    title="Buy the next rung on dips — or select any stock (incl. ones you don't hold) to enter"
-                    onClick={() => { setSelected(null); bulk.start("buy"); }}>
-                    Buy the dip · {bulk.buyCount}
+                  <button className="btn btn-secondary" disabled={bulk.exitCount === 0}
+                    title="Bulk exit ('get me out'): a good-till-canceled limit sell of each full position at its last-buy price"
+                    onClick={() => { setSelected(null); bulk.start("exit"); }}>
+                    Bulk Exit · {bulk.exitCount}
                   </button>
-                  <BulkGear kind="buy" />
+                  <BulkGear kind="exit" />
                 </span>
               </span>
             </>

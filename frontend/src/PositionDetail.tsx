@@ -54,6 +54,10 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
           <span style={{ ...S.sym, color: tickerRiskColor(d.risk) }} title={d.risk ? RISK_LABEL[d.risk] : undefined}>{d.symbol}</span>
           {d.name && <span style={S.name}>{d.name}</span>}
           <SectorEditor symbol={d.symbol} sector={d.sector} onSaved={(s) => setD((p) => (p ? { ...p, sector: s } : p))} />
+          {d.is_leveraged && (
+            <EtfLinkEditor symbol={d.symbol} underlying={d.underlying ?? null}
+              onSaved={(u) => setD((p) => (p ? { ...p, underlying: u } : p))} />
+          )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <ColumnManager prefs={cols} labelOf={(id) => DETAIL_COLUMNS[id]?.label ?? id} align="right" />
@@ -281,6 +285,42 @@ function SectorEditor({ symbol, sector, onSaved }: { symbol: string; sector: str
       title="Click to edit sector"
       style={{ marginLeft: 10, cursor: "pointer", color: sector ? "var(--accent-quiet)" : "var(--text-faint)", border: "1px solid var(--border)", background: "transparent" }}>
       {sector || "+ sector"}
+    </button>
+  );
+}
+
+// Inline editor for a leveraged ETF's underlying stock (drives dashboard nesting).
+// Auto-detected from the fund name; click to override or clear. Enter/blur saves.
+function EtfLinkEditor({ symbol, underlying, onSaved }: { symbol: string; underlying: string | null; onSaved: (u: string | null) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(underlying ?? "");
+  const toast = useToast();
+  const save = () => {
+    const next = val.trim().toUpperCase();
+    setEditing(false);
+    if (next === (underlying ?? "")) return;
+    fetch(`${API}/etf-link`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ etf: symbol, underlying: next || null }),
+    })
+      .then((r) => r.json())
+      .then((j) => { if (j?.ok) { onSaved(next || null); toast("Grouping saved — the dashboard will nest it.", "success"); } else toast("Couldn't save grouping.", "error"); })
+      .catch(() => toast("Couldn't save grouping.", "error"));
+  };
+  if (editing) {
+    return (
+      <input className="field" autoFocus value={val} placeholder="Underlying (e.g. QBTS)"
+        onChange={(e) => setVal(e.target.value.toUpperCase())}
+        onBlur={save}
+        onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { setVal(underlying ?? ""); setEditing(false); } }}
+        style={{ height: 26, width: 150, marginLeft: 10, fontSize: "var(--fs-sm)" }} aria-label="Underlying ticker" />
+    );
+  }
+  return (
+    <button className="tag" onClick={() => { setVal(underlying ?? ""); setEditing(true); }}
+      title="Leveraged ETF — click to set the underlying stock it tracks (groups it on the dashboard)"
+      style={{ marginLeft: 10, cursor: "pointer", color: underlying ? "var(--neg)" : "var(--text-faint)", border: "1px solid var(--border)", background: "transparent" }}>
+      {underlying ? `↳ tracks ${underlying}` : "+ underlying"}
     </button>
   );
 }

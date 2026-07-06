@@ -34,6 +34,7 @@ export type DashboardRow = {
   has_note?: boolean;     // a saved journal note exists for this symbol
   last_held?: number | null; // watch rows previously held: last held price
   risk?: string;          // "low"|"medium"|"elevated"|"high" — drives ticker coloring
+  underlying?: string | null; // leveraged ETF -> its underlying stock symbol (nesting)
 };
 
 export type Dashboard = {
@@ -158,7 +159,18 @@ export type BuyCandidate = {
   qualifies: boolean;      // dipped enough to auto-select (held only)
   note?: string | null;
 };
-export type BulkPrefs = { sell_min_gain_pct: number; buy_dip_pct: number };
+export type ExitCandidate = {
+  symbol: string;
+  shares: number;
+  last_price: number;
+  price: number | null;
+  order_type: string;
+  limit_price: number;
+  est_proceeds: number;
+  qualifies: boolean;
+  note?: string | null;
+};
+export type BulkPrefs = { sell_min_gain_pct: number; buy_dip_pct: number; exit_offset_pct: number };
 export type BulkPlan<T> = { ok: boolean; mode: string; count: number; candidates: T[] };
 export type BulkResult = {
   ok: boolean;
@@ -392,6 +404,8 @@ export type PositionDetailData = {
   is_watch?: boolean;         // no open position — watch-mode detail
   last_held?: number | null;  // last price held (for a sold-out watch ticker)
   risk?: string;              // risk band for ticker coloring
+  underlying?: string | null; // leveraged ETF -> underlying stock symbol
+  is_leveraged?: boolean;     // this instrument is a leveraged/inverse ETF
   lots: Lot[];
   projected_ladder: ProjectedRung[];
 };

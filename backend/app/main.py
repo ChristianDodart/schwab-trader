@@ -665,6 +665,23 @@ async def set_signal_rules(body: SignalRulesBody) -> dict:
     return await ledger_svc.set_signal_rules(await _selected(), body.rules)
 
 
+@app.get("/api/etf-links")
+async def get_etf_links() -> dict:
+    """Manual ETF→underlying overrides for the selected account: {ETF: UNDERLYING}."""
+    return {"links": await ledger_svc.get_etf_links(await _selected())}
+
+
+class EtfLinkBody(BaseModel):
+    etf: str
+    underlying: str | None = None
+
+
+@app.post("/api/etf-link")
+async def set_etf_link(body: EtfLinkBody) -> dict:
+    """Set (blank underlying clears) one ETF→underlying grouping override."""
+    return await ledger_svc.set_etf_link(await _selected(), body.etf, body.underlying)
+
+
 @app.get("/api/positions/{symbol}/note")
 async def get_position_note(symbol: str) -> dict:
     """The free-text journal note for a symbol on the selected account."""
@@ -888,6 +905,17 @@ class BulkBuyBody(BaseModel):
     confirm: bool = False
 
 
+class BulkExitItem(BaseModel):
+    symbol: str
+    shares: int
+    limit_price: float
+
+
+class BulkExitBody(BaseModel):
+    items: list[BulkExitItem]
+    confirm: bool = False
+
+
 @app.get("/api/bulk/sell-plan")
 async def bulk_sell_plan() -> dict:
     """Read-only: symbols whose LAST lot is profitable now (harvest candidates)."""
@@ -914,9 +942,23 @@ async def bulk_buy(body: BulkBuyBody) -> dict:
     return await bulk_svc.bulk_buy(await _selected(), items, order_type=body.order_type, confirm=body.confirm)
 
 
+@app.get("/api/bulk/exit-plan")
+async def bulk_exit_plan() -> dict:
+    """Read-only: every held position, priced to exit (GTC limit at the last-position price)."""
+    return await bulk_svc.exit_plan(await _selected())
+
+
+@app.post("/api/bulk/exit")
+async def bulk_exit(body: BulkExitBody) -> dict:
+    """Place a GTC limit SELL of the full position for each given symbol (get me out)."""
+    items = [{"symbol": i.symbol, "shares": i.shares, "limit_price": i.limit_price} for i in body.items]
+    return await bulk_svc.bulk_exit(await _selected(), items, confirm=body.confirm)
+
+
 class BulkPrefsBody(BaseModel):
     sell_min_gain_pct: float | None = None
     buy_dip_pct: float | None = None
+    exit_offset_pct: float | None = None
 
 
 @app.get("/api/bulk/prefs")
@@ -927,7 +969,9 @@ async def bulk_prefs() -> dict:
 
 @app.post("/api/bulk/prefs")
 async def bulk_set_prefs(body: BulkPrefsBody) -> dict:
-    return await bulk_svc.set_prefs({"sell_min_gain_pct": body.sell_min_gain_pct, "buy_dip_pct": body.buy_dip_pct})
+    return await bulk_svc.set_prefs({"sell_min_gain_pct": body.sell_min_gain_pct,
+                                     "buy_dip_pct": body.buy_dip_pct,
+                                     "exit_offset_pct": body.exit_offset_pct})
 
 
 @app.get("/api/ledger/reg-trading")

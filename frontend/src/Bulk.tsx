@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { usd } from "./App";
 import { Modal } from "./Modal";
 import type { BulkUI } from "./DashboardTable";
-import type { BulkPrefs, BulkResult, BuyCandidate, DashboardRow, SellCandidate } from "./types";
+import type { BulkPrefs, BulkResult, BuyCandidate, DashboardRow, ExitCandidate, SellCandidate } from "./types";
 
 import { API } from "./api";
-type Kind = "sell" | "buy";
+type Kind = "sell" | "buy" | "exit";
+type AnyCandidate = SellCandidate | BuyCandidate | ExitCandidate;
+const PLAN_PATH: Record<Kind, string> = { sell: "sell-plan", buy: "buy-plan", exit: "exit-plan" };
 type Push = (msg: string, kind?: "error" | "success" | "info") => void;
 // An editable row in the review modal (shares + limit price are user-adjustable).
 type EditRow = { symbol: string; lot_id?: number; is_new?: boolean; shares: number; price: number; buy_price?: number; limit_price: number };
@@ -14,7 +16,7 @@ type EditRow = { symbol: string; lot_id?: number; is_new?: boolean; shares: numb
 // dip): counts, plan fetch, checkbox selection, review, and placement.
 export function useBulk(rows: DashboardRow[] | undefined, mode: string | undefined, toast: Push) {
   const [kind, setKind] = useState<Kind | null>(null);
-  const [plan, setPlan] = useState<(SellCandidate | BuyCandidate)[]>([]);
+  const [plan, setPlan] = useState<AnyCandidate[]>([]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [review, setReview] = useState(false);
@@ -26,20 +28,26 @@ export function useBulk(rows: DashboardRow[] | undefined, mode: string | undefin
   const held = (rows || []).filter((r) => !r.is_watch);
   const sellCount = held.filter((r) => (r.last_pos_profit ?? 0) > 0).length;
   const buyCount = held.filter((r) => r.buy_mark).length;
+  const exitCount = held.length; // "get me out" applies to every open position
 
   const cancel = () => { setKind(null); setPlan([]); setChecked(new Set()); setReview(false); setResult(null); };
 
   const start = (k: Kind) => {
     setLoading(true); setKind(k); setPlan([]); setResult(null); setReview(false); setChecked(new Set()); setBuyingPower(null);
-    fetch(`${API}/bulk/${k === "sell" ? "sell-plan" : "buy-plan"}`)
+    const emptyMsg: Record<Kind, string> = {
+      sell: "No profitable last positions to harvest right now.",
+      buy: "No stocks available to buy right now.",
+      exit: "No open positions to exit.",
+    };
+    fetch(`${API}/bulk/${PLAN_PATH[k]}`)
       .then((r) => r.json())
       .then((d) => {
         setBuyingPower(typeof d.buying_power === "number" ? d.buying_power : null);
-        const cands: (SellCandidate | BuyCandidate)[] = d.candidates || [];
+        const cands: AnyCandidate[] = d.candidates || [];
         if (!cands.length) {
           // Nothing selectable at all — don't strand the user in an empty mode.
           cancel();
-          toast(d.note || (k === "sell" ? "No profitable last positions to harvest right now." : "No stocks available to buy right now."), "info");
+          toast(d.note || emptyMsg[k], "info");
           return;
         }
         setPlan(cands);
@@ -61,6 +69,8 @@ export function useBulk(rows: DashboardRow[] | undefined, mode: string | undefin
     setPlacing(true);
     const body = kind === "sell"
       ? { items: items.map((i) => ({ lot_id: i.lot_id, symbol: i.symbol, shares: i.shares, limit_price: i.limit_price })), order_type: orderType, confirm: true }
+      : kind === "exit"
+      ? { items: items.map((i) => ({ symbol: i.symbol, shares: i.shares, limit_price: i.limit_price })), confirm: true }
       : { items: items.map((i) => ({ symbol: i.symbol, shares: i.shares, limit_price: i.limit_price })), order_type: orderType, confirm: true };
     fetch(`${API}/bulk/${kind}`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -80,7 +90,7 @@ export function useBulk(rows: DashboardRow[] | undefined, mode: string | undefin
     ? { kind, candidates: new Set(plan.map((c) => c.symbol)), checked, onToggle: toggle, allChecked, onToggleAll: toggleAll }
     : null;
 
-  return { kind, loading, start, cancel, bulkUI, sellCount, buyCount, selected, review, setReview, confirm, placing, result, mode, buyingPower };
+  return { kind, loading, start, cancel, bulkUI, sellCount, buyCount, exitCount, selected, review, setReview, confirm, placing, result, mode, buyingPower };
 }
 
 // Gear next to each bulk button: configure the auto-select threshold. Thresholds
@@ -100,35 +110,39 @@ export function BulkGear({ kind }: { kind: Kind }) {
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onEsc); };
   }, [open]);
 
-  const isSell = kind === "sell";
-  const field = isSell ? "sell_min_gain_pct" : "buy_dip_pct";
-  const val = prefs ? (isSell ? prefs.sell_min_gain_pct : prefs.buy_dip_pct) : 0;
+  const field = kind === "sell" ? "sell_min_gain_pct" : kind === "buy" ? "buy_dip_pct" : "exit_offset_pct";
+  const val = prefs ? (prefs as unknown as Record<string, number>)[field] ?? 0 : 0;
+  const isExit = kind === "exit";
   const save = (v: number) => {
-    const n = Math.max(0, v || 0);
+    // Exit offset may be negative (price below last buy → fills sooner); the others clamp >= 0.
+    const n = isExit ? Math.max(-25, Math.min(25, v || 0)) : Math.max(0, v || 0);
     setPrefs((p) => (p ? { ...p, [field]: n } : p));
     fetch(`${API}/bulk/prefs`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [field]: n }),
     }).catch(() => {});
   };
+  const title = kind === "sell" ? "Sell — auto-select" : kind === "buy" ? "Buy — auto-select" : "Exit — limit price";
+  const rowLabel = kind === "sell" ? "Gain at least" : kind === "buy" ? "Dip at least" : "Offset from last price";
+  const help = kind === "sell"
+    ? "Pre-checks profitable last positions whose gain is at least this. All profitable positions stay selectable."
+    : kind === "buy"
+    ? "Pre-checks held positions that dropped at least this far below the last buy. New positions are never auto-checked but are always selectable."
+    : "The GTC limit sits this far off each position's last-buy price. 0% = at the last price; negative fills sooner. Nothing is pre-selected.";
 
   return (
     <span style={{ position: "relative", display: "inline-block" }} ref={wrapRef}>
-      <button className="btn btn-secondary btn-sm" aria-label={`Configure ${kind} auto-select`}
-        aria-expanded={open} title="Configure auto-select" onClick={() => setOpen((o) => !o)}>⚙</button>
+      <button className="btn btn-secondary btn-sm" aria-label={`Configure ${kind} settings`}
+        aria-expanded={open} title="Configure" onClick={() => setOpen((o) => !o)}>⚙</button>
       {open && (
-        <div style={S.gearPop} role="dialog" aria-label={`${kind} auto-select settings`}>
-          <div style={S.gearTitle}>{isSell ? "Sell — auto-select" : "Buy the dip — auto-select"}</div>
+        <div style={S.gearPop} role="dialog" aria-label={`${kind} settings`}>
+          <div style={S.gearTitle}>{title}</div>
           <label style={S.gearRow}>
-            <span>{isSell ? "Gain at least" : "Dip at least"}</span>
-            <input className="field" type="number" min={0} step="0.5" style={{ width: 68, textAlign: "right" }}
+            <span>{rowLabel}</span>
+            <input className="field" type="number" min={isExit ? -25 : 0} max={isExit ? 25 : undefined} step="0.5" style={{ width: 68, textAlign: "right" }}
               value={prefs ? val : ""} onChange={(e) => save(Number(e.target.value))} />
             <span style={{ color: "var(--text-dim)" }}>%</span>
           </label>
-          <p style={S.gearHelp}>
-            {isSell
-              ? "Pre-checks profitable last positions whose gain is at least this. All profitable positions stay selectable."
-              : "Pre-checks held positions that dropped at least this far below the last buy. New positions are never auto-checked but are always selectable."}
-          </p>
+          <p style={S.gearHelp}>{help}</p>
         </div>
       )}
     </span>
@@ -139,7 +153,7 @@ export function BulkReviewModal({
   kind, items, mode, placing, result, onConfirm, onClose, buyingPower,
 }: {
   kind: Kind;
-  items: (SellCandidate | BuyCandidate)[];
+  items: AnyCandidate[];
   mode?: string;
   placing: boolean;
   result: BulkResult | null;
@@ -149,12 +163,14 @@ export function BulkReviewModal({
 }) {
   const isDemo = mode === "demo";
   const isSell = kind === "sell";
+  const isExit = kind === "exit";
   const [orderType, setOrderType] = useState<"LIMIT" | "MARKET">("LIMIT");
   const [session, setSession] = useState<string | null>(null);
   const [rows, setRows] = useState<EditRow[]>(() =>
     items.map((c) => ({
       symbol: c.symbol, lot_id: (c as SellCandidate).lot_id, is_new: (c as BuyCandidate).is_new,
-      shares: c.shares, price: c.price, buy_price: (c as SellCandidate).buy_price, limit_price: c.limit_price,
+      shares: c.shares, price: (c as SellCandidate).price ?? c.limit_price,
+      buy_price: (c as SellCandidate).buy_price, limit_price: c.limit_price,
     })),
   );
 
@@ -184,28 +200,35 @@ export function BulkReviewModal({
       ? "Limit — sells at your price or better; a sudden drop rests instead of filling at a loss (cancel anytime in Orders)."
       : "Limit — buys at your price or better; rests if the market is above it."
     : "Market — fills immediately at whatever the market gives; no price guarantee.";
+  const modalTitle = isSell ? "Harvest profits" : isExit ? "Get me out" : "Buy the dip";
+  const innerTitle = isSell ? "Harvest profitable last positions"
+    : isExit ? "Exit positions — good-till-canceled limit at your last-buy price" : "Bulk buy — review and adjust";
 
   return (
-    <Modal key={result ? "result" : "form"} title={isSell ? "Harvest profits" : "Buy the dip"} onClose={onClose} width={520}>
+    <Modal key={result ? "result" : "form"} title={modalTitle} onClose={onClose} width={520}>
       {isDemo && <div style={S.demoStrip}>Not connected to Schwab — orders won’t place. Reconnect in Settings.</div>}
       <div style={{ padding: 16 }}>
         {!result ? (
           <>
-            <div style={S.title}>
-              {isSell ? "Harvest profitable last positions" : "Bulk buy — review and adjust"}
-            </div>
-            <div style={S.typeRow}>
-              <span style={{ fontSize: "var(--fs-xs)", color: "var(--text-dim)" }}>Order type</span>
-              <span role="group" aria-label="Order type" style={{ display: "flex", gap: 6 }}>
-                <button className="btn btn-sm" style={seg(isLimit)} aria-pressed={isLimit}
-                  title={isSell ? "Sells at your price or better; rests if the market moves away" : "Buys at your price or better; rests if the market is above it"}
-                  onClick={() => setOrderType("LIMIT")}>Limit</button>
-                <button className="btn btn-sm" style={seg(!isLimit)} aria-pressed={!isLimit} disabled={marketDisabled}
-                  title={marketDisabled ? "Market is only available during regular market hours" : "Fills immediately at the current price; no price guarantee"}
-                  onClick={() => setOrderType("MARKET")}>Market</button>
-              </span>
-            </div>
-            <p style={S.typeDesc}>{typeDesc}{marketDisabled ? " Market is available only during regular market hours." : ""}</p>
+            <div style={S.title}>{innerTitle}</div>
+            {!isExit && (
+              <div style={S.typeRow}>
+                <span style={{ fontSize: "var(--fs-xs)", color: "var(--text-dim)" }}>Order type</span>
+                <span role="group" aria-label="Order type" style={{ display: "flex", gap: 6 }}>
+                  <button className="btn btn-sm" style={seg(isLimit)} aria-pressed={isLimit}
+                    title={isSell ? "Sells at your price or better; rests if the market moves away" : "Buys at your price or better; rests if the market is above it"}
+                    onClick={() => setOrderType("LIMIT")}>Limit</button>
+                  <button className="btn btn-sm" style={seg(!isLimit)} aria-pressed={!isLimit} disabled={marketDisabled}
+                    title={marketDisabled ? "Market is only available during regular market hours" : "Fills immediately at the current price; no price guarantee"}
+                    onClick={() => setOrderType("MARKET")}>Market</button>
+                </span>
+              </div>
+            )}
+            <p style={S.typeDesc}>
+              {isExit
+                ? "Good-till-canceled limit SELL of each full position at its last-buy price (adjust per row). A limit fills at your price or BETTER, so it never sells below it — it rests until filled. Cancel anytime in Orders."
+                : `${typeDesc}${marketDisabled ? " Market is available only during regular market hours." : ""}`}
+            </p>
             <div style={{ overflowX: "auto", marginTop: 10 }}>
               <table className="tbl">
                 <thead>
@@ -213,14 +236,14 @@ export function BulkReviewModal({
                     <th scope="col" className="left">Symbol</th>
                     <th scope="col">Shares</th>
                     <th scope="col">{isLimit ? "Limit" : "~ Price"}</th>
-                    <th scope="col">{isSell ? "Est. proceeds" : "Est. cost"}</th>
+                    <th scope="col">{isSell || isExit ? "Est. proceeds" : "Est. cost"}</th>
                     {isSell && <th scope="col">Est. profit</th>}
                     <th scope="col" aria-label="remove"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r, i) => {
-                    const bandWarn = !isSell && isLimit && r.price > 0 && Math.abs(r.limit_price / r.price - 1) > 0.25;
+                    const bandWarn = !isSell && !isExit && isLimit && r.price > 0 && Math.abs(r.limit_price / r.price - 1) > 0.25;
                     const profit = (effPrice(r) - (r.buy_price ?? 0)) * r.shares;
                     return (
                       <tr key={r.lot_id ?? r.symbol}>
@@ -262,6 +285,8 @@ export function BulkReviewModal({
             <div style={S.totals}>
               {isSell
                 ? <>Total proceeds <b>{usd(totalProceeds)}</b> · profit <b style={{ color: totalProfit >= 0 ? "var(--pos)" : "var(--neg)" }}>{totalProfit >= 0 ? "+" : ""}{usd(totalProfit)}</b></>
+                : isExit
+                ? <>Total proceeds if filled <b>{usd(totalProceeds)}</b> · <b>{rows.length}</b> position{rows.length !== 1 ? "s" : ""}</>
                 : <>Total cost <b>{usd(totalCost)}</b>{buyingPower != null && <> · buying power <b>{usd(buyingPower)}</b></>}</>}
             </div>
             {/* Advisory only — never blocks; the broker enforces margin/settlement. */}
@@ -274,19 +299,26 @@ export function BulkReviewModal({
             <p style={S.note}>
               {isSell
                 ? "Edit shares or price per row, or remove any. A limit sells at your price or better — a sudden drop rests instead of filling at a loss. Check the Orders tab after placing."
+                : isExit
+                ? "Edit shares or price per row, or remove any. These rest as good-till-canceled limit sells until filled — the aim is to get out, not to hit a profit. Cancel any of them in the Orders tab."
                 : "Edit shares or price per row, or remove any. Check the Orders tab after placing."}
             </p>
             <div style={S.actions}>
               <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Back</button>
               <button
-                className={`btn ${isDemo ? "btn-secondary" : isSell ? "btn-danger" : "btn-buy"}`}
+                className={`btn ${isDemo ? "btn-secondary" : isSell || isExit ? "btn-danger" : "btn-buy"}`}
                 style={{ flex: 2 }}
                 disabled={placing || !rows.length || rows.some((r) => r.shares < 1 || (isLimit && !(r.limit_price > 0)))}
                 onClick={() => onConfirm(orderType, rows)}
               >
-                {placing ? "Placing…"
-                  : isDemo ? `Simulate ${rows.length} ${isSell ? "sell" : "buy"}${rows.length !== 1 ? "s" : ""}`
-                  : `Place ${rows.length} ${isSell ? "sell" : "buy"}${rows.length !== 1 ? "s" : ""}`}
+                {(() => {
+                  const verb = isExit ? "exit" : isSell ? "sell" : "buy";
+                  const n = rows.length;
+                  const plural = n !== 1 ? "s" : "";
+                  if (placing) return "Placing…";
+                  const act = isDemo ? "Simulate" : isExit ? "Exit" : "Place";
+                  return isExit ? `${act} ${n} position${plural}` : `${act} ${n} ${verb}${plural}`;
+                })()}
               </button>
             </div>
           </>

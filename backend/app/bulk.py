@@ -27,7 +27,7 @@ from .schwab import hub
 from .strategy import rules
 
 _EPS = 1e-9
-_DEFAULT_PREFS = {"sell_min_gain_pct": 0.0, "buy_dip_pct": 10.0}
+_DEFAULT_PREFS = {"sell_min_gain_pct": 0.0, "buy_dip_pct": 10.0, "exit_offset_pct": 0.0}
 _BULK_MAX_NOTIONAL = 25_000.0   # per-order fat-finger ceiling (well above a ~$1.5k rung)
 _BULK_PRICE_BAND = 0.25         # an edited BUY limit may sit at most this far from the market
 
@@ -65,6 +65,9 @@ async def get_prefs() -> dict:
     return {
         "sell_min_gain_pct": max(0.0, _f(d.get("sell_min_gain_pct", _DEFAULT_PREFS["sell_min_gain_pct"]))),
         "buy_dip_pct": max(0.0, _f(d.get("buy_dip_pct", _DEFAULT_PREFS["buy_dip_pct"]))),
+        # Exit-limit offset off the last-position price (may be negative to fill faster).
+        # Bounded to +-25% so a typo can't set an absurd resting price. GTC by design.
+        "exit_offset_pct": max(-25.0, min(25.0, _f(d.get("exit_offset_pct", _DEFAULT_PREFS["exit_offset_pct"])))),
     }
 
 
@@ -74,6 +77,8 @@ async def set_prefs(patch: dict) -> dict:
         cur["sell_min_gain_pct"] = max(0.0, _f(patch["sell_min_gain_pct"]))
     if patch.get("buy_dip_pct") is not None:
         cur["buy_dip_pct"] = max(0.0, _f(patch["buy_dip_pct"]))
+    if patch.get("exit_offset_pct") is not None:
+        cur["exit_offset_pct"] = max(-25.0, min(25.0, _f(patch["exit_offset_pct"])))
     await accounts_svc.set_setting(profiles_svc.pkey("bulk_prefs"), json.dumps(cur))
     return cur
 
@@ -179,6 +184,77 @@ async def buy_plan(account_hash: str) -> dict:
         buying_power = None
     return {"ok": True, "mode": hub.mode, "buying_power": buying_power,
             "count": sum(1 for c in cands if c["qualifies"]), "candidates": cands}
+
+
+async def exit_plan(account_hash: str) -> dict:
+    """"Get me out" — one GTC limit SELL of the FULL holding per symbol, priced at the
+    last position's buy price (± the exit offset). The aim is exit, not profit: a limit
+    sell fills at the limit OR BETTER, so resting at the last-buy price never fills BELOW
+    it (if the market is already higher it fills near the market; if lower it rests until
+    it recovers). NOTHING is auto-selected (qualifies is always False)."""
+    if await _not_trading(account_hash):
+        return {"ok": True, "mode": hub.mode, "count": 0, "candidates": [], "note": "account is not trading-enabled"}
+    prefs = await get_prefs()
+    off = prefs["exit_offset_pct"] / 100.0
+    by = await _lots_by_symbol(account_hash)
+    cands = []
+    for sym, lots in by.items():
+        last = _last_lot(lots)
+        shares = int(sum(_f(l.shares) for l in lots))
+        if shares < 1:
+            continue
+        last_px = _f(last.buy_price)                 # the "last position price"
+        limit = round(last_px * (1 + off), 2)
+        px = _price(sym)                             # current mark (informational)
+        cands.append({
+            "symbol": sym, "shares": shares,
+            "last_price": round(last_px, 2),
+            "price": round(px, 2) if px else None,
+            "order_type": "LIMIT", "limit_price": limit if limit > 0 else round(last_px, 2),
+            "est_proceeds": round(shares * (px if px else last_px), 2),
+            "qualifies": False, "note": "GTC — rests until filled",
+        })
+    cands.sort(key=lambda c: c["est_proceeds"], reverse=True)
+    return {"ok": True, "mode": hub.mode, "count": 0, "candidates": cands}
+
+
+async def bulk_exit(account_hash: str, items: list[dict], confirm: bool = False) -> dict:
+    """Place each reviewed exit as a GOOD_TILL_CANCEL limit SELL of the full position.
+    No profitability floor (the point is to get out); safety comes from the limit-or-better
+    fill guarantee plus place_order's fail-closed held-shares check. One order per symbol."""
+    by = await _lots_by_symbol(account_hash)
+    held_by_sym = {sym: int(sum(_f(l.shares) for l in lots)) for sym, lots in by.items()}
+    results = []
+    seen_syms: set[str] = set()
+    for it in items:
+        sym = str(it.get("symbol") or "").upper()
+        shares = int(it.get("shares") or 0)
+        if not sym or sym not in held_by_sym:
+            results.append({"symbol": sym, "ok": False, "error": "no open position on this account"})
+            continue
+        if sym in seen_syms:
+            results.append({"symbol": sym, "ok": False, "error": "duplicate symbol in this batch — refused"})
+            continue
+        seen_syms.add(sym)
+        if shares < 1:
+            results.append({"symbol": sym, "ok": False, "error": "shares must be >= 1"})
+            continue
+        if shares > held_by_sym[sym]:   # never exit more than is held (place_order re-checks too)
+            results.append({"symbol": sym, "ok": False,
+                            "error": f"exceeds the {held_by_sym[sym]} shares held"})
+            continue
+        lim = round(_f(it.get("limit_price")), 2)
+        if lim <= 0:
+            results.append({"symbol": sym, "ok": False, "error": "invalid limit price"})
+            continue
+        res = await orders_svc.place_order(
+            sym, "SELL", shares, "LIMIT", limit_price=lim,
+            duration="GOOD_TILL_CANCEL", account_hash=account_hash, confirm=True,
+        )
+        results.append({"symbol": sym, "shares": shares, "order_type": "LIMIT",
+                        "limit_price": lim, "duration": "GTC", **res})
+    return {"ok": bool(results) and all(r.get("ok") for r in results),
+            "placed": sum(1 for r in results if r.get("ok")), "count": len(results), "results": results}
 
 
 async def bulk_sell(account_hash: str, items: list[dict], order_type: str = "LIMIT", confirm: bool = False) -> dict:
