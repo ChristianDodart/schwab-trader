@@ -46,7 +46,13 @@ export function Screener({ onAdded }: { onAdded?: (symbol: string) => void }) {
 
   const [cands, setCands] = useState<CandidateScreen | null>(null);
   const [candLoading, setCandLoading] = useState(false);
-  const [candSort, setCandSort] = useState<{ col: string; dir: number } | null>(null);
+  const [candSort, setCandSort] = useState<{ col: string; dir: number } | null>(() => {
+    try { const r = localStorage.getItem("screener.candSort.v1"); return r ? JSON.parse(r) : null; } catch { return null; }
+  });
+  useEffect(() => {
+    try { candSort ? localStorage.setItem("screener.candSort.v1", JSON.stringify(candSort)) : localStorage.removeItem("screener.candSort.v1"); }
+    catch { /* private mode */ }
+  }, [candSort]);
   const runScreen = () => {
     setCandLoading(true);
     fetch(`${API}/screener/candidates?index=${encodeURIComponent(index)}&sort=${sort}`)

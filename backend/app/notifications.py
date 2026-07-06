@@ -178,7 +178,7 @@ async def _fire(a: dict, symbol: str, px: float) -> None:
 
     _push({
         "id": nid, "alert_id": a["id"], "symbol": symbol, "message": msg,
-        "price": px, "read": False, "created_at": _iso(),
+        "price": px, "read": False, "created_at": _iso(), "kind": "alert",
     })
     phone.dispatch(f"{symbol} alert", msg, category="alert")  # optional phone copy; silent no-op when off
     # ASCII-only log line (Windows console is cp1252 and chokes on ≥/≤)
@@ -196,7 +196,7 @@ async def post_system_notification(symbol: str | None, message: str, price: floa
         nid = n.id
         await s.commit()
     _push({"id": nid, "alert_id": None, "symbol": symbol, "message": message,
-           "price": price, "read": False, "created_at": _iso()})
+           "price": price, "read": False, "created_at": _iso(), "kind": "trigger"})
     phone.dispatch(symbol or "Schwab Trader", message, category="trigger")  # optional phone copy (strategy triggers)
     return nid
 
@@ -227,7 +227,7 @@ async def _emit(symbol: str | None, message: str, price: float | None, alert_id=
         nid = n.id
         await s.commit()
     _push({"id": nid, "alert_id": alert_id, "symbol": symbol, "message": message,
-           "price": price, "read": False, "created_at": _iso()})
+           "price": price, "read": False, "created_at": _iso(), "kind": "fill"})
     phone.dispatch(symbol or "Fill", message, category="fill")  # optional phone copy (resting fills)
 
 

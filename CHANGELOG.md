@@ -3,6 +3,17 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.16.0 — "Quiet the pop-ups"
+
+New this version:
+- Desktop notification control. You can now choose which categories pop a desktop notification —
+  price alerts, strategy triggers, and fills — right from the notification bell. (The bell itself
+  still logs everything.)
+- A small dot now marks any position that has a saved note, so your journal is visible at a glance
+  from the dashboard.
+- Export your dividend/income log as a CSV.
+- The screener remembers your chosen sort between sessions.
+
 ## v0.15.0 — "Your notes, your noise"
 
 New this version:

@@ -422,23 +422,38 @@ spreadsheets, records). Add CSV export for the trade journal and the deposit log
 - **W13-1 NOT pursued** — per-row alert popover on the dashboard is marginal over the existing row bell
   (prefills the alert form) + position-detail templates; dropped to avoid low-value per-row menu UI.
 
-# WAVE 14 — candidate queue (unstarted)
+# WAVE 14 — EXECUTED 2026-07-06, shipped v0.16.0
+
+- **W14-1 Desktop notification category prefs** — `kind` (alert|trigger|fill) added to the live _push
+  payload (NO migration — push-only, not stored); `fireDesktop` gates on localStorage desktop-category
+  prefs; toggles in the bell's feed tab. Completes W13-2's desktop half.
+- **W14-3 Note indicators** — `build_dashboard` sets `has_note` per row (from get_notes); a small dot on
+  the ticker cell marks positions with a saved note.
+- **W14-4 Small fixes #12** — dividend income-log CSV export (`/api/ledger/dividends.csv` + button);
+  screener candidate sort persists in localStorage.
+- **W14-2 DEFERRED → W15-1** — account name in print headers needs a Schwab-dependent account-label
+  lookup (null in demo → unverifiable here); carried to Wave 15.
+- **Notes "last edited" timestamp** — skipped (would change the notes storage shape from {sym: text} to
+  {sym: {text, at}}; not worth the added handling right now).
+
+# WAVE 15 — candidate queue (unstarted)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## W14-1 — Notification `kind` + desktop-channel prefs
-Add a `kind` (alert|trigger|fill) to the Notification model + push payload (migration), so the FRONTEND can
-gate DESKTOP notifications by category too (completing W13-2's other half) and the bell can show a type icon.
+## W15-1 — Account label in print headers (was W14-2)
+Include the selected account's mask/name (and profile) in the Ledger + Trades print blocks. Resolve the
+label from accounts_svc / the active profile (degrade to unlabeled when Schwab isn't connected).
 
-## W14-2 — Account name in print headers
-Thread the selected account mask/name into the Ledger + Trades print blocks (fetch once), so a printed/PDF
-report is unambiguously tied to an account.
+## W15-2 — Bell type icons
+Now that the push carries `kind`, show a small per-type icon in the bell feed (price alert vs trigger vs
+fill) so the history scans faster. (Historical rows lack kind → infer from alert_id / message, or add the
+`kind` column in a later migration if it proves worth it.)
 
-## W14-3 — Notes surfaced on the dashboard
-A small indicator on dashboard rows that have a note (hover to preview), so the journal isn't hidden behind
-opening each position.
+## W15-3 — Dashboard note preview on hover
+Upgrade the W14-3 note dot: a hover tooltip/popover showing the note text (needs the note text on the row
+or a lightweight fetch on hover).
 
-## W14-4 — Small-fixes bundle #12
-1. Position notes: show a "last edited" timestamp.
-2. Screener: persist the chosen sort in localStorage.
-3. Dividends: a CSV export of the income log (mirrors the trades/tax export).
+## W15-4 — Small-fixes bundle #13
+1. Empty-state polish across tabs (friendly "nothing yet" copy where sparse).
+2. A subtle "saved" flash on the position note after autosave.
+3. Consistent number formatting audit (thousands separators everywhere).

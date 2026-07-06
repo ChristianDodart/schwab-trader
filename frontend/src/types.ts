@@ -31,6 +31,7 @@ export type DashboardRow = {
   first_buy_date: string | null;
   dividends: number;      // income received for this name (held rows)
   total_return: number;   // realized + unrealized + dividends
+  has_note?: boolean;     // a saved journal note exists for this symbol
 };
 
 export type Dashboard = {
@@ -193,6 +194,7 @@ export type Notification = {
   price: number | null;
   read: boolean;
   created_at: string | null;
+  kind?: "alert" | "trigger" | "fill"; // live-push only (not stored) — for desktop gating
 };
 
 export type AuditEvent = {

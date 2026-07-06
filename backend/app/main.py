@@ -559,6 +559,15 @@ async def ledger_dividends_refresh() -> dict:
     return await ledger_svc.refresh_dividends(await _selected())
 
 
+@app.get("/api/ledger/dividends.csv")
+async def ledger_dividends_csv() -> Response:
+    """The stored dividend/income log as a downloadable CSV."""
+    d = await ledger_svc.get_dividends(await _selected())
+    headers = ["Date", "Symbol", "Amount", "Type"]
+    rows = [[r.get("day"), r.get("symbol") or "", r.get("amount"), r.get("type") or ""] for r in d.get("rows", [])]
+    return _csv_response("schwab-dividends", headers, rows)
+
+
 @app.get("/api/ledger/projection")
 async def ledger_projection() -> dict:
     """PREDICTION tab: this-year annualized gains, goal pacing, and tax estimate."""

@@ -221,6 +221,12 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
         if t.watch and t.symbol not in by:
             rows.append(_watch_row(t))
 
+    # Flag rows that have a saved journal note (surfaces the note without opening detail).
+    from .ledger import get_notes
+    notes = await get_notes(account_hash)
+    for r in rows:
+        r["has_note"] = r["symbol"] in notes
+
     # Header metric — "Harvestable": the profit you could lock in RIGHT NOW by selling
     # every profitable last position, measured vs. each last lot's entry price. It is
     # exactly the sum of the positive "Last Pos P/L" cells in the table, and equals what

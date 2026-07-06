@@ -6,8 +6,17 @@ import { API, wsUrl } from "./api";
 const WS_URL = wsUrl("/ws/notifications");
 
 const desktopSupported = typeof window !== "undefined" && "Notification" in window;
+// Which categories may pop a DESKTOP notification (localStorage; default all on). The
+// in-app bell always shows everything — these only gate the OS pop-up.
+const DESKTOP_CATS_KEY = "desktop.cats.v1";
+function desktopCats(): Record<string, boolean> {
+  try { return { alert: true, trigger: true, fill: true, ...JSON.parse(localStorage.getItem(DESKTOP_CATS_KEY) || "{}") }; }
+  catch { return { alert: true, trigger: true, fill: true }; }
+}
+
 function fireDesktop(n: Notification) {
   if (!desktopSupported || Notification.permission !== "granted") return;
+  if (n.kind && desktopCats()[n.kind] === false) return; // category muted for desktop
   try {
     new Notification(n.symbol ? `${n.symbol} alert` : "Schwab Trader", {
       body: n.message,
@@ -32,6 +41,12 @@ export function NotificationsBell({
   const [pulse, setPulse] = useState(false);
   const prevUnread = useRef(0);
   const [q, setQ] = useState(""); // history search (feed + activity)
+  const [dcats, setDcats] = useState(desktopCats);
+  const toggleDcat = (k: string) => setDcats((c) => {
+    const next = { ...c, [k]: !c[k] };
+    try { localStorage.setItem(DESKTOP_CATS_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+    return next;
+  });
   const match = (msg?: string | null, sym?: string | null) =>
     !q || (msg || "").toLowerCase().includes(q.toLowerCase()) || (sym || "").toLowerCase().includes(q.toLowerCase());
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -271,6 +286,16 @@ export function NotificationsBell({
               </div>
               <input className="field" value={q} onChange={(e) => setQ(e.target.value)}
                 placeholder="Filter by symbol or text" aria-label="Filter notifications" style={S.search} />
+              {desktopPerm === "granted" && (
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", padding: "0 14px 6px", fontSize: "var(--fs-2xs)", color: "var(--text-dim)" }}>
+                  <span>Desktop pop-ups:</span>
+                  {([["alert", "Alerts"], ["trigger", "Triggers"], ["fill", "Fills"]] as const).map(([k, label]) => (
+                    <label key={k} style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                      <input type="checkbox" checked={dcats[k] !== false} onChange={() => toggleDcat(k)} />{label}
+                    </label>
+                  ))}
+                </div>
+              )}
               {notes.length === 0 ? (
                 <p style={S.empty}>No notifications yet. Set a price alert →</p>
               ) : notes.filter((n) => match(n.message, n.symbol)).length === 0 ? (

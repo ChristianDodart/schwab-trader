@@ -356,6 +356,10 @@ export function LedgerHistoric() {
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) importDividendsCsv(f); e.target.value = ""; }} />
             </label>
             <button className="btn btn-secondary btn-sm" disabled={busy} onClick={refreshDividends}>↻ Pull from Schwab (60d)</button>
+            {div && div.rows.length > 0 && (
+              <button className="btn btn-secondary btn-sm" title="Download the income log as CSV"
+                onClick={() => { const a = document.createElement("a"); a.href = `${API}/ledger/dividends.csv`; a.rel = "noopener"; a.click(); }}>⬇ CSV</button>
+            )}
           </span>
         }
       >

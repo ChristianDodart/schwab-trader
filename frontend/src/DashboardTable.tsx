@@ -136,6 +136,7 @@ export function DashboardTable({
                   <td className="left">
                     <span style={S.tickerLine}>
                       <span style={{ fontWeight: 700 }}>{r.symbol}</span>
+                      {r.has_note && <span style={S.noteDot} title="Has a saved note — open to read it" aria-label="has note">●</span>}
                       {rowSignalChips(r)}
                       {r.is_watch && <span className="tag" style={S.watchTag}>watch</span>}
                       {!bulk && (
@@ -210,5 +211,6 @@ const S: Record<string, React.CSSProperties> = {
   tickerLine: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" },
   name: { fontSize: "var(--fs-2xs)", color: "var(--text-dim)", marginTop: 2 },
   watchTag: { color: "var(--accent-quiet)", border: "1px solid #3a4a5a", marginLeft: 2 },
+  noteDot: { color: "var(--accent-quiet)", fontSize: 8, cursor: "help", lineHeight: 1 },
   bell: { background: "transparent", border: "none", cursor: "pointer", fontSize: "var(--fs-xs)", padding: 0, verticalAlign: "middle" },
 };
