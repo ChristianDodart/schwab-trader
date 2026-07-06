@@ -10,12 +10,13 @@
 # → report the installer path + version. Fails loudly at the first broken step so
 # a stale artifact can never ship silently (the root cause of the first-run bug).
 #
-# -Publish PREREQUISITES (auto-update pipeline — not yet set up as of v0.3.0):
-#   1. Create a GitHub repo and fill desktop/package.json build.publish owner/repo
-#      (they're placeholders "REPLACE_WITH_GH_OWNER/REPO" right now).
-#   2. Set $env:GH_TOKEN to a token with 'repo' scope before running -Publish.
-#   Without both, electron-updater has no feed and -Publish will fail — that's a
-#   one-time maintainer setup, not a code task.
+# -Publish AUTO-UPDATE PIPELINE (set up as of v0.5.0):
+#   Feed repo: ChristianDodart/schwab-trader (public), wired in desktop/package.json
+#   build.publish. -Publish uploads the installer + latest.yml manifest to a GitHub
+#   Release; installed copies then self-update via electron-updater on next launch.
+#   Auth: uses $env:GH_TOKEN if set, else falls back to `gh auth token` (whichever
+#   gh account is ACTIVE — make sure it's ChristianDodart, `gh auth switch` if not).
+#   The token needs 'repo' scope.
 # ============================================================================
 param(
     [switch]$SkipBackend,   # skip PyInstaller when only the frontend changed
@@ -66,7 +67,13 @@ Write-Host "==> Installer (electron-builder)" -ForegroundColor Cyan
 Push-Location "$root/desktop"
 try {
     if ($Publish) {
-        if (-not $env:GH_TOKEN) { throw "-Publish needs `$env:GH_TOKEN (a GitHub token with 'repo' scope)" }
+        if (-not $env:GH_TOKEN) {
+            # Fall back to the active gh account's token so releasing is one command.
+            $env:GH_TOKEN = (gh auth token 2>$null)
+            if (-not $env:GH_TOKEN) { throw "-Publish needs a token: set `$env:GH_TOKEN or run `gh auth login` (repo scope)" }
+            $ghUser = (gh api user --jq .login 2>$null)
+            Write-Host "    using gh token for account: $ghUser" -ForegroundColor DarkGray
+        }
         Write-Host "    publishing a GitHub release (auto-update feed)" -ForegroundColor Yellow
         npm run release   # electron-builder --publish always
     } else {
