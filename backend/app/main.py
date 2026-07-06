@@ -640,6 +640,97 @@ async def ledger_dividends_import(body: CsvImportBody) -> dict:
     return await ledger_svc.import_dividends_csv(await _selected(), body.csv)
 
 
+@app.post("/api/data/import-csv")
+async def data_import_csv(body: CsvImportBody) -> dict:
+    """ONE-FILE intake for a Schwab Transactions export: routes Buy/Sell rows into the
+    persistent fill ledger, transfers into the deposit log, dividends/interest into the
+    income log — each deduped and idempotent — then re-projects the ladder + realized
+    trades from the full history. The onboarding path for an account with years of data."""
+    from . import fill_store, rebuild as rebuild_svc
+
+    acct = await _selected()
+    trades = await fill_store.import_csv_fills(acct, body.csv)
+    if not trades.get("ok"):
+        return {"ok": False, "error": trades.get("error", "Couldn't parse the CSV.")}
+    cash = await ledger_svc.import_cashflows_csv(acct, body.csv)
+    divs = await ledger_svc.import_dividends_csv(acct, body.csv)
+    projection = await rebuild_svc.project_account(acct) if trades.get("added") else {"ok": True, "skipped": "no new fills"}
+    return {
+        "ok": True,
+        "trades": {k: trades.get(k) for k in ("added", "skipped_known", "bad_rows", "coverage")},
+        "other_actions": trades.get("other_actions") or {},
+        "cashflows": {"added": cash.get("added", 0)},
+        "dividends": {"added": divs.get("added", 0)},
+        "projection": projection,
+    }
+
+
+@app.get("/api/data/health")
+async def data_health() -> dict:
+    """Data-integrity report for the selected account: fill-ledger coverage, projection
+    depth, synthetic (position-backfilled) lots, and per-symbol reconstructed-vs-live
+    share differences when Schwab is reachable."""
+    from sqlalchemy import func as _func, select as _select
+
+    from . import fill_store, rebuild as rebuild_svc
+    from .db import SessionLocal as _SL
+    from .db.models import CompletedTrade as _CT, Lot as _Lot
+    from .reconstruct import reconstruct as _recon
+
+    acct = await _selected()
+    ledger = await fill_store.ledger_stats(acct)
+    async with _SL() as s:
+        lots = (await s.execute(
+            _select(_Lot.symbol, _Lot.source, _Lot.shares).where(_Lot.account_hash == acct)
+        )).all()
+        trade_count = (await s.execute(
+            _select(_func.count()).select_from(_CT).where(_CT.account_hash == acct)
+        )).scalar()
+        earliest_trade = (await s.execute(
+            _select(_func.min(_CT.completed_at)).where(_CT.account_hash == acct)
+        )).scalar()
+    synthetic = [{"symbol": sym, "shares": float(sh)} for sym, src, sh in lots if src == "position"]
+
+    # Reconstructed open totals from the ledger vs Schwab's live positions (when reachable).
+    stored = await fill_store.load_fills(acct)
+    recon_totals: dict[str, float] = {}
+    if stored:
+        for sym, ls in _recon(stored)["open_lots"].items():
+            recon_totals[sym] = round(sum(l.shares for l in ls), 4)
+    positions = await rebuild_svc._fetch_positions_map(acct)
+    diffs = []
+    if positions is not None:
+        for sym in sorted(set(recon_totals) | set(positions)):
+            have = recon_totals.get(sym, 0.0)
+            actual = round(positions.get(sym, (0.0, 0.0))[0], 4)
+            if abs(have - actual) > 1e-6:
+                diffs.append({"symbol": sym, "reconstructed": have, "actual": actual,
+                              "diff": round(actual - have, 4)})
+
+    recs = []
+    if ledger["total"] == 0:
+        recs.append("No fill history stored yet — connect Schwab (recent trades sync "
+                    "automatically) and import a Transactions CSV for the deep past.")
+    elif diffs or synthetic:
+        earliest = ledger["earliest"] or "?"
+        recs.append(f"Some holdings predate the stored history (earliest fill {earliest}). "
+                    f"Export a Transactions CSV covering earlier dates and import it under "
+                    f"Settings to recover the full ladder and realized history.")
+    return {
+        "ok": True,
+        "fill_ledger": ledger,
+        "projection": {
+            "open_lots": len(lots),
+            "synthetic_lots": synthetic,
+            "completed_trades": int(trade_count or 0),
+            "earliest_completed": earliest_trade.isoformat() if earliest_trade else None,
+        },
+        "position_diffs": diffs,
+        "positions_checked": positions is not None,
+        "recommendations": recs,
+    }
+
+
 @app.get("/api/positions")
 async def positions() -> dict:
     return await ledger_svc.build_positions(await _selected())

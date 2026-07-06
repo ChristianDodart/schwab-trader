@@ -120,6 +120,10 @@ export function Settings({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) =
         <PhoneNotify />
       </Section>
 
+      <Section title="Data health & import" info="The app rebuilds your ladder and realized history from a durable fill ledger: recent trades sync from Schwab automatically, and one Transactions CSV export backfills years of history in a single upload (trades, deposits, and dividends are all routed from the same file). Re-importing is always safe — nothing double-counts.">
+        <DataHealth />
+      </Section>
+
       <Section title="Data & backups" info="Your entire trading history lives in one local database file. The app backs it up automatically on startup and daily (keeping the newest 14), using a method that's safe while the app is running. Backups exclude the Schwab connection — after restoring, just reconnect.">
         <Backups />
       </Section>
@@ -627,6 +631,101 @@ function SignalRulesEditor() {
         <button className="btn btn-secondary btn-sm" onClick={() => setRules((rs) => [...rs!, newRule("buy")])}>+ Buy rule</button>
         <button className="btn btn-primary btn-sm" disabled={busy} onClick={save} style={{ marginLeft: "auto" }}>Save rules</button>
       </div>
+    </div>
+  );
+}
+
+type HealthReport = {
+  ok: boolean;
+  fill_ledger: { total: number; by_source: Record<string, number>; earliest: string | null; latest: string | null };
+  projection: { open_lots: number; synthetic_lots: { symbol: string; shares: number }[]; completed_trades: number; earliest_completed: string | null };
+  position_diffs: { symbol: string; reconstructed: number; actual: number; diff: number }[];
+  positions_checked: boolean;
+  recommendations: string[];
+};
+
+// Data-integrity panel: fill-ledger coverage + gaps, and the ONE-FILE intake — a
+// Schwab Transactions CSV routes trades/deposits/dividends in a single upload.
+function DataHealth() {
+  const toast = useToast();
+  const [h, setH] = useState<HealthReport | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+
+  const load = () => {
+    fetch(`${API}/data/health`).then((r) => r.json())
+      .then((j) => setH(j?.ok ? j : null)).catch(() => setH(null));
+  };
+  useEffect(load, []);
+
+  const onFile = (file: File | null) => {
+    if (!file) return;
+    setBusy(true);
+    setSummary(null);
+    file.text()
+      .then((csv) => fetch(`${API}/data/import-csv`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ csv }),
+      }))
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j?.ok) { toast(j?.error || "Couldn't import the file.", "error"); return; }
+        const t = j.trades || {};
+        const parts = [
+          `${t.added ?? 0} trades added${t.skipped_known ? ` (${t.skipped_known} already known)` : ""}`,
+          `${j.cashflows?.added ?? 0} deposits/withdrawals`,
+          `${j.dividends?.added ?? 0} dividends`,
+        ];
+        const others = Object.entries(j.other_actions || {});
+        if (others.length) parts.push(`skipped: ${others.map(([k, v]) => `${k} ×${v}`).join(", ")}`);
+        setSummary(parts.join(" · "));
+        toast(t.added ? "History imported — ladder and realized trades re-projected." : "Nothing new in this file — already fully imported.", "success");
+        load();
+      })
+      .catch(() => toast("Import failed — network error.", "error"))
+      .finally(() => setBusy(false));
+  };
+
+  const led = h?.fill_ledger;
+  const proj = h?.projection;
+  return (
+    <div>
+      {h ? (
+        <>
+          <div style={{ display: "flex", gap: 24, flexWrap: "wrap", fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
+            <span>Fill history <b style={{ color: "var(--text)" }}>{led!.total.toLocaleString()}</b>
+              {led!.total > 0 && <> · {Object.entries(led!.by_source).map(([s, n]) => `${n} ${s}`).join(" + ")}</>}
+            </span>
+            {led!.earliest && <span>covers <b style={{ color: "var(--text)" }}>{led!.earliest} → {led!.latest}</b></span>}
+            <span>Realized trades <b style={{ color: "var(--text)" }}>{proj!.completed_trades.toLocaleString()}</b>
+              {proj!.earliest_completed && <> (since {proj!.earliest_completed})</>}</span>
+          </div>
+          {proj!.synthetic_lots.length > 0 && (
+            <p style={{ ...S.credStatus, color: "var(--warn)" }}>
+              {proj!.synthetic_lots.length} holding{proj!.synthetic_lots.length === 1 ? "" : "s"} ({proj!.synthetic_lots.map((l) => l.symbol).join(", ")}) partly
+              predate the stored history — shown as "prior holdings" lots until older trades are imported.
+            </p>
+          )}
+          {h.position_diffs.length > 0 && (
+            <p style={{ ...S.credStatus, color: "var(--warn)" }}>
+              Share-count differences vs Schwab: {h.position_diffs.map((d) => `${d.symbol} ${d.diff > 0 ? "+" : ""}${d.diff}`).join(", ")} — a resync or CSV import usually resolves this.
+            </p>
+          )}
+          {h.recommendations.map((r, i) => <p key={i} style={S.credStatus}>{r}</p>)}
+        </>
+      ) : (
+        <p style={S.credStatus}>Loading health report…</p>
+      )}
+      <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
+        <label className={`btn btn-secondary btn-sm${busy ? " disabled" : ""}`} style={{ cursor: busy ? "wait" : "pointer" }}>
+          {busy ? "Importing…" : "Import Schwab transactions CSV"}
+          <input type="file" accept=".csv,text/csv" disabled={busy} style={{ display: "none" }}
+            onChange={(e) => { onFile(e.target.files?.[0] ?? null); e.currentTarget.value = ""; }} />
+        </label>
+        <span style={{ fontSize: "var(--fs-xs)", color: "var(--text-dim)" }}>
+          Schwab.com → Accounts → History → Export. One file imports trades, deposits, and dividends together.
+        </span>
+      </div>
+      {summary && <p style={{ ...S.credStatus, marginTop: 8 }}>{summary}</p>}
     </div>
   );
 }

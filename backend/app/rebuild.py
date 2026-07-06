@@ -203,10 +203,26 @@ async def _auto_watch_closed(closed: dict) -> None:
         await s.commit()
 
 
+async def project_account(account_hash: str) -> dict:
+    """Re-project the ladder from the PERSISTED fill ledger (no API fill fetch) —
+    used after a CSV import lands new history, or to heal manually. Still fetches
+    live positions for the reconcile step when available."""
+    from . import fill_store
+
+    async with _lock_for(account_hash):
+        stored = await fill_store.load_fills(account_hash)
+        if not stored:
+            return {"ok": True, "skipped": "fill ledger is empty — nothing to project"}
+        positions = await _fetch_positions_map(account_hash)
+        return await _write(account_hash, stored, positions)
+
+
 async def resync_account(account_hash: str) -> dict:
-    """The production entry point: fetch fills + current positions, reconstruct the
-    ladder, reconcile it to the positions (so the total always matches Schwab), and
-    write — all under one lock. Then announce new fills in the bell feed."""
+    """The production entry point: fetch fills + current positions, PERSIST the fresh
+    fills into the durable ledger, project the ladder from the FULL ledger (API +
+    CSV history), reconcile it to positions, and write — all under one lock. Then
+    announce new fills in the bell feed."""
+    from . import fill_store
     from . import fills as fills_svc
     from . import fills_hint
 
@@ -220,7 +236,25 @@ async def resync_account(account_hash: str) -> dict:
         fills = await fills_svc.fetch_fills(account_hash) if probe else []
         positions = await _fetch_positions_map(account_hash)
         pre_marks = await _open_lot_marks(account_hash)   # positions held before this rebuild
-        result = await _write(account_hash, fills, positions)
+
+        # Durable ledger: persist what the API just returned (idempotent; upgrades any
+        # matching CSV rows), then project from the FULL history. A fetch ERROR (None)
+        # stays a strict no-op — never project mid-unknown-state. An empty ledger falls
+        # through to the legacy behavior (fills as-is → positions-mirror/refuse guards).
+        effective = fills
+        if fills is not None:
+            if fills:
+                try:
+                    up = await fill_store.upsert_api_fills(account_hash, fills)
+                    if up["added"] or up["upgraded_csv"]:
+                        print(f"[resync] {account_hash[-4:]} fill ledger: +{up['added']} api "
+                              f"({up['upgraded_csv']} csv upgraded, {up['skipped']} known)")
+                except Exception as e:
+                    print(f"[resync] fill-ledger persist failed (projecting from fetch): {e!r}")
+            stored = await fill_store.load_fills(account_hash)
+            if stored:
+                effective = stored
+        result = await _write(account_hash, effective, positions)
         # Positions that were held and are now flat → auto-add to the watchlist, and
         # remember the last held price so the watch row can show it.
         post_marks = await _open_lot_marks(account_hash)

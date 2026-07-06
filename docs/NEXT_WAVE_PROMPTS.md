@@ -508,24 +508,45 @@ below was NOT this wave — it rolls forward to Wave 19.)
 - **README** rewritten for the current app (desktop/SQLite/auto-update + full feature set).
 - Verified: 111 backend + 21 frontend tests, tsc + build clean; live-verified vs a DB copy.
 
-# WAVE 19 — candidate queue (older polish, rolled forward from Wave 18)
+# WAVE 19 (DATA INTEGRITY) — EXECUTED 2026-07-06, shipped v0.21.0
+
+The data-integrity phase (see docs/DATA_INTEGRITY.md for the full plan/inventory):
+- **Persistent fill ledger** — new `fill_record` table (migration `a1b2c3d4e5f6`,
+  SQLite-safe) + `fill_store.py`. Every fill from any source is stored append-only;
+  lots + completed trades are now a PROJECTION of it (resync upserts fresh API fills
+  then projects from the FULL ledger; all rebuild trust-guards preserved).
+- **Cross-source dedup** — exact fill_key idempotency per source; between sources the
+  (day, symbol, side) GROUP rule: the API is complete for any group it covers, so its
+  per-leg fills evict/blocks CSV per-order aggregates (partial-fill safe). Pure +
+  unit-tested (7 tests).
+- **One-file CSV intake** — `POST /api/data/import-csv` routes a Schwab Transactions
+  export: Buy/Sell → fill ledger, transfers → deposit log, dividends/interest →
+  income log (all idempotent), reports skipped actions, then `project_account()`.
+- **Data health** — `GET /api/data/health`: ledger coverage/sources, projection depth,
+  synthetic (position-backfilled) lots, reconstructed-vs-live share diffs, actionable
+  recommendations. Settings → "Data health & import" panel with the CSV upload.
+- **E2E-verified on the real account** (DB copy): migration ran on a stamped SQLite DB;
+  the real 33-row CSV reconstructed holdings EXACTLY (LUNR 31/2 lots, RCAX 90, QBTS 21,
+  ASTS 5), 15 realized trades, zero synthetic lots; re-import added 0.
+
+# WAVE 20 — candidate queue (older polish, rolled forward)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## W19-1 — Account label in print headers (was W14-2/W16-1)
+## W20-1 — Account label in print headers (was W14-2/W16-1)
 Include the selected account's mask/name (and profile) in the Ledger + Trades print blocks. Resolve the
 label from accounts_svc / the active profile (degrade to unlabeled when Schwab isn't connected).
 
-## W19-2 — Bell type icons
+## W20-2 — Bell type icons
 Now that the push carries `kind`, show a small per-type icon in the bell feed (price alert vs trigger vs
 fill) so the history scans faster. (Historical rows lack kind → infer from alert_id / message, or add the
 `kind` column in a later migration if it proves worth it.)
 
-## W19-3 — Dashboard note preview on hover
+## W20-3 — Dashboard note preview on hover
 Upgrade the W14-3 note dot: a hover tooltip/popover showing the note text (needs the note text on the row
 or a lightweight fetch on hover).
 
-## W19-4 — Small-fixes bundle #13
+## W20-4 — Small-fixes bundle #13
 1. Empty-state polish across tabs (friendly "nothing yet" copy where sparse).
 2. A subtle "saved" flash on the position note after autosave.
 3. Consistent number formatting audit (thousands separators everywhere).

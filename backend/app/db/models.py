@@ -221,6 +221,36 @@ class Notification(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class FillRecord(Base):
+    """The persistent fill ledger — every executed buy/sell ever seen, from any
+    source. APPEND-ONLY: open lots + completed trades are a pure PROJECTION of
+    this table (reconstruct → reconcile → write), so projections can be wiped and
+    rebuilt at will without losing history. This is what lets a 3-year account
+    outlive the Schwab API's ~1-year order window.
+
+    Sources: "api" (orders endpoint — exact timestamps + order ids) and "csv"
+    (Transactions export — date-level; upgraded in place when the matching API
+    fill later appears). fill_key is the deterministic identity used for
+    idempotent ingest (see fill_store)."""
+
+    __tablename__ = "fill_record"
+    __table_args__ = {"sqlite_autoincrement": True}
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_hash: Mapped[str] = mapped_column(String(64), index=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    side: Mapped[str] = mapped_column(String(4))                # "BUY" | "SELL"
+    shares: Mapped[float] = mapped_column(Numeric(14, 4))
+    price: Mapped[float] = mapped_column(Numeric(14, 4))
+    at: Mapped[datetime] = mapped_column()                      # naive UTC (CSV rows: midnight of trade date)
+    trade_date: Mapped[date] = mapped_column(index=True)        # day-level key for cross-source dedup
+    order_type: Mapped[str | None] = mapped_column(String(16))
+    order_id: Mapped[str | None] = mapped_column(String(32))
+    source: Mapped[str] = mapped_column(String(8))              # "api" | "csv" | "manual"
+    fill_key: Mapped[str] = mapped_column(String(180), unique=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 class AuditEvent(Base):
     """The quiet activity log — a record of what happened (every fill, incl. the
     guaranteed/instant market fills). NOT pushed; reviewed on demand. Notifications

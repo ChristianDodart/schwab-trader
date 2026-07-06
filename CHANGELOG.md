@@ -3,6 +3,31 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.21.0 — "Your history, whole"
+
+The data-integrity release: complete, self-healing data — built so someone with
+years of trading history can start using the app without typing anything in.
+
+New this version:
+- A durable fill ledger. Every buy and sell the app ever sees is now stored
+  permanently; your ladder and realized-trade history are rebuilt from it rather
+  than from whatever the Schwab API happens to remember (it only reaches back
+  about a year). Recent trades keep syncing automatically like before.
+- One-file history import. Export your full transaction history from Schwab
+  (Accounts › History › Export) and drop the CSV into Settings › Data health &
+  import — trades, deposits, and dividends are all routed from that single file,
+  years of ladder and realized history land at once, and the app re-derives
+  everything. Importing the same file twice is always safe; nothing double-counts.
+  Trades already known from the live connection are recognized and skipped.
+- Data health panel. Settings now shows exactly what your history covers — how
+  many fills are stored and from where, the date range, realized-trade depth,
+  any holdings that predate the stored history, and any share-count differences
+  vs Schwab — with plain instructions on how to fill a gap when one exists.
+
+Under the hood, positions and realized trades are now a pure projection of the
+stored history: they can be rebuilt at any time, and imports only ever add —
+nothing in your source data is overwritten or deleted.
+
 ## v0.20.0 — "Group up, get out"
 
 New this version:
