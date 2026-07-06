@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import { usd } from "./App";
-import { DASH_COLUMNS, PINNED_DASH, rowSignalChips } from "./columns";
+import { DASH_COLUMNS, PINNED_DASH, rowSignalChips, tickerRiskColor, RISK_LABEL } from "./columns";
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
 import type { SignalRule } from "./signals";
@@ -138,7 +138,7 @@ export function DashboardTable({
                   )}
                   <td className="left">
                     <span style={S.tickerLine}>
-                      <span style={{ fontWeight: 700 }}>{r.symbol}</span>
+                      <span style={{ fontWeight: 700, color: tickerRiskColor(r.risk) }} title={r.risk ? RISK_LABEL[r.risk] : undefined}>{r.symbol}</span>
                       {r.has_note && <span style={S.noteDot} title="Has a saved note — open to read it" aria-label="has note">●</span>}
                       {rowSignalChips(r, signalRules)}
                       {r.is_watch && (

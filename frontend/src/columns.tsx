@@ -61,6 +61,21 @@ const Chip = ({ children, kind }: { children: React.ReactNode; kind: "buy" | "se
   </span>
 );
 
+// Ticker color by risk band (blue = safer → red = riskier). Neutral (undefined) for
+// medium/unknown so the symbol reads normally. Shared by the dashboard, detail, screener.
+export function tickerRiskColor(risk: string | null | undefined): string | undefined {
+  switch (risk) {
+    case "low": return "var(--accent-quiet)"; // muted blue — safer (broad ETF / large cap)
+    case "elevated": return "var(--warn)";     // amber — small cap
+    case "high": return "var(--neg)";          // red — leveraged/inverse or micro cap
+    default: return undefined;                  // medium/unknown → normal text
+  }
+}
+export const RISK_LABEL: Record<string, string> = {
+  low: "Lower risk (broad fund / large cap)", medium: "Mid cap / unclassified",
+  elevated: "Small cap — higher risk", high: "Leveraged/inverse or micro cap — highest risk",
+};
+
 // A custom-rule chip in the rule's own color (▲ buy / ▼ sell for grayscale separability).
 const CustomChip = ({ rule }: { rule: SignalRule }) => (
   <span className="chip" style={{ marginLeft: 4, background: rule.color, color: "#0b0e13", fontWeight: 700 }}

@@ -3,12 +3,13 @@ import { AccountPicker } from "./AccountPicker";
 import { AuthBanner, LiveStatusPill, useLiveness } from "./AuthBanner";
 import { UpdateBanner } from "./UpdateBanner";
 import { SectorStrip } from "./SectorStrip";
-import type { SignalRule } from "./signals";
+import { matchesRule, type SignalRule } from "./signals";
 import { BulkGear, BulkReviewModal, useBulk } from "./Bulk";
 import { ColumnManager } from "./ColumnManager";
 import { ConfirmDialog } from "./Modal";
 import { DASH_COLUMNS, DASH_COLUMN_LIST, DEFAULT_DASH_COLS, useColumnPrefs } from "./columns";
 import { DashboardTable } from "./DashboardTable";
+import { tickerRiskColor } from "./columns";
 import { Ledger } from "./Ledger";
 import { NotificationsBell } from "./Notifications";
 import { Orders } from "./Orders";
@@ -44,6 +45,7 @@ export function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [symQuery, setSymQuery] = useState("");        // "/" jump-to filter (by ticker)
   const [sectorFilter, setSectorFilter] = useState<string | null>(null); // click a sector chip
+  const [dashSub, setDashSub] = useState<"all" | "todo" | "top">("all");
   const symInputRef = useRef<HTMLInputElement>(null);
   const gPending = useRef(false); // "g" prefix for vim-style tab jumps (g then d/s/l/o/r)
   const [cashInfo, setCashInfo] = useState<{ cash: number | null; buying_power: number | null; margin_buying_power: number | null } | null>(null);
@@ -77,6 +79,9 @@ export function App() {
   const dashRows = (data?.rows ?? []).filter((r) =>
     (!symQuery || r.symbol.toUpperCase().includes(symQuery)) &&
     (!sectorFilter || (r.sector || "Untagged") === sectorFilter));
+  // To-Do: held positions meeting a BUY or SELL signal (built-in mark OR a custom rule).
+  const todoRows = (data?.rows ?? []).filter((r) =>
+    !r.is_watch && (r.buy_mark || r.sell_mark || signalRules.some((rule) => matchesRule(rule, r))));
 
   // One-time "you just updated" toast: compare the running version to the last one we saw.
   // Only fires when it actually changed (not on a fresh install), then records the new one.
@@ -413,49 +418,74 @@ export function App() {
                     Settings → Schwab connection.
                   </p>
                 )}
-                <SectorStrip rows={data.rows}
-                  activeSector={sectorFilter}
-                  onSectorClick={(name) => setSectorFilter((cur) => (cur === name ? null : name))} />
-                <div style={S.filterBar}>
-                  <input ref={symInputRef} className="field" value={symQuery} placeholder="Jump to ticker  ( / )"
-                    aria-label="Filter positions by ticker" style={{ height: 30, width: 190 }}
-                    onChange={(e) => setSymQuery(e.target.value.toUpperCase())}
-                    onKeyDown={(e) => { if (e.key === "Escape") { setSymQuery(""); e.currentTarget.blur(); } }} />
-                  {symQuery && <button className="btn btn-ghost btn-sm" onClick={() => setSymQuery("")}>clear</button>}
-                  {(symQuery || sectorFilter) && (
-                    <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-xs)" }}>
-                      showing {dashRows.length} of {data.rows.length}
-                    </span>
-                  )}
-                  {sectorFilter && (
-                    <span style={S.activeFilter}>
-                      Sector: <b>{sectorFilter}</b>
-                      <button aria-label="Clear sector filter" style={S.filterX} onClick={() => setSectorFilter(null)}>✕</button>
-                    </span>
-                  )}
-                  <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                    {paused && <span style={S.pausedChip}>paused · frozen at {pausedSince}</span>}
-                    <button className="btn btn-ghost btn-sm" aria-pressed={paused}
-                      title={paused ? "Resume live updates" : "Freeze the table so a quote can't shift under you"}
-                      onClick={togglePause}>{paused ? "Resume" : "Pause updates"}</button>
-                  </span>
+                <div style={S.dashSubtabs} role="tablist" aria-label="Dashboard views">
+                  {([["all", "All"], ["todo", "To-Do"], ["top", "Top 10"]] as const).map(([k, label]) => (
+                    <button key={k} role="tab" aria-selected={dashSub === k} className="btn btn-sm"
+                      style={dashSub === k ? S.subActive : S.subIdle} onClick={() => setDashSub(k)}>
+                      {label}{k === "todo" && todoRows.length ? ` · ${todoRows.length}` : ""}
+                    </button>
+                  ))}
                 </div>
-                <div style={pricesStale ? { opacity: 0.55, transition: "opacity .2s" } : undefined}>
-                  <DashboardTable
-                    rows={dashRows}
-                    cols={dashCols.ids}
-                    selected={selected}
-                    onSelect={(sym) => setSelected(sym === selected ? null : sym)}
-                    onRemoveTicker={removeTicker}
-                    onBuyWatch={buyWatch}
-                    onAlert={onAlert}
-                    bulk={bulk.bulkUI}
-                    signalRules={signalRules}
-                    renderDetail={(sym) => (
-                      <PositionDetail symbol={sym} mode={mode} onClose={() => setSelected(null)} embedded />
+                {dashSub === "top" ? (
+                  <Top10 rows={data.rows} onSelect={(sym) => setSelected(sym === selected ? null : sym)} />
+                ) : (
+                  <>
+                    {dashSub === "all" && (
+                      <>
+                        <SectorStrip rows={data.rows}
+                          activeSector={sectorFilter}
+                          onSectorClick={(name) => setSectorFilter((cur) => (cur === name ? null : name))} />
+                        <div style={S.filterBar}>
+                          <input ref={symInputRef} className="field" value={symQuery} placeholder="Jump to ticker  ( / )"
+                            aria-label="Filter positions by ticker" style={{ height: 30, width: 190 }}
+                            onChange={(e) => setSymQuery(e.target.value.toUpperCase())}
+                            onKeyDown={(e) => { if (e.key === "Escape") { setSymQuery(""); e.currentTarget.blur(); } }} />
+                          {symQuery && <button className="btn btn-ghost btn-sm" onClick={() => setSymQuery("")}>clear</button>}
+                          {(symQuery || sectorFilter) && (
+                            <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-xs)" }}>
+                              showing {dashRows.length} of {data.rows.length}
+                            </span>
+                          )}
+                          {sectorFilter && (
+                            <span style={S.activeFilter}>
+                              Sector: <b>{sectorFilter}</b>
+                              <button aria-label="Clear sector filter" style={S.filterX} onClick={() => setSectorFilter(null)}>✕</button>
+                            </span>
+                          )}
+                          <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                            {paused && <span style={S.pausedChip}>paused · frozen at {pausedSince}</span>}
+                            <button className="btn btn-ghost btn-sm" aria-pressed={paused}
+                              title={paused ? "Resume live updates" : "Freeze the table so a quote can't shift under you"}
+                              onClick={togglePause}>{paused ? "Resume" : "Pause updates"}</button>
+                          </span>
+                        </div>
+                      </>
                     )}
-                  />
-                </div>
+                    {dashSub === "todo" && (
+                      <p style={S.note}>
+                        {todoRows.length
+                          ? `${todoRows.length} position${todoRows.length === 1 ? "" : "s"} meeting a buy or sell signal right now.`
+                          : "Nothing meets a buy or sell signal right now — you're all caught up."}
+                      </p>
+                    )}
+                    <div style={pricesStale ? { opacity: 0.55, transition: "opacity .2s" } : undefined}>
+                      <DashboardTable
+                        rows={dashSub === "todo" ? todoRows : dashRows}
+                        cols={dashCols.ids}
+                        selected={selected}
+                        onSelect={(sym) => setSelected(sym === selected ? null : sym)}
+                        onRemoveTicker={removeTicker}
+                        onBuyWatch={buyWatch}
+                        onAlert={onAlert}
+                        bulk={bulk.bulkUI}
+                        signalRules={signalRules}
+                        renderDetail={(sym) => (
+                          <PositionDetail symbol={sym} mode={mode} onClose={() => setSelected(null)} embedded />
+                        )}
+                      />
+                    </div>
+                  </>
+                )}
               </>
             ) : (
               <SkeletonTable />
@@ -575,6 +605,72 @@ function KPI({ label, value, n, hero, first, hint }: { label: string; value: str
   );
 }
 
+// Top 10 — quick glance at the day's most actionable names. Two lists from the held rows:
+// deepest dips (lowest LILO %, i.e. most below the last buy → buy-worthy) and biggest
+// last-position gains (profit ÷ cost → sell-worthy). Both clickable to drill in.
+function Top10({ rows, onSelect }: { rows: DashboardRow[]; onSelect: (s: string) => void }) {
+  const held = rows.filter((r) => !r.is_watch);
+  const dips = held
+    .filter((r) => r.lilo_pct != null)
+    .sort((a, b) => (a.lilo_pct as number) - (b.lilo_pct as number))
+    .slice(0, 10);
+  const gainPct = (r: DashboardRow) =>
+    r.last_pos_profit != null && r.last_pos_cost ? (r.last_pos_profit / r.last_pos_cost) * 100 : null;
+  const gainers = held
+    .filter((r) => gainPct(r) != null)
+    .sort((a, b) => (gainPct(b) as number) - (gainPct(a) as number))
+    .slice(0, 10);
+
+  const Sym = ({ r }: { r: DashboardRow }) => (
+    <button className="btn btn-ghost btn-sm" style={{ padding: "0 4px", fontWeight: 700, color: tickerRiskColor(r.risk) }}
+      onClick={() => onSelect(r.symbol)}>{r.symbol}</button>
+  );
+
+  return (
+    <div style={S.top10grid}>
+      <section className="panel" style={{ padding: 14 }}>
+        <h3 style={{ margin: "0 0 8px", fontSize: "var(--fs-md)" }}>Top dips — buy-worthy</h3>
+        {dips.length ? (
+          <table className="tbl">
+            <thead><tr><th style={{ textAlign: "left" }}>Ticker</th><th style={{ textAlign: "right" }}>Price</th><th style={{ textAlign: "right" }}>LILO</th></tr></thead>
+            <tbody>
+              {dips.map((r) => (
+                <tr key={r.symbol}>
+                  <td><Sym r={r} /></td>
+                  <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{usd(r.price)}</td>
+                  <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--text-muted)" }}>{pct(r.lilo_pct)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <p style={S.note}>No priced positions yet.</p>}
+      </section>
+      <section className="panel" style={{ padding: 14 }}>
+        <h3 style={{ margin: "0 0 8px", fontSize: "var(--fs-md)" }}>Top gainers — sell-worthy</h3>
+        {gainers.length ? (
+          <table className="tbl">
+            <thead><tr><th style={{ textAlign: "left" }}>Ticker</th><th style={{ textAlign: "right" }}>Price</th><th style={{ textAlign: "right" }}>Last-pos gain</th></tr></thead>
+            <tbody>
+              {gainers.map((r) => {
+                const g = gainPct(r) as number;
+                return (
+                  <tr key={r.symbol}>
+                    <td><Sym r={r} /></td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{usd(r.price)}</td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: g >= 0 ? "var(--pos)" : "var(--neg)" }}>
+                      {g >= 0 ? "+" : ""}{g.toFixed(1)}%
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : <p style={S.note}>No priced positions yet.</p>}
+      </section>
+    </div>
+  );
+}
+
 export const usd = (n: number | null | undefined) =>
   n == null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 export const pct = (n: number | null | undefined) =>
@@ -604,5 +700,9 @@ const S: Record<string, React.CSSProperties> = {
   activeFilter: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--fs-xs)", color: "var(--text-muted)", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--r-pill)", padding: "2px 10px" },
   filterX: { background: "transparent", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "var(--fs-xs)", padding: 0 },
   pausedChip: { fontSize: "var(--fs-2xs)", color: "var(--warn)", border: "1px solid var(--warn-border)", borderRadius: "var(--r-pill)", padding: "1px 9px", textTransform: "uppercase", letterSpacing: "0.04em" },
+  dashSubtabs: { display: "inline-flex", gap: 4, margin: "0 0 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--r-pill)", padding: 3 },
+  subActive: { border: "none", background: "var(--accent)", color: "#0b0e13", fontWeight: 700, borderRadius: "var(--r-pill)" },
+  subIdle: { border: "none", background: "transparent", color: "var(--text-muted)", borderRadius: "var(--r-pill)" },
+  top10grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 },
   kbd: { fontFamily: "monospace", fontSize: "var(--fs-xs)", background: "var(--panel-2)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-sm)", padding: "1px 8px", color: "var(--text)", minWidth: 22, textAlign: "center" },
 };

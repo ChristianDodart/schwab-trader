@@ -465,6 +465,14 @@ async def ledger_cap_gains(grain: str = "month", start: str | None = None, end: 
     )
 
 
+@app.get("/api/ledger/activity")
+async def ledger_activity(grain: str = "week", start: str | None = None, end: str | None = None) -> dict:
+    """Gross dollars bought and sold per period (day/week/month/year) from the fill log."""
+    return await ledger_svc.build_activity(
+        grain, await _selected(), ledger_svc._parse_date(start), ledger_svc._parse_date(end)
+    )
+
+
 @app.get("/api/ledger/tax")
 async def ledger_tax() -> dict:
     return await ledger_svc.build_tax(await _selected())

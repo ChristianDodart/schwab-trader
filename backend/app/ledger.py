@@ -26,7 +26,7 @@ from . import config_store
 from . import market_data
 from . import xirr as xirr_calc
 from .db import SessionLocal, dialect_insert as pg_insert
-from .db.models import AppSetting, CashFlow, CompletedTrade, DailyBalance, Lot
+from .db.models import AppSetting, AuditEvent, CashFlow, CompletedTrade, DailyBalance, Lot
 from .schwab import hub
 from .strategy import rules
 
@@ -245,6 +245,59 @@ async def build_cap_gains(grain: str = "month", account_hash: str = "",
         for k, v in sorted(buckets.items())
     ]
     return {"grain": grain, "rows": out, "total_cap_gains": round(sum(r["cap_gains"] for r in out), 2)}
+
+
+async def build_activity(grain: str = "week", account_hash: str = "",
+                         from_date: date | None = None, to_date: date | None = None) -> dict:
+    """Gross dollars BOUGHT and SOLD per period — "what did I actually do this
+    week/month?". Sourced from the fill audit log (every executed buy/sell), so it
+    reflects real activity, not just closed round-trips. Net = sold - bought (cash
+    that moved back into the account). Bucketed in Python, dialect-neutral."""
+    grain = grain if grain in _GRAINS else "week"
+    conds = [AuditEvent.account_hash == account_hash, AuditEvent.kind == "fill"]
+    async with SessionLocal() as s:
+        rows = (
+            await s.execute(
+                select(AuditEvent.at, AuditEvent.created_at, AuditEvent.side,
+                       AuditEvent.shares, AuditEvent.price).where(*conds)
+            )
+        ).all()
+
+    # bucket -> [bought$, sold$, buy_count, sell_count]
+    buckets: dict[str, list] = {}
+    for at, created_at, side, shares, price in rows:
+        when = at or created_at
+        if when is None:
+            continue
+        d = when.date() if isinstance(when, datetime) else when
+        if from_date is not None and d < from_date:
+            continue
+        if to_date is not None and d > to_date:
+            continue
+        notional = _f(shares) * _f(price)
+        if notional <= 0:
+            continue
+        b = buckets.setdefault(_period_key(d, grain), [0.0, 0.0, 0, 0])
+        if str(side or "").upper() == "SELL":
+            b[1] += notional
+            b[3] += 1
+        else:
+            b[0] += notional
+            b[2] += 1
+
+    out = [
+        {"period": k, "bought": round(v[0], 2), "sold": round(v[1], 2),
+         "net": round(v[1] - v[0], 2), "buy_count": int(v[2]), "sell_count": int(v[3])}
+        for k, v in sorted(buckets.items(), reverse=True)
+    ]
+    totals = {
+        "bought": round(sum(r["bought"] for r in out), 2),
+        "sold": round(sum(r["sold"] for r in out), 2),
+        "net": round(sum(r["net"] for r in out), 2),
+        "buy_count": sum(r["buy_count"] for r in out),
+        "sell_count": sum(r["sell_count"] for r in out),
+    }
+    return {"grain": grain, "rows": out, "totals": totals}
 
 
 async def build_trades(account_hash: str, from_date: date | None = None,

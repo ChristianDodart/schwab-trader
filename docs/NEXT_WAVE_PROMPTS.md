@@ -464,27 +464,22 @@ From a user feature batch. Part 1 of 2 (the rest is Wave 17).
 - **SIG-3 Sector alert opt-in** — SectorStrip concentration alert (threshold + warning) hidden behind
   an "Alerts" toggle (localStorage, default off); the exposure bar always shows.
 
-# WAVE 17 (SIGNALS & GLANCES pt.2) — candidate queue (from the same user batch)
+# WAVE 17 (SIGNALS & GLANCES pt.2) — EXECUTED 2026-07-06, shipped v0.19.0
 
-Same shared-rules header as Wave 1. Ordered by value.
+Part 2 of 2 of the user feature batch (Wave 16 was part 1).
 
-## W17-1 — Ticker type "danger" coloring (all pages)
-Color-code the ticker symbol everywhere it renders by risk: blue = safer (e.g. broad ETF / large cap),
-red = riskier (leveraged/inverse ETF, micro-cap, high-beta). Needs an `is_etf`/classification on the row
-(from FMP profiles, already fetched by the screener — surface it on the dashboard row + Ticker). A shared
-`tickerRiskColor(row)` used by DashboardTable + PositionDetail + Screener.
-
-## W17-2 — To-Do sub-tab on the dashboard
-A dashboard sub-tab filtered to just actionable tickers — those meeting a BUY or SELL signal (built-in
-mark OR a custom rule). Reuses DashboardTable with a pre-filter.
-
-## W17-3 — Top-10 Buys / Sells sub-tab
-A dashboard sub-tab showing the 10 biggest LILO% (buy-worthy discounts) and the 10 biggest gains
-(sell-worthy), a quick daily glance. Sort the existing rows; no backend change.
-
-## W17-4 — $ bought & sold by day / week / month (Ledger)
-A Ledger view of gross $ spent buying and $ received selling, grouped by period (day/week/month), from
-the fills/completed-trade data — "did I make good money over X period, and what did I do?".
+- **W17-1 Ticker danger-coloring** — pure `risk.py` classifier (name/industry/market_cap, optional
+  authoritative `is_etf`) → low/medium/elevated/high; unit-tested (7). Surfaced as `risk` on the
+  dashboard row, position detail, and screener candidate. Shared `tickerRiskColor()` + `RISK_LABEL`
+  in `columns.tsx` color the symbol on DashboardTable, PositionDetail, Screener (blue/none/amber/red).
+- **W17-2 To-Do sub-tab** — dashboard sub-tab bar (All / To-Do / Top 10); To-Do pre-filters rows to
+  those meeting the built-in mark OR any enabled custom rule (`matchesRule`), with a live count badge.
+- **W17-3 Top 10 sub-tab** — `Top10` component: top dips by lowest LILO% (buy-worthy) + top gainers by
+  last-position gain% (sell-worthy), two clickable tables. No backend change.
+- **W17-4 Activity view** — `build_activity(grain)` sums gross bought/sold $ + net per period from the
+  fill audit log (`AuditEvent`), dialect-neutral bucketing; `GET /api/ledger/activity`. New Ledger
+  "Activity" sub-tab (`LedgerActivity.tsx`) with day/week/month/year grain + period scope + flow bars.
+  All live-verified against a copy of the real DB.
 
 # WAVE 18 — candidate queue (older polish, deferred)
 

@@ -3,6 +3,19 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.19.0 — "At a glance"
+
+New this version:
+- To-Do and Top 10 on the dashboard. Two new sub-tabs next to your holdings: To-Do narrows the
+  list to just the names meeting a buy or sell signal right now, and Top 10 gives a quick glance at
+  the biggest dips worth buying and the biggest gainers worth selling.
+- Tickers are now color-coded by risk everywhere they appear. Blue is calmer (broad funds, large
+  caps), amber is a small cap, and red flags the spicy stuff — leveraged/inverse funds and micro
+  caps. Neutral names stay their usual color.
+- New Activity view on the Ledger. See the dollars you bought and sold by day, week, month, or year,
+  with the net cash flow for each period — for those "I did well last month, what did I actually do?"
+  moments.
+
 ## v0.18.0 — "Signal it your way"
 
 New this version:

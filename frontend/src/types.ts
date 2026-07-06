@@ -33,6 +33,7 @@ export type DashboardRow = {
   total_return: number;   // realized + unrealized + dividends
   has_note?: boolean;     // a saved journal note exists for this symbol
   last_held?: number | null; // watch rows previously held: last held price
+  risk?: string;          // "low"|"medium"|"elevated"|"high" — drives ticker coloring
 };
 
 export type Dashboard = {
@@ -102,6 +103,15 @@ export type TradeLog = {
     worst: { symbol: string; profit: number } | null;
   };
   by_symbol: { symbol: string; count: number; total_profit: number; win_rate: number | null }[];
+};
+
+export type ActivityRow = {
+  period: string; bought: number; sold: number; net: number; buy_count: number; sell_count: number;
+};
+export type LedgerActivity = {
+  grain: string;
+  rows: ActivityRow[];
+  totals: { bought: number; sold: number; net: number; buy_count: number; sell_count: number };
 };
 
 export type LedgerTax = {
@@ -258,6 +268,7 @@ export type Candidate = {
   market_cap: number | null;
   beta: number | null;
   is_etf: boolean;
+  risk?: string;
   last: number | null;
   pct_change: number | null;
   in_movers: boolean;
@@ -380,6 +391,7 @@ export type PositionDetailData = {
   total_return: number;
   is_watch?: boolean;         // no open position — watch-mode detail
   last_held?: number | null;  // last price held (for a sold-out watch ticker)
+  risk?: string;              // risk band for ticker coloring
   lots: Lot[];
   projected_ladder: ProjectedRung[];
 };

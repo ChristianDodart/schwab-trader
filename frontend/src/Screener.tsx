@@ -3,6 +3,7 @@ import { usd } from "./App";
 import { SkeletonTable } from "./Skeleton";
 import { useToast } from "./Toast";
 import type { CandidateScreen, MarketHours, Mover, VetResult } from "./types";
+import { tickerRiskColor, RISK_LABEL } from "./columns";
 
 import { API } from "./api";
 
@@ -156,7 +157,7 @@ export function Screener({ onAdded }: { onAdded?: (symbol: string) => void }) {
                       return (
                         <tr key={c.symbol} style={c.passes ? undefined : { opacity: 0.62 }}>
                           <td className="left">
-                            <button style={S.symBtn} onClick={() => runVet(c.symbol)} title="Vet against guardrails">{c.symbol}</button>
+                            <button style={{ ...S.symBtn, color: tickerRiskColor(c.risk) }} onClick={() => runVet(c.symbol)} title={c.risk ? RISK_LABEL[c.risk] : "Vet against guardrails"}>{c.symbol}</button>
                             {c.name && <div style={S.name}>{c.name}{c.in_movers ? " · mover" : ""}</div>}
                           </td>
                           <td className="left" style={{ color: "var(--text-muted)" }}>{c.sector ?? "—"}{c.country && c.country !== "US" ? ` · ${c.country}` : ""}</td>

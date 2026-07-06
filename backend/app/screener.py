@@ -14,6 +14,7 @@ import asyncio
 import time
 from datetime import datetime, timezone
 
+from . import risk as risk_mod
 from .schwab.auth import get_client
 
 _MOVER_INDEXES = {
@@ -222,6 +223,7 @@ async def screen_candidates(account_hash: str = "", index: str = "EQUITY_ALL",
             "symbol": sym, "name": p.get("name") or mvr.get("name"),
             "sector": sector, "industry": industry, "country": country,
             "market_cap": mc, "beta": p.get("beta"), "is_etf": bool(is_etf),
+            "risk": risk_mod.classify(p.get("name") or sym, industry, mc, is_etf=bool(is_etf)),
             "last": mvr.get("last"), "pct_change": mvr.get("pct_change"),
             "in_movers": sym in mv_rows,
             "passes": passes, "reasons": reasons,

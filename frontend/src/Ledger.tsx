@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { SubTabs } from "./LedgerUI";
 import { LedgerHistoric } from "./LedgerHistoric";
+import { LedgerActivity } from "./LedgerActivity";
 import { LedgerPredictive } from "./LedgerPredictive";
 import { LedgerTrades } from "./LedgerTrades";
 
-type Tab = "historic" | "trades" | "predictive";
+type Tab = "historic" | "activity" | "trades" | "predictive";
 
 // The ledger splits FACT from PREDICTION so the two never blur together:
 //   Historic  — observed truth (Schwab balances + realized gains + deposits)
@@ -20,12 +21,13 @@ export function Ledger() {
         onChange={(id) => setTab(id as Tab)}
         tabs={[
           { id: "historic", label: "Historic", hint: "Observed facts — balances, realized gains, deposits" },
+          { id: "activity", label: "Activity", hint: "Dollars bought and sold by day, week, month, or year" },
           { id: "trades", label: "Trades", hint: "Every closed trade + win rate, profit factor, hold time" },
           { id: "predictive", label: "Predictive", hint: "Projections — goal pacing, year-end gains, estimated taxes" },
         ]}
       />
       <div id={`${tab}-panel`} role="tabpanel" aria-labelledby={`${tab}-tab`}>
-        {tab === "historic" ? <LedgerHistoric /> : tab === "trades" ? <LedgerTrades /> : <LedgerPredictive />}
+        {tab === "historic" ? <LedgerHistoric /> : tab === "activity" ? <LedgerActivity /> : tab === "trades" ? <LedgerTrades /> : <LedgerPredictive />}
       </div>
     </div>
   );

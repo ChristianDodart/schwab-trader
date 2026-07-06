@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { usd, pct } from "./App";
 import { ColumnManager } from "./ColumnManager";
-import { DETAIL_COLUMNS, DETAIL_COLUMN_LIST, DEFAULT_DETAIL_COLS, useColumnPrefs } from "./columns";
+import { DETAIL_COLUMNS, DETAIL_COLUMN_LIST, DEFAULT_DETAIL_COLS, useColumnPrefs, tickerRiskColor, RISK_LABEL } from "./columns";
 import { OrderTicket } from "./OrderTicket";
 import { PriceChart } from "./PriceChart";
 import { SkeletonPanel } from "./Skeleton";
@@ -51,7 +51,7 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
     <section className={embedded ? undefined : "panel"} style={embedded ? S.panelEmbedded : S.panel}>
       <div style={S.head}>
         <div>
-          <span style={S.sym}>{d.symbol}</span>
+          <span style={{ ...S.sym, color: tickerRiskColor(d.risk) }} title={d.risk ? RISK_LABEL[d.risk] : undefined}>{d.symbol}</span>
           {d.name && <span style={S.name}>{d.name}</span>}
           <SectorEditor symbol={d.symbol} sector={d.sector} onSaved={(s) => setD((p) => (p ? { ...p, sector: s } : p))} />
         </div>

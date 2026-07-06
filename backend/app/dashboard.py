@@ -10,7 +10,7 @@ from datetime import date, datetime
 
 from sqlalchemy import func, select
 
-from . import avg52, config_store
+from . import avg52, config_store, risk as risk_mod
 from .db import SessionLocal
 from .db.models import CompletedTrade, Lot, Ticker
 from .ledger import MARKET_TZ, get_dividends, get_last_held
@@ -69,6 +69,14 @@ async def _load(account_hash: str):
     return lots, tickers, realized, year_realized
 
 
+def _risk(ticker) -> str:
+    """Risk band for coloring the ticker (blue→red). Neutral when the ticker is unknown."""
+    if ticker is None:
+        return "medium"
+    return risk_mod.classify(ticker.name, ticker.industry,
+                             _f(ticker.market_cap) if ticker.market_cap is not None else None)
+
+
 def _group(lots):
     by: dict[str, list[Lot]] = {}
     for lot in lots:
@@ -119,6 +127,7 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
         "symbol": symbol,
         "name": ticker.name if ticker else None,
         "sector": ticker.sector if ticker else None,
+        "risk": _risk(ticker),
         "is_watch": False,
         "positions": positions,
         "shares": round(shares, 4),
@@ -258,6 +267,7 @@ def _watch_row(ticker: Ticker) -> dict:
     has_price = price is not None and price > 0
     return {
         "symbol": ticker.symbol, "name": ticker.name, "sector": ticker.sector, "is_watch": True,
+        "risk": _risk(ticker),
         "positions": 0, "shares": 0, "invested": 0, "basis_per_share": 0,
         "price": round(price, 4) if has_price else None,
         "current_value": None, "unrealized": None, "day_change": None, "lilo_pct": None,
@@ -306,7 +316,7 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
                             if (d.get("symbol") or "").upper() == symbol), 2)
         last_held = (await get_last_held(account_hash)).get(symbol)
         return {
-            "symbol": symbol, "name": ticker.name, "sector": ticker.sector,
+            "symbol": symbol, "name": ticker.name, "sector": ticker.sector, "risk": _risk(ticker),
             "price": round(wprice, 4) if wprice else None,
             "positions": 0, "shares": 0.0, "invested": 0.0, "basis_per_share": 0.0,
             "lilo_pct": None, "avg_52wk": avg52.get(symbol), "median_52wk": avg52.median(symbol),
@@ -377,6 +387,7 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
         "symbol": symbol,
         "name": ticker.name if ticker else None,
         "sector": ticker.sector if ticker else None,
+        "risk": _risk(ticker),
         "price": round(price, 4) if has_price else None,
         "positions": len(lots),
         "shares": round(shares, 4),
