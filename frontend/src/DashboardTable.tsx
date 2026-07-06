@@ -16,6 +16,8 @@ const MONEY_SUM: Record<string, "signed" | "plain"> = {
   last_pos_profit: "signed",
   year_profit: "signed",
   log_profit: "signed",
+  dividends: "plain",
+  total_return: "signed",
 };
 
 // Bulk selection state (harvest / buy-the-dip). When present, the table shows a

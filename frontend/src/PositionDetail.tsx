@@ -171,6 +171,10 @@ function AlertTemplates({ d, onSet }: { d: PositionDetailData; onSet: (msg: stri
         <button className="btn btn-ghost btn-sm" onClick={() => make("above", d.avg_52wk!, "back above 52wk avg")}
           title={`Notify if ${d.symbol} rises above its 52wk average (${usd(d.avg_52wk)})`}>Above 52wk avg</button>
       )}
+      {d.basis_per_share > 0 && (
+        <button className="btn btn-ghost btn-sm" onClick={() => make("above", d.basis_per_share, "back above break-even")}
+          title={`Notify if ${d.symbol} recovers to your cost basis (${usd(d.basis_per_share)})`}>Above break-even</button>
+      )}
     </div>
   );
 }

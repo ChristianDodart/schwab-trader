@@ -398,23 +398,34 @@ spreadsheets, records). Add CSV export for the trade journal and the deposit log
   (visibility) so `window.print()` emits a clean one-pager; "Print / Save PDF" button on the Ledger.
 - **W11-4 Small fixes #9** — dividends-by-year table; a "press ? for shortcuts" tip in Settings.
 
-# WAVE 12 — candidate queue (unstarted)
+# WAVE 12 — EXECUTED 2026-07-05, shipped v0.14.0
+
+- **W12-1 Break-even alert template** — "back above break-even" (threshold = basis/share) added to
+  PositionDetail AlertTemplates. Dashboard-row templates deferred (would need a per-row menu → W13).
+- **W12-2 Trade-journal print/PDF** — a `.print-only` closed-trades table + "Print / Save PDF" button on
+  the Trades tab (reuses the global @media print CSS).
+- **W12-3 Pause/resume dashboard** — a pause toggle freezes live ws updates (via `pausedRef` guard in the
+  onmessage handler) + a "updates paused" chip. Configurable interval N/A (ws-push, not polling).
+- **W12-4 Small fixes #10** — total_return + dividends added to the dashboard totals-footer sum set;
+  notification feed grouped by day (Today / Yesterday / date).
+
+# WAVE 13 — candidate queue (unstarted)
 
 Same shared-rules header as Wave 1. Ordered by value.
 
-## W12-1 — Alert templates in more places
-Surface the one-click alert templates on the dashboard row actions too (not just position detail), and add a
-"back to break-even" template (threshold = basis/share).
+## W13-1 — Quick alerts on dashboard rows
+A small per-row alert menu on the dashboard (the deferred W12-1 piece): the same templates as position
+detail, reachable without opening the position.
 
-## W12-2 — Print/PDF for the trade journal & tax lots
-Extend the print stylesheet to the Trades tab (a clean closed-trades table) so the tax-lot report can be
-printed/saved as PDF directly, not just CSV.
+## W13-2 — Notification preferences
+Per-type toggles (fills / strategy triggers / price alerts) for what pushes to desktop + phone, so the user
+can quiet categories they don't care about. Reuses the phone/desktop plumbing.
 
-## W12-3 — Configurable dashboard refresh + "paused" indicator
-Let the user set the dashboard poll interval (or pause it) in Settings; show a small "updates paused" chip
-when paused. Reduces churn for users who watch rather than trade actively.
+## W13-3 — Position notes / journal annotations
+A free-text note per symbol (why I'm holding, thesis), stored per account (app_setting JSON like dividends),
+shown on the position detail. A lightweight trading journal.
 
-## W12-4 — Small-fixes bundle #10
-1. Total-return column: a matching footer total in the dashboard totals row.
-2. Notifications: group the feed by day with subtle date separators.
-3. Screener: remember the "add all passing" confirmation preference.
+## W13-4 — Small-fixes bundle #11
+1. Print: include the account mask/name in the printed headers.
+2. Dashboard: a subtle "last updated Xs ago" when paused.
+3. Screener: sort candidates by a chosen column.

@@ -3,6 +3,17 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.14.0 — "On your terms"
+
+New this version:
+- Pause the dashboard. A "Pause updates" button freezes the table so a live quote can't shift a
+  row while you're reading or clicking — resume when you're ready.
+- Print your trade journal. The Trades tab now has a "Print / Save PDF" button for a clean
+  closed-trades report.
+- A new break-even alert: on any position, one click sets "notify me when it's back above my cost."
+- The dashboard totals row now sums the Total Return and Dividends columns too, and the
+  notification feed groups by day (Today / Yesterday / date) so it's easier to scan.
+
 ## v0.13.0 — "For the record"
 
 New this version:

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useToast } from "./Toast";
 import type { Alert, AlertPrefill, AuditEvent, Notification } from "./types";
 
@@ -276,15 +276,27 @@ export function NotificationsBell({
               ) : notes.filter((n) => match(n.message, n.symbol)).length === 0 ? (
                 <p style={S.empty}>No matches for "{q}".</p>
               ) : (
-                notes.filter((n) => match(n.message, n.symbol)).map((n) => (
-                  <div key={n.id} style={{ ...S.note, opacity: n.read ? 0.55 : 1 }}>
-                    {!n.read && <span style={S.dot} />}
-                    <div style={{ flex: 1 }}>
-                      <div style={S.noteMsg}>{n.message}</div>
-                      <div style={S.noteTime}>{fmtTime(n.created_at)}</div>
-                    </div>
-                  </div>
-                ))
+                (() => {
+                  const feed = notes.filter((n) => match(n.message, n.symbol));
+                  let lastDay = "";
+                  return feed.map((n) => {
+                    const dk = dayKey(n.created_at);
+                    const sep = dk !== lastDay ? <div style={S.daySep}>{dayLabel(n.created_at)}</div> : null;
+                    lastDay = dk;
+                    return (
+                      <Fragment key={n.id}>
+                        {sep}
+                        <div style={{ ...S.note, opacity: n.read ? 0.55 : 1 }}>
+                          {!n.read && <span style={S.dot} />}
+                          <div style={{ flex: 1 }}>
+                            <div style={S.noteMsg}>{n.message}</div>
+                            <div style={S.noteTime}>{fmtTime(n.created_at)}</div>
+                          </div>
+                        </div>
+                      </Fragment>
+                    );
+                  });
+                })()
               )}
             </div>
           ) : tab === "activity" ? (
@@ -407,6 +419,23 @@ function fmtTime(iso: string | null): string {
   });
 }
 
+// Local-date key (for grouping) + a friendly label (Today / Yesterday / Mon D).
+function dayKey(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+function dayLabel(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const now = new Date();
+  const k = (x: Date) => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (k(d) === k(now)) return "Today";
+  if (k(d) === k(y)) return "Yesterday";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: d.getFullYear() === now.getFullYear() ? undefined : "numeric" });
+}
+
 const tabStyle = (active: boolean): React.CSSProperties => ({
   background: "transparent",
   color: active ? "var(--text)" : "var(--text-dim)",
@@ -510,6 +539,7 @@ const S: Record<string, React.CSSProperties> = {
   },
   noteMsg: { fontSize: "var(--fs-sm)", color: "var(--text)" },
   noteTime: { fontSize: "var(--fs-2xs)", color: "var(--text-faint)", marginTop: 2 },
+  daySep: { fontSize: "var(--fs-2xs)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-faint)", padding: "8px 14px 2px" },
   form: {
     display: "flex",
     alignItems: "center",

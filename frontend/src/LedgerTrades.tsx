@@ -53,6 +53,34 @@ export function LedgerTrades() {
 
   return (
     <div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+        <button className="btn btn-secondary btn-sm" onClick={() => window.print()}
+          title="Print the closed-trades journal or save it as a PDF">Print / Save PDF</button>
+      </div>
+
+      {/* Printable closed-trades journal (hidden on screen; see .print-only in ui.css). */}
+      <div className="print-only">
+        <h2 style={{ margin: "0 0 2px" }}>Schwab Trader — Trade Journal</h2>
+        <p style={{ margin: "0 0 4px", fontSize: 12 }}>{scope.label}{sym ? ` · ${sym.toUpperCase()}` : ""}</p>
+        <p style={{ margin: "0 0 12px", fontSize: 12 }}>
+          {s.count} trades · win rate {winStr} · total P/L {usd(s.total_profit)}
+        </p>
+        <table>
+          <thead><tr><th>Closed</th><th>Symbol</th><th>Shares</th><th>Buy</th><th>Sell</th><th>P/L</th><th>Held</th></tr></thead>
+          <tbody>
+            {d.trades.map((t) => (
+              <tr key={t.id}>
+                <td>{t.completed_at ?? "—"}</td><td>{t.symbol}</td>
+                <td className="num">{t.shares.toLocaleString()}</td>
+                <td className="num">{usd(t.buy_price)}</td><td className="num">{usd(t.sell_price)}</td>
+                <td className="num">{t.profit > 0 ? "+" : ""}{usd(t.profit)}</td>
+                <td>{t.is_day_trade ? "same day" : t.hold_days == null ? "—" : `${t.hold_days}d`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       <div style={S.cards}>
         <Card label="Win rate" value={winStr} big
           hint="Share of closed trades that were profitable, with the win/loss split." />

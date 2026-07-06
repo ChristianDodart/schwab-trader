@@ -45,6 +45,9 @@ export function App() {
   const [sectorFilter, setSectorFilter] = useState<string | null>(null); // click a sector chip
   const symInputRef = useRef<HTMLInputElement>(null);
   const gPending = useRef(false); // "g" prefix for vim-style tab jumps (g then d/s/l/o/r)
+  const [paused, setPaused] = useState(false); // freeze live dashboard updates
+  const pausedRef = useRef(false);
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
   const [acctKey, setAcctKey] = useState("");
   const [addSym, setAddSym] = useState("");
   const [watchTicket, setWatchTicket] = useState<Suggestion | null>(null);
@@ -160,7 +163,7 @@ export function App() {
       // Guard the socket: a single malformed frame must never wedge the UI or
       // replace good data with garbage. Keep the last-good dashboard on any error.
       ws.onmessage = (ev) => {
-        if (disposed) return;
+        if (disposed || pausedRef.current) return; // paused → keep the frozen snapshot
         try {
           const parsed = JSON.parse(ev.data);
           if (parsed && Array.isArray(parsed.rows)) setData(parsed as Dashboard);
@@ -393,6 +396,12 @@ export function App() {
                       <button aria-label="Clear sector filter" style={S.filterX} onClick={() => setSectorFilter(null)}>✕</button>
                     </span>
                   )}
+                  <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    {paused && <span style={S.pausedChip}>updates paused</span>}
+                    <button className="btn btn-ghost btn-sm" aria-pressed={paused}
+                      title={paused ? "Resume live updates" : "Freeze the table so a quote can't shift under you"}
+                      onClick={() => setPaused((v) => !v)}>{paused ? "Resume" : "Pause updates"}</button>
+                  </span>
                 </div>
                 <div style={pricesStale ? { opacity: 0.55, transition: "opacity .2s" } : undefined}>
                   <DashboardTable
@@ -556,5 +565,6 @@ const S: Record<string, React.CSSProperties> = {
   filterBar: { display: "flex", alignItems: "center", gap: 8, margin: "0 0 10px" },
   activeFilter: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--fs-xs)", color: "var(--text-muted)", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--r-pill)", padding: "2px 10px" },
   filterX: { background: "transparent", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "var(--fs-xs)", padding: 0 },
+  pausedChip: { fontSize: "var(--fs-2xs)", color: "var(--warn)", border: "1px solid var(--warn-border)", borderRadius: "var(--r-pill)", padding: "1px 9px", textTransform: "uppercase", letterSpacing: "0.04em" },
   kbd: { fontFamily: "monospace", fontSize: "var(--fs-xs)", background: "var(--panel-2)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-sm)", padding: "1px 8px", color: "var(--text)", minWidth: 22, textAlign: "center" },
 };
