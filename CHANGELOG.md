@@ -3,6 +3,22 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.26.0 — "Welcome aboard"
+
+The first ten minutes, made obvious:
+- A setup guide now greets a fresh install on the dashboard: four steps
+  (connect Schwab, choose your account, import your history, review the rules),
+  each checked off live as you complete it, each one click. It retires itself
+  when everything is done, and Settings can bring it back any time.
+- The app now nudges you BEFORE the Schwab connection dies: a notification about
+  two days out, another the day of, and one when it expires — once per stage, to
+  the bell and your phone if configured. No more discovering stale quotes at
+  market open.
+- If the connection is already expired when the app opens, the reconnect window
+  opens itself — no hunting for the banner.
+- Demo mode is now unmissable: a labeled strip above the positions table says the
+  numbers are synthetic and offers a one-click connect, on every tab.
+
 ## v0.25.0 — "Polish pass"
 
 Small quality-of-life touches:

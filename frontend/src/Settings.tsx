@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ConnectionStatus } from "./Reauth";
+import { resetFirstRun } from "./FirstRun";
 import { useToast } from "./Toast";
 import { CHANGELOG, entryFor } from "./changelog";
 import { SIGNAL_METRICS, newRule, metricUnit, type SignalRule } from "./signals";
@@ -130,6 +131,10 @@ export function Settings({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) =
 
       <Section title="What's new" info="Patch notes for your current version. The same notes appear in the update banner when a new version is ready.">
         <WhatsNew />
+      </Section>
+
+      <Section title="Setup guide" info="The step-by-step checklist shown on the dashboard of a fresh install (connect, pick an account, import history, review rules). Bring it back any time.">
+        <SetupGuideReset />
       </Section>
 
       <Section title="About & diagnostics" info="Build version + a live health snapshot. Use “Copy diagnostics” to paste the whole picture into a support message.">
@@ -769,6 +774,16 @@ function DataHealth() {
       </div>
       {summary && <p style={{ ...S.credStatus, marginTop: 8 }}>{summary}</p>}
     </div>
+  );
+}
+
+function SetupGuideReset() {
+  const toast = useToast();
+  return (
+    <button className="btn btn-secondary btn-sm"
+      onClick={() => { resetFirstRun(); toast("The setup guide will show on the dashboard again.", "success"); }}>
+      Show the setup guide again
+    </button>
   );
 }
 

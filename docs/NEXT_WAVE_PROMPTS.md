@@ -623,6 +623,25 @@ The long-deferred polish queue:
 #   async saves, popovers don't return focus).
 
 # WAVE 24 — ONBOARDING & CONNECTION (the "dad" wave)
+# EXECUTED as v0.26.0 (2026-07-06). What shipped:
+#   W24-1 FirstRun.tsx — 4-step live-checking setup guide on the dashboard
+#     (connect / account+trading / history import / rules), steps tick off from
+#     /auth/status + /accounts + /config + /data/health on a 30s poll, "Defaults
+#     are fine" accepts step 4, dismissible, self-retires when complete,
+#     Settings > Setup guide brings it back (resetFirstRun).
+#   W24-2 _maybe_reauth_nudge() in main.py — soon(≤2d)/today(≤1d)/expired ladder
+#     off token_status() in the 60s liveness prober; one bell/phone notification
+#     per stage per token issuance (rank-escalation dedup in app_setting
+#     "reauth_nudge" = "{issued}|{rank}"; new issued_at re-arms). ReauthButton
+#     gained autoStart; AuthBanner auto-opens the flow once per session when
+#     expired at launch (sessionStorage "reauth_autopen"). 6 unit tests
+#     (tests/test_reauth_nudge.py) cover the ladder.
+#   W24-3 demo chip in App.tsx — the old plain-text demo note upgraded to a
+#     labeled DEMO strip (tag + copy + inline Connect Schwab button) above the
+#     view content on every tab.
+#   Verified on a tokenless live-DB copy: guide showed 2/4 with correct states,
+#   auto-open fired once per session, demo chip + dismiss/reset round-trip all
+#   good; 137 backend + 21 frontend tests, tsc + vite build clean.
 
 ## W24-1 — First-run experience
 No onboarding exists today: a fresh install drops into an empty demo dashboard.

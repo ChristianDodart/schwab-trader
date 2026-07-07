@@ -8,10 +8,12 @@ export function ReauthButton({
   onComplete,
   label = "Re-authorize Schwab",
   style: btnStyle,
+  autoStart = false,
 }: {
   onComplete?: () => void;
   label?: string;
   style?: React.CSSProperties;
+  autoStart?: boolean;   // open the flow immediately on mount (expired-at-launch)
 }) {
   const [open, setOpen] = useState(false);
   const [authUrl, setAuthUrl] = useState<string | null>(null);
@@ -41,6 +43,13 @@ export function ReauthButton({
       .catch(() => setErr("Could not reach the backend."))
       .finally(() => setStarting(false));
   };
+
+  // Expired at launch → open the flow immediately (once per mount) so the user
+  // isn't left hunting for the banner while the app runs on stale data.
+  useEffect(() => {
+    if (autoStart) begin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart]);
 
   // Exchange a captured/pasted redirect URL for a token (shared by both paths).
   const submitReceived = (url: string) => {

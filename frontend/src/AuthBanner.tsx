@@ -7,6 +7,9 @@ import { API } from "./api";
 export function AuthBanner() {
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  // Expired AT LAUNCH → open the reauth flow automatically, once per app session
+  // (sessionStorage guard) — don't make the user find the banner first.
+  const [autoStart, setAutoStart] = useState(false);
 
   const [checking, setChecking] = useState(false);
 
@@ -16,6 +19,12 @@ export function AuthBanner() {
       .then((s: AuthStatus) => {
         setStatus(s);
         setDismissed((d) => (s.severity === "expired" ? false : d));
+        try {
+          if (s.severity === "expired" && !sessionStorage.getItem("reauth_autopen")) {
+            sessionStorage.setItem("reauth_autopen", "1");
+            setAutoStart(true);
+          }
+        } catch { /* private mode */ }
       })
       .catch(() => {});
   }, []);
@@ -51,7 +60,7 @@ export function AuthBanner() {
         title="Make a real authenticated call to Schwab right now">
         {checking ? "Checking…" : "Check now"}
       </button>
-      <ReauthButton onComplete={load} label={status.expired ? "Connect Schwab" : "Re-authorize"} style={S.reauth} />
+      <ReauthButton onComplete={load} label={status.expired ? "Connect Schwab" : "Re-authorize"} style={S.reauth} autoStart={autoStart} />
       {status.severity !== "expired" && (
         <button style={S.x} title="dismiss for now" onClick={() => setDismissed(true)}>✕</button>
       )}

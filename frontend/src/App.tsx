@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { AccountPicker } from "./AccountPicker";
 import { AuthBanner, LiveStatusPill, useLiveness } from "./AuthBanner";
+import { FirstRun } from "./FirstRun";
+import { ReauthButton } from "./Reauth";
 import { UpdateBanner } from "./UpdateBanner";
 import { SectorStrip } from "./SectorStrip";
 import { matchesRule, type SignalRule } from "./signals";
@@ -320,6 +322,7 @@ export function App() {
 
         <UpdateBanner />
         <AuthBanner />
+        {view === "dashboard" && <FirstRun nav={(v) => guardedNav(() => setView(v as View))} />}
 
         <div style={S.subbar}>
           <ProfileSwitcher />
@@ -402,10 +405,13 @@ export function App() {
         </div>
 
         {mode === "demo" && (
-          <p style={S.note}>
-            Not connected to Schwab — showing synthetic quotes, and orders won’t place.
-            Reconnect under <b>Settings → Schwab connection</b> to go live.
-          </p>
+          <div style={S.demoChip} role="status">
+            <span className="tag" style={S.demoTag}>DEMO</span>
+            <span style={{ flex: 1 }}>
+              The numbers below are synthetic — orders won't place. Connect Schwab to see your real account.
+            </span>
+            <ReauthButton label="Connect Schwab" style={S.demoBtn} />
+          </div>
         )}
 
         {view === "settings" ? (
@@ -705,6 +711,11 @@ const S: Record<string, React.CSSProperties> = {
   bulkBar: { display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" },
   addWrap: { display: "flex", gap: 6, alignItems: "center" },
   note: { color: "var(--text-muted)", fontSize: "var(--fs-md)", marginTop: 16 },
+  demoChip: { display: "flex", alignItems: "center", gap: 10, margin: "12px 0 2px", padding: "8px 12px",
+    background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--r-md)",
+    color: "var(--text-muted)", fontSize: "var(--fs-sm)" },
+  demoTag: { color: "var(--warn)", border: "1px solid var(--warn-border)", fontWeight: 700, letterSpacing: "0.05em" },
+  demoBtn: { flexShrink: 0 },
   staleNote: { color: "var(--warn)", fontSize: "var(--fs-sm)", margin: "0 0 10px", lineHeight: 1.45 },
   filterBar: { display: "flex", alignItems: "center", gap: 8, margin: "0 0 10px" },
   activeFilter: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--fs-xs)", color: "var(--text-muted)", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--r-pill)", padding: "2px 10px" },

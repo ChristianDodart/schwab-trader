@@ -47,6 +47,52 @@ async def _enrich_on_startup() -> None:
         await enrich_tickers(client)
 
 
+# Proactive re-auth ladder: the 7-day Schwab refresh token dies silently, and the
+# banner only helps if you happen to look. Fire ONE bell/desktop/phone notification
+# per stage per token issuance: ~2 days left → day-of → expired. A new token
+# (new issued_at) re-arms the ladder. Dedup lives in app_setting "reauth_nudge".
+_NUDGE_RANK = {"soon": 1, "today": 2, "expired": 3}
+
+
+async def _maybe_reauth_nudge() -> None:
+    from .schwab.auth import token_status
+
+    st = token_status()
+    issued = st.get("issued_at")
+    days = st.get("days_left")
+    if not issued:
+        return
+    if st.get("expired"):
+        stage = "expired"
+    elif days is not None and days <= 1:
+        stage = "today"
+    elif days is not None and days <= 2:
+        stage = "soon"
+    else:
+        return
+    marker = await accounts_svc.get_setting("reauth_nudge")
+    prev_rank = 0
+    if marker:
+        m_issued, _, m_rank = marker.partition("|")
+        if m_issued == str(issued):
+            try:
+                prev_rank = int(m_rank)
+            except ValueError:
+                prev_rank = 0
+    rank = _NUDGE_RANK[stage]
+    if rank <= prev_rank:
+        return
+    msg = {
+        "soon": "Schwab connection expires in about 2 days — renew it in one click from "
+                "the banner (or Settings) so quotes and orders don't stop.",
+        "today": "Schwab connection expires today — one click on the banner renews it.",
+        "expired": "Schwab connection has expired — the app is running on stale data. "
+                   "Click the banner (or Settings > Schwab connection) to reconnect.",
+    }[stage]
+    await notifications_svc.post_system_notification(None, msg)
+    await accounts_svc.set_setting("reauth_nudge", f"{issued}|{rank}")
+
+
 async def _liveness_prober() -> None:
     """Background heartbeat: keep the token-liveness state fresh so the banner is
     accurate even between UI polls. probe_live() no-ops when a recent stream heartbeat
@@ -56,6 +102,10 @@ async def _liveness_prober() -> None:
             await auth_probe_live()
         except Exception:
             pass
+        try:
+            await _maybe_reauth_nudge()
+        except Exception as e:
+            print(f"[auth] reauth nudge failed: {e!r}")
         await asyncio.sleep(60)
 
 
