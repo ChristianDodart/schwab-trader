@@ -55,8 +55,13 @@ async def _enrich_on_startup() -> None:
         client = get_client()
     except Exception:
         client = None
-    if client is not None:
+    if client is None:
+        return
+    try:
         await enrich_tickers(client)
+        log.info("startup ticker enrichment complete")
+    except Exception as e:
+        log.warning(f"startup ticker enrichment failed: {e!r}")
 
 
 # Proactive re-auth ladder: the 7-day Schwab refresh token dies silently, and the
@@ -212,12 +217,12 @@ class EnrichBody(BaseModel):
     force: bool = False
 
 
-# NOTE: this endpoint stays in main.py (not app/api/market.py) because its function
-# name deliberately preserves the long-standing module-level shadowing of the
-# `from .schwab.enrich import enrich_tickers` import that _enrich_on_startup calls —
-# moving it out would silently change what runs at startup. Zero-behavior-change rule.
+# Distinct from the module-level `enrich_tickers` imported from .schwab.enrich (the
+# startup quote-enrichment routine) — this endpoint drives the FMP sector/country
+# tagging. They must NOT share a name: a same-named endpoint here would rebind the
+# module global and make _enrich_on_startup call this instead of the import.
 @app.post("/api/tickers/enrich")
-async def enrich_tickers(body: EnrichBody) -> dict:
+async def post_enrich_tickers(body: EnrichBody) -> dict:
     """Auto-tag every ticker's sector/industry/country from FMP (fills missing; force re-fetches)."""
     res = await watchlist_svc.enrich_all(force=body.force)
     invalidate_dashboard_cache()  # sector shows on the dashboard

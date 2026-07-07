@@ -3,6 +3,14 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.29.1 — "Enrichment, actually"
+
+One fix: company-data enrichment (sector, industry, country) now runs at
+startup as it always should have. A long-standing naming collision meant the
+startup pass silently did nothing, so tickers only got tagged when you opened
+the Screener or hit refresh. Now the app fills them in on its own — the
+Screener's sector-exclusion and country guardrails work without a manual nudge.
+
 ## v0.29.0 — "Engine room"
 
 Internals hardening — little to see, lots to trust:

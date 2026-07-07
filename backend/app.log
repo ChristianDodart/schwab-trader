@@ -40,3 +40,9 @@
 2026-07-07 10:36:02,300 INFO    alembic.runtime.plugins: setup plugin alembic.autogenerate.constraints
 2026-07-07 10:36:02,300 INFO    alembic.runtime.plugins: setup plugin alembic.autogenerate.defaults
 2026-07-07 10:36:02,300 INFO    alembic.runtime.plugins: setup plugin alembic.autogenerate.comments
+2026-07-07 10:44:46,864 INFO    alembic.runtime.plugins: setup plugin alembic.autogenerate.schemas
+2026-07-07 10:44:46,865 INFO    alembic.runtime.plugins: setup plugin alembic.autogenerate.tables
+2026-07-07 10:44:46,865 INFO    alembic.runtime.plugins: setup plugin alembic.autogenerate.types
+2026-07-07 10:44:46,865 INFO    alembic.runtime.plugins: setup plugin alembic.autogenerate.constraints
+2026-07-07 10:44:46,865 INFO    alembic.runtime.plugins: setup plugin alembic.autogenerate.defaults
+2026-07-07 10:44:46,865 INFO    alembic.runtime.plugins: setup plugin alembic.autogenerate.comments
