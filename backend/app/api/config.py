@@ -11,11 +11,29 @@ from pydantic import BaseModel
 from .. import accounts as accounts_svc
 from .. import config_store
 from .. import ledger as ledger_svc
+from .. import notifications as notifications_svc
 from .. import phone as phone_svc
 from .. import profiles as profiles_svc
 from ..main import _selected, strategy
 
 router = APIRouter()
+
+
+@router.get("/api/notif-prefs")
+async def get_notif_prefs() -> dict:
+    """Notification delivery prefs (global): mute, per-category channel toggles, muted symbols."""
+    return await notifications_svc.get_notif_prefs()
+
+
+class NotifPrefsBody(BaseModel):
+    muted: bool | None = None
+    categories: dict | None = None
+    muted_symbols: list[str] | None = None
+
+
+@router.post("/api/notif-prefs")
+async def set_notif_prefs(body: NotifPrefsBody) -> dict:
+    return await notifications_svc.set_notif_prefs(body.model_dump(exclude_none=True))
 
 
 @router.get("/api/strategy/validate")

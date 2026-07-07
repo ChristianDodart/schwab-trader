@@ -14,7 +14,7 @@ import { KpiPicker, useKpiPrefs, visibleKpis } from "./kpis";
 import { DashboardTable } from "./DashboardTable";
 import { tickerRiskColor } from "./columns";
 import { Ledger } from "./Ledger";
-import { NotificationsBell } from "./Notifications";
+import { NotificationsBell, NotificationsProvider, NotificationsTab } from "./Notifications";
 import { Orders } from "./Orders";
 import { OrderTicket } from "./OrderTicket";
 import { PositionDetail } from "./PositionDetail";
@@ -27,6 +27,7 @@ import { useToast } from "./Toast";
 import type { AlertPrefill, BuyCandidate, Dashboard, DashboardRow, ExitCandidate, SellCandidate, Suggestion } from "./types";
 
 import { API, wsUrl } from "./api";
+import { IconRefresh, IconWarning, IconClose } from "./Icon";
 
 const WS_URL = wsUrl("/ws/dashboard");
 
@@ -36,9 +37,10 @@ const NAV: { id: View; label: string }[] = [
   { id: "ledger", label: "Ledger" },
   { id: "orders", label: "Orders" },
   { id: "rules", label: "Rules" },
+  { id: "notifications", label: "Notifications" },
   { id: "settings", label: "Settings" },
 ];
-type View = "dashboard" | "screen" | "ledger" | "orders" | "rules" | "settings";
+type View = "dashboard" | "screen" | "ledger" | "orders" | "rules" | "notifications" | "settings";
 
 export function App() {
   const [data, setData] = useState<Dashboard | null>(null);
@@ -257,8 +259,10 @@ export function App() {
   };
   const buyWatch = (row: DashboardRow) =>
     setWatchTicket({ symbol: row.symbol, side: "BUY", order_type: "LIMIT", quantity: 1, limit_price: row.price ?? 0 });
-  const onAlert = (row: DashboardRow) =>
+  const onAlert = (row: DashboardRow) => {
     setAlertPrefill({ symbol: row.symbol, price: row.price });
+    setView("notifications");   // the alert form lives on the Notifications tab now
+  };
   const syncFromSchwab = () => {
     setSyncing(true);
     fetch(`${API}/account/sync`, { method: "POST" })
@@ -272,6 +276,7 @@ export function App() {
   };
 
   return (
+    <NotificationsProvider>
     <main className="app-main">
       <div className="app-container">
         <header style={S.header}>
@@ -319,10 +324,7 @@ export function App() {
                 </div>
               );
             })()}
-            <NotificationsBell
-              prefill={alertPrefill}
-              onPrefillConsumed={() => setAlertPrefill(null)}
-            />
+            <NotificationsBell onOpen={() => guardedNav(() => setView("notifications"))} />
           </div>
         </header>
 
@@ -367,7 +369,7 @@ export function App() {
                   the subbar keeps account-level actions only. */}
               <button className="btn btn-secondary" onClick={syncFromSchwab} disabled={syncing}
                 title="Refresh this account's holdings from Schwab">
-                {syncing ? "Syncing…" : "⟳ Sync from Schwab"}
+                {syncing ? "Syncing…" : <><IconRefresh /> Sync from Schwab</>}
               </button>
               <span style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
                 <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
@@ -413,6 +415,8 @@ export function App() {
           <Settings key={acctKey} onDirtyChange={setSettingsDirty} />
         ) : view === "rules" ? (
           <FinancialRules key={acctKey} onDirtyChange={setSettingsDirty} />
+        ) : view === "notifications" ? (
+          <NotificationsTab prefill={alertPrefill} onPrefillConsumed={() => setAlertPrefill(null)} />
         ) : view === "screen" ? (
           <Screener />
         ) : view === "ledger" ? (
@@ -425,7 +429,7 @@ export function App() {
               <>
                 {pricesStale && (
                   <p style={S.staleNote} role="status">
-                    ⚠ Prices may be stale — Schwab isn’t responding to live requests. Reconnect under
+                    <IconWarning /> Prices may be stale — Schwab isn’t responding to live requests. Reconnect under
                     Settings → Schwab connection.
                   </p>
                 )}
@@ -460,7 +464,7 @@ export function App() {
                           {sectorFilter && (
                             <span style={S.activeFilter}>
                               Sector: <b>{sectorFilter}</b>
-                              <button aria-label="Clear sector filter" style={S.filterX} onClick={() => setSectorFilter(null)}>✕</button>
+                              <button aria-label="Clear sector filter" style={S.filterX} onClick={() => setSectorFilter(null)}><IconClose /></button>
                             </span>
                           )}
                           <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -549,6 +553,7 @@ export function App() {
         {showHelp && <HelpOverlay onClose={() => setShowHelp(false)} />}
       </div>
     </main>
+    </NotificationsProvider>
   );
 }
 

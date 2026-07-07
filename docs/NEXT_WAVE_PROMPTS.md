@@ -846,3 +846,35 @@ first endpoint-level coverage.
 #   Verified: 178 backend + 21 frontend tests, tsc + build clean; live-DB-copy
 #   confirmed ETF resolution (CRWG→CRWV, MRAL→MARA, SOFX standalone), aggregates,
 #   picker toggle+persist, control relocation, account dropdown gone.
+
+# WAVE 29 — NOTIFICATIONS OVERHAUL + SVG ICONS
+# EXECUTED as v0.31.0 (2026-07-07), from field feedback + a UX/UI review. Also
+# evaluated the external "ui-ux-pro-max-skill" (a greenfield design-system GENERATOR):
+# NOT installed — its style/palette generator doesn't fit a mature committed design;
+# its pre-delivery checklist was adopted as a QA lens, and it prompted the emoji→SVG swap.
+#   W29-1 strategy_triggers: triggers_to_fire() re-seeds silently when the traded
+#     account changes (was: new account's triggers compared vs old account's memory
+#     → burst on every profile/account switch). Pure + unit-tested.
+#   W29-2 unified notif prefs (notifications.py): global app_setting notif_prefs
+#     {muted, categories:{alert,trigger,fill}:{bell,desktop,phone}, muted_symbols}.
+#     _gate() applied at every post path (_fire/post_system_notification/_emit):
+#     muted/symbol/bell-off → persisted READ (history kept, no badge); push carries
+#     category + desktop flag; phone gated (dispatch called with category=None so
+#     phone.py's own toggles don't double-gate). "system" (reauth) always delivers.
+#     Fills default desktop=off. GET/POST /api/notif-prefs. 6 gate tests.
+#   W29-3 Notifications tab: lifted WS + desktop firing into NotificationsProvider
+#     (store.tsx) so it runs app-wide; header bell = thin unread shortcut (nav to
+#     tab). Tab sub-tabs Feed/Alerts/Activity/Settings; PrefsPanel = category×channel
+#     grid + global mute + per-symbol mute + PhoneNotify (moved). desktop.ts
+#     fireDesktop now honors server's n.desktop; old localStorage dcats removed.
+#   W29-4 SignalRulesEditor moved Settings→Rules ("Dashboard signals" section);
+#     PhoneNotify moved Settings→Notifications tab; both removed from Settings.
+#   W29-5 lucide-react (compile-time bundled, offline — verified no external refs in
+#     dist). Central src/Icon.tsx wraps named icons (currentColor, 15px default).
+#     24 files swept emoji→SVG. LEFT deliberately: ▲/▼ value/sign decorations,
+#     ●/◆ status dots, KIND_ICON badges, ✓ inline confirmation copy, × as math.
+#   Verified: 187 backend + 21 frontend tests, tsc + build clean, dist has no
+#   external icon/font refs; live-DB-copy: tab + 3×3 grid + global/symbol mute +
+#   phone config render, toggle persists to API, Signals in Rules, SVG bell,
+#   zero console errors.
+# NOT DONE (user deferred): quiet hours.

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AuthStatus } from "./types";
 
 import { API } from "./api";
+import { IconExternalLink } from "./Icon";
 
 /** Button that opens the two-step manual-OAuth re-authorization modal. */
 export function ReauthButton({
@@ -152,7 +153,7 @@ export function ReauthButton({
                     </p>
                     <div style={{ margin: "14px 0" }}>
                       <button className="btn btn-primary" disabled={!authUrl || busy} onClick={connectAuto}>
-                        {busy ? "Waiting for Schwab sign-in…" : starting ? "Preparing…" : "Sign in to Schwab ↗"}
+                        {busy ? "Waiting for Schwab sign-in…" : starting ? "Preparing…" : <>Sign in to Schwab <IconExternalLink /></>}
                       </button>
                     </div>
                     {err && <p style={S.err}>{err}</p>}
@@ -183,7 +184,7 @@ export function ReauthButton({
                         <div style={S.linkWrap}>
                           {authUrl ? (
                             <a style={S.link} href={authUrl} target="_blank" rel="noreferrer">
-                              Open Schwab login ↗
+                              Open Schwab login <IconExternalLink />
                             </a>
                           ) : (
                             <span style={S.dim}>{starting ? "preparing login link…" : "—"}</span>

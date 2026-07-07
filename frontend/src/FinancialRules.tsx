@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { usd } from "./App";
+import { SignalRulesEditor } from "./settings/SignalRulesEditor";
 import { useToast } from "./Toast";
+import { IconCheck, IconWarning, IconClose } from "./Icon";
 
 import { API } from "./api";
 
@@ -127,10 +129,10 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
       {findings && (
         <div style={findings.length ? S.healthWarn : S.healthOk}>
           {findings.length === 0 ? (
-            <span>✓ Rules look consistent.</span>
+            <span><IconCheck /> Rules look consistent.</span>
           ) : (
             <>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>⚠ {findings.length} thing{findings.length === 1 ? "" : "s"} worth a look (you can still save):</div>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}><IconWarning /> {findings.length} thing{findings.length === 1 ? "" : "s"} worth a look (you can still save):</div>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
                 {findings.map((f, i) => <li key={i} style={{ color: f.level === "warn" ? "var(--warn)" : "var(--text-muted)" }}>{f.message}</li>)}
               </ul>
@@ -274,6 +276,13 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
             : saved ? <span style={S.savedMsg}>✓ Saved — new suggestions use these immediately</span> : null}
         </span>
       </div>
+
+      {/* Signals moved here from Settings — they're the dashboard flags derived from
+          these same rules, so they belong with the rules. Saves independently. */}
+      <Rule title="Dashboard signals"
+        desc="The buy/sell flags shown on each dashboard row. The built-in default flags the next ladder rung and the sell target set above; add your own rules with custom colors — a ticker flags when the default OR any enabled rule matches.">
+        <SignalRulesEditor />
+      </Rule>
     </div>
   );
 }
@@ -366,7 +375,7 @@ const Row = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 const Head = ({ children }: { children: React.ReactNode }) => <span style={S.colHead}>{children}</span>;
 const Example = ({ children }: { children: React.ReactNode }) => <div style={S.example}>{children}</div>;
 const RmBtn = ({ onClick }: { onClick: () => void }) => (
-  <button className="btn btn-ghost btn-sm" title="remove" aria-label="remove" onClick={onClick}>×</button>
+  <button className="btn btn-ghost btn-sm" title="remove" aria-label="remove" onClick={onClick}><IconClose /></button>
 );
 
 // numeric inputs — canonical value stays in backend units; % inputs show ×100.

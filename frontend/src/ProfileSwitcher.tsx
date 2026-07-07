@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 // re-reads under the new profile. Connecting an unconnected profile happens via
 // the existing AuthBanner (which reflects the ACTIVE profile's token).
 import { API } from "./api";
+import { IconChevronDown, IconClose, IconPlus } from "./Icon";
 
 type ProfStatus = { authorized: boolean; severity: string; days_left: number | null; message: string };
 type Prof = { id: string; name: string; active: boolean; connected: boolean; status: ProfStatus };
@@ -66,7 +67,7 @@ export function ProfileSwitcher() {
         aria-haspopup="menu" aria-expanded={open} title="Switch trading profile">
         <span style={{ ...S.dot, background: active ? dotColor(active) : "var(--text-faint)" }} aria-hidden="true" />
         <span style={S.who}>{active ? active.name : "Profile"}</span>
-        <span aria-hidden="true" style={{ opacity: 0.6 }}>▾</span>
+        <span aria-hidden="true" style={{ opacity: 0.6, display: "inline-flex" }}><IconChevronDown /></span>
       </button>
 
       {open && (
@@ -84,12 +85,12 @@ export function ProfileSwitcher() {
               {confirmDel === p.id ? (
                 <span style={S.confirmRow}>
                   <button className="btn btn-danger btn-sm" onClick={() => del(p.id)}>Delete</button>
-                  <button className="btn btn-ghost btn-sm" aria-label="Cancel delete" onClick={() => setConfirmDel(null)}>✕</button>
+                  <button className="btn btn-ghost btn-sm" aria-label="Cancel delete" onClick={() => setConfirmDel(null)}><IconClose /></button>
                 </span>
               ) : (
                 !p.active && (
                   <button className="btn btn-ghost btn-sm" title={`Delete ${p.name}`} aria-label={`Delete ${p.name}`}
-                    onClick={() => setConfirmDel(p.id)}>✕</button>
+                    onClick={() => setConfirmDel(p.id)}><IconClose /></button>
                 )
               )}
             </div>
@@ -103,10 +104,10 @@ export function ProfileSwitcher() {
                 onKeyDown={(e) => { if (e.key === "Enter") addProfile(); if (e.key === "Escape") { e.stopPropagation(); setAdding(false); } }}
                 style={{ height: 30, flex: 1 }} aria-label="New profile name" />
               <button className="btn btn-primary btn-sm" disabled={busy || !newName.trim()} onClick={addProfile}>Add</button>
-              <button className="btn btn-ghost btn-sm" aria-label="Cancel adding profile" onClick={() => { setAdding(false); setNewName(""); }}>✕</button>
+              <button className="btn btn-ghost btn-sm" aria-label="Cancel adding profile" onClick={() => { setAdding(false); setNewName(""); }}><IconClose /></button>
             </div>
           ) : (
-            <button role="menuitem" style={S.addBtn} onClick={() => setAdding(true)}>+ Add profile</button>
+            <button role="menuitem" style={S.addBtn} onClick={() => setAdding(true)}><IconPlus /> Add profile</button>
           )}
           <p style={S.hint}>Switching reloads the app with that profile's Schwab login, accounts, and layout. A new profile starts disconnected — connect it from the banner.</p>
         </div>

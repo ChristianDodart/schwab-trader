@@ -3,6 +3,7 @@ import { usd } from "./App";
 import type { Suggestion } from "./types";
 
 import { API } from "./api";
+import { IconWarning } from "./Icon";
 
 type Acct = { hash: string; mask: string; type: string | null };
 
@@ -241,7 +242,7 @@ export function OrderTicket({
             {suggestion.symbol}
             {suggestion.rung ? <span style={S.titleSub}> · rung {suggestion.rung}</span> : null}
           </div>
-          {suggestion.note && <p style={S.warnNote}>⚠ {suggestion.note}</p>}
+          {suggestion.note && <p style={S.warnNote}><IconWarning /> {suggestion.note}</p>}
 
           {extended && (
             <p style={S.note}>
@@ -250,7 +251,7 @@ export function OrderTicket({
           )}
           {closed && (
             <p style={S.warnNote}>
-              ⚠ Market is closed — an order queues to the next open. A market order would fill at the
+              <IconWarning /> Market is closed — an order queues to the next open. A market order would fill at the
               (unknown) opening price, so a limit is safer.
             </p>
           )}
@@ -310,7 +311,7 @@ export function OrderTicket({
           {/* Advisory only — the broker enforces margin/settlement. Never blocks placing. */}
           {isBuy && suggestion.buying_power != null && est != null && est > suggestion.buying_power && (
             <p style={S.warnNote}>
-              ⚠ Exceeds available buying power ({usd(suggestion.buying_power)}) — advisory only; the broker
+              <IconWarning /> Exceeds available buying power ({usd(suggestion.buying_power)}) — advisory only; the broker
               enforces margin.
             </p>
           )}
@@ -330,7 +331,7 @@ export function OrderTicket({
           <div style={S.acct}>
             {!acctLoaded ? "Resolving trading account…"
               : acct ? <>Trading on <b>{acct.mask} · {acct.type}</b></>
-              : <span style={S.warn}>⚠ No trading-enabled account. Enable trading for an account in Settings.</span>}
+              : <span style={S.warn}><IconWarning /> No trading-enabled account. Enable trading for an account in Settings.</span>}
           </div>
 
           {!result ? (
@@ -342,7 +343,7 @@ export function OrderTicket({
             </div>
           ) : result.needs_confirm ? (
             <div style={S.resultBox}>
-              <p style={S.warnNote}>⚠ {result.warning}</p>
+              <p style={S.warnNote}><IconWarning /> {result.warning}</p>
               <div style={S.actions}>
                 <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setResult(null)}>Back</button>
                 <button className={confirmCls} style={{ flex: 2 }} disabled={placing} onClick={() => place(true)}>

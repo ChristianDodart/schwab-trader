@@ -6,6 +6,7 @@ import { useToast } from "./Toast";
 import type { Order } from "./types";
 
 import { API } from "./api";
+import { IconRefresh, IconWarning } from "./Icon";
 const CANCELABLE = new Set([
   "WORKING", "PENDING_ACTIVATION", "QUEUED", "ACCEPTED",
   "AWAITING_PARENT_ORDER", "AWAITING_CONDITION", "AWAITING_MANUAL_REVIEW",
@@ -71,7 +72,7 @@ export function Orders({ initialFilter }: { initialFilter?: string } = {}) {
             aria-label="Filter orders by symbol" value={filter}
             onChange={(e) => setFilter(e.target.value)} />
           {filter && <button className="btn btn-ghost btn-sm" onClick={() => setFilter("")}>clear</button>}
-          <button className="btn btn-secondary" onClick={() => load()}>↻ Refresh</button>
+          <button className="btn btn-secondary" onClick={() => load()}><IconRefresh /> Refresh</button>
         </span>
       </div>
       {loading ? (
@@ -213,7 +214,7 @@ function EditOrderModal({ order, onClose, onDone }: {
         )}
         {result?.needs_confirm ? (
           <>
-            <p style={ES.warn}>⚠ {result.warning}</p>
+            <p style={ES.warn}><IconWarning /> {result.warning}</p>
             <div style={ES.actions}>
               <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setResult(null)}>Back</button>
               <button className={buy ? "btn btn-primary" : "btn btn-sell"} style={{ flex: 2 }}

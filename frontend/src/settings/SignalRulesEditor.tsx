@@ -3,6 +3,7 @@ import { useToast } from "../Toast";
 import { API } from "../api";
 import { SIGNAL_METRICS, newRule, metricUnit, type SignalRule } from "../signals";
 import { SS } from "./ui";
+import { IconClose } from "../Icon";
 
 type StrategyInfo = { sell?: { default_mode?: string; dollar_gain?: number; pct_above?: number }; ladder_drops?: { drop_pct?: number }[] };
 
@@ -71,7 +72,7 @@ export function SignalRulesEditor() {
           <label style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)", display: "inline-flex", gap: 4, alignItems: "center" }}>
             <input type="checkbox" checked={r.enabled} onChange={(e) => patch(i, { enabled: e.target.checked })} />on
           </label>
-          <button className="btn btn-ghost btn-sm" aria-label="Delete rule" onClick={() => setRules((rs) => rs!.filter((_, j) => j !== i))}>✕</button>
+          <button className="btn btn-ghost btn-sm" aria-label="Delete rule" onClick={() => setRules((rs) => rs!.filter((_, j) => j !== i))}><IconClose /></button>
         </div>
       ))}
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>

@@ -3,6 +3,7 @@ import { usd } from "./App";
 import { Panel, moneyColor } from "./LedgerUI";
 import type { LedgerActivity as Activity } from "./types";
 import { API } from "./api";
+import { IconChevronLeft, IconChevronRight } from "./Icon";
 
 // Month-grid heatmap of realized profit per day (W26-1). Data is the same
 // day-grain activity the table uses; each cell's tint scales with that day's
@@ -72,10 +73,10 @@ export function PLCalendar({ onDayClick }: { onDayClick?: (iso: string) => void 
           <span style={{ ...C.monthTotal, color: moneyColor(monthTotal) }}>
             {monthTotal !== 0 ? `${monthTotal > 0 ? "+" : ""}${usd(Math.round(monthTotal))}` : ""}
           </span>
-          <button className="btn btn-secondary btn-sm" aria-label="Previous month" onClick={() => shift(-1)}>‹</button>
+          <button className="btn btn-secondary btn-sm" aria-label="Previous month" onClick={() => shift(-1)}><IconChevronLeft /></button>
           <b style={C.monthLabel}>{MONTHS[ym.m]} {ym.y}</b>
           <button className="btn btn-secondary btn-sm" aria-label="Next month" onClick={() => shift(1)}
-            disabled={atCurrentMonth} title={atCurrentMonth ? "Already at the current month" : undefined}>›</button>
+            disabled={atCurrentMonth} title={atCurrentMonth ? "Already at the current month" : undefined}><IconChevronRight /></button>
         </span>
       }
     >

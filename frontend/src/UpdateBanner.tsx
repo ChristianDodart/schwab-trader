@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { IconClose } from "./Icon";
 
 // A friendly "new version is ready" banner for the packaged desktop app. electron-updater
 // downloads a newer GitHub release in the background; the main process forwards the events
@@ -66,7 +67,7 @@ export function UpdateBanner() {
     return (
       <div style={{ ...S.bar, ...S.downloading }} role="status">
         <span style={S.msg}>Downloading update{downloading ? ` ${downloading}` : ""}… you can keep working; we'll let you know when it's ready.</span>
-        <button style={S.x} title="Hide" aria-label="Hide update banner" onClick={() => setDismissed(true)}>✕</button>
+        <button style={S.x} title="Hide" aria-label="Hide update banner" onClick={() => setDismissed(true)}><IconClose /></button>
       </div>
     );
   }

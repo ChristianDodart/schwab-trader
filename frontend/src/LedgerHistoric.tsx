@@ -6,6 +6,7 @@ import { useToast } from "./Toast";
 import {
   AccountStamp, ALL_TIME, Card, Panel, PeriodSelector, Row, S, moneyColor, type Period,
 } from "./LedgerUI";
+import { IconUpload, IconDownload, IconRefresh, IconClose } from "./Icon";
 import type { CashFlowRow, LedgerHistoric as Historic, MarginSummary } from "./types";
 
 import { API } from "./api";
@@ -267,14 +268,14 @@ export function LedgerHistoric() {
           <span style={{ display: "flex", gap: 6 }}>
             <label className="btn btn-secondary btn-sm" style={{ cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}
               title="Import a Schwab transactions CSV export (full history)">
-              ⬆ Import CSV
+              <IconUpload /> Import CSV
               <input type="file" accept=".csv,text/csv" disabled={busy} style={{ display: "none" }}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) importCsv(f); e.target.value = ""; }} />
             </label>
-            <button className="btn btn-secondary btn-sm" disabled={busy} onClick={refreshDeposits}>↻ Pull from Schwab (60d)</button>
+            <button className="btn btn-secondary btn-sm" disabled={busy} onClick={refreshDeposits}><IconRefresh /> Pull from Schwab (60d)</button>
             {h.contributions.rows.length > 0 && (
               <button className="btn btn-secondary btn-sm" title="Download these deposits as CSV"
-                onClick={() => { const a = document.createElement("a"); a.href = `${API}/ledger/cashflows.csv${qs(scope)}`; a.rel = "noopener"; a.click(); }}>⬇ CSV</button>
+                onClick={() => { const a = document.createElement("a"); a.href = `${API}/ledger/cashflows.csv${qs(scope)}`; a.rel = "noopener"; a.click(); }}><IconDownload /> CSV</button>
             )}
           </span>
         }
@@ -327,7 +328,7 @@ export function LedgerHistoric() {
                     </td>
                     <td style={{ textAlign: "right" }}>
                       {cf.source !== "schwab" && (
-                        <button className="btn btn-ghost btn-sm" title="Delete entry" aria-label={`Delete ${cf.day} entry`} onClick={() => delRow(cf.id)}>✕</button>
+                        <button className="btn btn-ghost btn-sm" title="Delete entry" aria-label={`Delete ${cf.day} entry`} onClick={() => delRow(cf.id)}><IconClose /></button>
                       )}
                     </td>
                   </tr>
@@ -352,14 +353,14 @@ export function LedgerHistoric() {
           <span style={{ display: "flex", gap: 6 }}>
             <label className="btn btn-secondary btn-sm" style={{ cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}
               title="Import a Schwab Transactions CSV export (full dividend history)">
-              ⬆ Import CSV
+              <IconUpload /> Import CSV
               <input type="file" accept=".csv,text/csv" disabled={busy} style={{ display: "none" }}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) importDividendsCsv(f); e.target.value = ""; }} />
             </label>
-            <button className="btn btn-secondary btn-sm" disabled={busy} onClick={refreshDividends}>↻ Pull from Schwab (60d)</button>
+            <button className="btn btn-secondary btn-sm" disabled={busy} onClick={refreshDividends}><IconRefresh /> Pull from Schwab (60d)</button>
             {div && div.rows.length > 0 && (
               <button className="btn btn-secondary btn-sm" title="Download the income log as CSV"
-                onClick={() => { const a = document.createElement("a"); a.href = `${API}/ledger/dividends.csv`; a.rel = "noopener"; a.click(); }}>⬇ CSV</button>
+                onClick={() => { const a = document.createElement("a"); a.href = `${API}/ledger/dividends.csv`; a.rel = "noopener"; a.click(); }}><IconDownload /> CSV</button>
             )}
           </span>
         }

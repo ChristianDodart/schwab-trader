@@ -89,16 +89,8 @@ export function PhoneNotify() {
       )}
 
       {cfg.channel !== "off" && (
-        <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: "var(--fs-xs)", color: "var(--text-dim)", marginBottom: 4 }}>Send to phone:</div>
-          {([["cat_alerts", "Price alerts"], ["cat_triggers", "Strategy triggers"], ["cat_fills", "Order fills"]] as const).map(([k, label]) => (
-            <label key={k} style={{ ...SS.toggle, fontSize: "var(--fs-sm)", marginRight: 16 }}>
-              <input type="checkbox" checked={cfg[k]} onChange={(e) => patch({ [k]: e.target.checked })} />
-              {label}
-            </label>
-          ))}
-          <p style={SS.credStatus}>The in-app bell always shows everything; these only gate what reaches your phone.</p>
-        </div>
+        <p style={SS.credStatus}>Which events reach your phone is set by the <b>Phone</b> column in the delivery
+          table above. This section is just the connection.</p>
       )}
 
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>

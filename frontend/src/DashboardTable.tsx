@@ -4,6 +4,7 @@ import { DASH_COLUMNS, PINNED_DASH, rowSignalChips, tickerRiskColor, RISK_LABEL 
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
 import type { SignalRule } from "./signals";
+import { IconChildArrow, IconBell, IconClose } from "./Icon";
 
 // Column sorting: click a header to sort by it (asc/desc toggle, third click clears
 // back to the default order). Persisted per browser. Applied BEFORE nesting, so ETF
@@ -221,7 +222,7 @@ export function DashboardTable({
                   )}
                   <td className="left" style={depth > 0 ? { paddingLeft: 26, boxShadow: "inset 3px 0 0 var(--border-strong)" } : undefined}>
                     <span style={S.tickerLine}>
-                      {depth > 0 && <span style={S.childArrow} aria-hidden="true">↳</span>}
+                      {depth > 0 && <span style={S.childArrow} aria-hidden="true"><IconChildArrow size={13} /></span>}
                       <span style={{ fontWeight: 700, color: tickerRiskColor(r.risk) }} title={r.risk ? RISK_LABEL[r.risk] : undefined}>{r.symbol}</span>
                       {r.has_note && <NoteDot preview={r.note_preview} />}
                       {r.has_rules && <span style={S.rulesDot} title="Uses its own ticker rules (sell target / dip depth) — open to see or edit them" aria-label="custom rules">◆</span>}
@@ -250,7 +251,7 @@ export function DashboardTable({
                           aria-label={`Set a price alert on ${r.symbol}`}
                           onClick={(e) => { e.stopPropagation(); onAlert(r); }}
                         >
-                          🔔
+                          <IconBell size={13} />
                         </button>
                       )}
                       {!bulk && r.is_watch && (
@@ -265,7 +266,7 @@ export function DashboardTable({
                             aria-label={`Remove ${r.symbol} from watchlist`}
                             onClick={() => onRemoveTicker(r.symbol)}
                           >
-                            ✕
+                            <IconClose />
                           </button>
                         </span>
                       )}

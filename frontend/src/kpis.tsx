@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usd } from "./App";
 import type { Dashboard } from "./types";
+import { IconSettings } from "./Icon";
 
 // Customizable header KPIs (W28-5). The top-right cluster is a set of selectable
 // metric boxes drawn from the dashboard payload + the cash summary. Which ones show
@@ -114,7 +115,7 @@ export function KpiPicker({ ids, toggle, reset }: {
       <button ref={btnRef} className="btn btn-ghost btn-sm" style={S.gear}
         aria-label="Choose dashboard metrics" aria-expanded={open}
         title="Choose which metrics show here" onClick={() => setOpen((o) => !o)}>
-        ⚙
+        <IconSettings />
       </button>
       {open && (
         <div style={S.pop} role="dialog" aria-label="Dashboard metrics"

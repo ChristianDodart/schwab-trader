@@ -3,6 +3,26 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.31.0 — "Notifications, under control"
+
+Notifications got a real home and a volume knob, and the whole app switched to
+crisp vector icons.
+- New Notifications tab. The bell in the header is now a shortcut into it. Inside:
+  your feed, your price alerts, recent activity, and — finally — Settings.
+- One clear place to decide what interrupts you: a grid of the three event types
+  (price alerts, strategy triggers, order fills) across the three channels
+  (in-app, desktop, phone). Tick exactly what you want where. Plus a master
+  "mute everything" switch and per-ticker mutes. Muting never loses history —
+  a muted item still lands in the feed, it just won't pop, badge, or text you.
+  Order fills no longer pop a desktop notification by default (they were the
+  noisiest).
+- Fixed the annoying burst: switching profile or account no longer fires a pile
+  of strategy-trigger notifications for the account you just opened.
+- Signals moved from Settings to the Rules tab, where they belong (they're the
+  flags your rules produce). Phone setup moved into the Notifications tab.
+- Every icon is now a clean SVG (bell, gear, sync, close, chevrons, and the
+  rest) instead of an emoji — consistent and sharp on every machine.
+
 ## v0.30.0 — "Your dashboard, your way"
 
 A declutter and a new customizable header:

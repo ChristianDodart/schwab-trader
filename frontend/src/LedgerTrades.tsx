@@ -5,6 +5,7 @@ import { AccountStamp, ALL_TIME, Card, Panel, PeriodSelector, S, moneyColor, typ
 import type { TradeLog } from "./types";
 
 import { API } from "./api";
+import { IconDownload, IconChevronDown, IconChevronRight } from "./Icon";
 
 const qs = (p: Period, sym: string) => {
   const q = new URLSearchParams();
@@ -115,7 +116,7 @@ export function LedgerTrades({ initialScope }: { initialScope?: Period } = {}) {
             <PeriodSelector value={scope} onChange={setScope} year={year} />
             {d.trades.length > 0 && (
               <button className="btn btn-secondary btn-sm" title="Download these trades as CSV"
-                onClick={() => downloadCsv(`${API}/ledger/trades.csv${qs(scope, sym)}`)}>⬇ CSV</button>
+                onClick={() => downloadCsv(`${API}/ledger/trades.csv${qs(scope, sym)}`)}><IconDownload /> CSV</button>
             )}
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
               title="Closed round-trips for the year, formatted for tax filing (proceeds, cost basis, short/long-term)">
@@ -124,7 +125,7 @@ export function LedgerTrades({ initialScope }: { initialScope?: Period } = {}) {
                 {Array.from({ length: 6 }, (_, i) => year - i).map((y) => <option key={y} value={y}>{y}</option>)}
               </select>
               <button className="btn btn-secondary btn-sm" title="Download the tax-lot report for this year"
-                onClick={() => downloadCsv(`${API}/ledger/tax-lots.csv?year=${taxYear}`)}>⬇ Tax</button>
+                onClick={() => downloadCsv(`${API}/ledger/tax-lots.csv?year=${taxYear}`)}><IconDownload /> Tax</button>
             </span>
           </span>
         }
@@ -179,7 +180,7 @@ export function LedgerTrades({ initialScope }: { initialScope?: Period } = {}) {
                       aria-label={`${r.symbol} — ${openSym === r.symbol ? "hide" : "show"} its trade history`}
                       onClick={() => setOpenSym(openSym === r.symbol ? null : r.symbol)}
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenSym(openSym === r.symbol ? null : r.symbol); } }}>
-                      <td className="left"><b>{r.symbol}</b> <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-xs)" }}>{openSym === r.symbol ? "▾" : "▸"}</span></td>
+                      <td className="left"><b>{r.symbol}</b> <span style={{ color: "var(--text-faint)" }} aria-hidden="true">{openSym === r.symbol ? <IconChevronDown size={13} /> : <IconChevronRight size={13} />}</span></td>
                       <td style={{ textAlign: "right" }}>{r.count}</td>
                       <td style={{ textAlign: "right" }}>{pct(r.win_rate)}</td>
                       <td style={{ textAlign: "right", color: moneyColor(r.total_profit), fontVariantNumeric: "tabular-nums" }}>

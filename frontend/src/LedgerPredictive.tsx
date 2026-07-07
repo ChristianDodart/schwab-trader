@@ -6,6 +6,7 @@ import { Card, Panel, Row, S, moneyColor } from "./LedgerUI";
 import type { LedgerProjection as Projection } from "./types";
 
 import { API } from "./api";
+import { IconEdit } from "./Icon";
 
 export function LedgerPredictive() {
   const [p, setP] = useState<Projection | null>(null);
@@ -132,7 +133,7 @@ function EditRow({ label, value, placeholder, onSave, allowZero }: {
       <div style={SP.editRow}>
         <span style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)" }}>{label}</span>
         <button className="btn btn-ghost btn-sm" onClick={begin} aria-label={`Edit ${label}`}>
-          {value != null ? "✎ Edit" : "✎ Set"}
+          {value != null ? <><IconEdit /> Edit</> : <><IconEdit /> Set</>}
         </button>
       </div>
     );

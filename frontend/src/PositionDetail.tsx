@@ -9,6 +9,7 @@ import { useToast } from "./Toast";
 import type { PositionDetailData, Suggestion, SymbolRuleOverride } from "./types";
 
 import { API } from "./api";
+import { IconClose, IconChildArrow, IconPlus } from "./Icon";
 
 export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: string; mode?: string; onClose: () => void; embedded?: boolean }) {
   const [d, setD] = useState<PositionDetailData | null>(null);
@@ -62,7 +63,7 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <ColumnManager prefs={cols} labelOf={(id) => DETAIL_COLUMNS[id]?.label ?? id} align="right" />
           {!d.is_watch && <button className="btn btn-buy" disabled={busy} onClick={openBuy}>Buy next rung</button>}
-          <button style={S.close} aria-label="Close position detail" onClick={onClose}>✕</button>
+          <button style={S.close} aria-label="Close position detail" onClick={onClose}><IconClose /></button>
         </div>
       </div>
 
@@ -439,7 +440,7 @@ function EtfLinkEditor({ symbol, underlying, onSaved }: { symbol: string; underl
     <button className="tag" onClick={() => { setVal(underlying ?? ""); setEditing(true); }}
       title="Leveraged ETF — click to set the underlying stock it tracks (groups it on the dashboard)"
       style={{ marginLeft: 10, cursor: "pointer", color: underlying ? "var(--neg)" : "var(--text-faint)", border: "1px solid var(--border)", background: "transparent" }}>
-      {underlying ? `↳ tracks ${underlying}` : "+ underlying"}
+      {underlying ? <><IconChildArrow /> tracks {underlying}</> : <><IconPlus /> underlying</>}
     </button>
   );
 }

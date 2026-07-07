@@ -27,12 +27,25 @@ def new_triggers(current: set, previous: set) -> set:
     return current - previous
 
 
+def triggers_to_fire(current: set, previous: set, account: str, seeded_account: str | None) -> set:
+    """Which triggered keys warrant a notification this pass.
+
+    Fires NOTHING on the first pass for a given account — that pass only seeds the
+    baseline, so we never blast a notification for every position already sitting at
+    its trigger. Crucially this also re-seeds when the traded account CHANGES (profile
+    or account switch): otherwise the new account's triggers would be compared against
+    the old account's memory and all fire at once (the "switch → burst" bug)."""
+    if account != seeded_account:
+        return set()
+    return new_triggers(current, previous)
+
+
 async def run_strategy_trigger_watcher() -> None:
     from . import accounts, notifications
     from .dashboard import build_dashboard
 
     global _state
-    seeded = False
+    seeded_account: str | None = None
     while True:
         try:
             account = await accounts.get_trading_account()  # only the account you trade
@@ -50,9 +63,9 @@ async def run_strategy_trigger_watcher() -> None:
                         k = (account, r["symbol"], "sell")
                         current.add(k); info[k] = r
 
-                fresh = new_triggers(current, _state) if seeded else set()
+                fresh = triggers_to_fire(current, _state, account, seeded_account)
                 _state = current
-                seeded = True
+                seeded_account = account
 
                 for k in fresh:
                     _, symbol, kind = k

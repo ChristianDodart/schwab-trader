@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { DashboardRow } from "./types";
 import { usd } from "./App";
+import { IconWarning } from "./Icon";
 
 // Concentration alert threshold (% of invested in a single sector). Persisted locally;
 // advisory only — it never blocks anything, just flags an over-weighted sector.
@@ -100,7 +101,7 @@ export function SectorStrip({ rows, activeSector, onSectorClick }: {
       </div>
       {over && (
         <p style={S.warn}>
-          ⚠ Concentrated: {over.name} is {over.pct.toFixed(0)}% of invested value (alert set at {thresh}%). Advisory only.
+          <IconWarning /> Concentrated: {over.name} is {over.pct.toFixed(0)}% of invested value (alert set at {thresh}%). Advisory only.
         </p>
       )}
     </div>

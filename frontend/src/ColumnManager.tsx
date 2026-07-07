@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { ColumnPrefs } from "./columns";
+import { IconSettings, IconClose, IconGrip, IconArrowUp, IconArrowDown } from "./Icon";
 
 /** A "⚙ Columns" button + popover to reorder, remove, add, and reset the columns
  * for one view. Generic over any ColumnPrefs + a label lookup. */
@@ -36,7 +37,7 @@ export function ColumnManager({
     <span style={S.wrap}>
       <button ref={triggerRef} className="btn btn-ghost btn-sm" onClick={() => setOpen((o) => !o)}
         title="customize columns" aria-expanded={open}>
-        ⚙ Columns
+        <IconSettings /> Columns
       </button>
       {open && (
         <div style={{ ...S.pop, left: align === "left" ? 0 : undefined, right: align === "right" ? 0 : undefined }}
@@ -44,7 +45,7 @@ export function ColumnManager({
           <div style={S.head}>
             <span style={S.title}>Columns</span>
             <button className="btn btn-ghost btn-sm" style={S.reset} onClick={prefs.reset} title="restore default layout">Reset</button>
-            <button className="btn btn-ghost btn-sm" style={S.close} onClick={close} aria-label="close column manager">✕</button>
+            <button className="btn btn-ghost btn-sm" style={S.close} onClick={close} aria-label="close column manager"><IconClose /></button>
           </div>
 
           <div style={S.list}>
@@ -59,11 +60,11 @@ export function ColumnManager({
                 onDrop={(e) => { e.preventDefault(); if (dragId && dragId !== id) prefs.reorder(dragId, i); setDragId(null); setOverId(null); }}
                 onDragEnd={() => { setDragId(null); setOverId(null); }}
               >
-                <span style={S.grip} aria-hidden="true" title="drag to reorder">⠿</span>
+                <span style={S.grip} title="drag to reorder"><IconGrip /></span>
                 <span style={S.itemLabel}>{labelOf(id)}</span>
-                <button className="btn btn-ghost btn-sm" style={S.mv} disabled={i === 0} onClick={() => prefs.move(id, -1)} title="move up" aria-label={`move ${labelOf(id)} up`}>↑</button>
-                <button className="btn btn-ghost btn-sm" style={S.mv} disabled={i === prefs.ids.length - 1} onClick={() => prefs.move(id, 1)} title="move down" aria-label={`move ${labelOf(id)} down`}>↓</button>
-                <button className="btn btn-ghost btn-sm" style={S.rm} onClick={() => prefs.remove(id)} title="remove" aria-label={`remove ${labelOf(id)}`}>✕</button>
+                <button className="btn btn-ghost btn-sm" style={S.mv} disabled={i === 0} onClick={() => prefs.move(id, -1)} title="move up" aria-label={`move ${labelOf(id)} up`}><IconArrowUp /></button>
+                <button className="btn btn-ghost btn-sm" style={S.mv} disabled={i === prefs.ids.length - 1} onClick={() => prefs.move(id, 1)} title="move down" aria-label={`move ${labelOf(id)} down`}><IconArrowDown /></button>
+                <button className="btn btn-ghost btn-sm" style={S.rm} onClick={() => prefs.remove(id)} title="remove" aria-label={`remove ${labelOf(id)}`}><IconClose /></button>
               </div>
             ))}
             {prefs.ids.length === 0 && <div style={S.empty}>No columns — add one below.</div>}

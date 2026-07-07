@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { IconClose } from "./Icon";
 
 // Themed, non-blocking replacement for native alert(). One provider wraps the
 // app; any component calls const toast = useToast(); toast("message", "error").
@@ -45,7 +46,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               aria-label="Dismiss"
               style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "var(--fs-sm)", padding: 0, lineHeight: 1 }}
             >
-              ✕
+              <IconClose />
             </button>
           </div>
         ))}

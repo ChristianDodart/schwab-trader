@@ -241,7 +241,16 @@ export type Notification = {
   price: number | null;
   read: boolean;
   created_at: string | null;
-  kind?: "alert" | "trigger" | "fill"; // live-push only (not stored) — for desktop gating
+  kind?: "alert" | "trigger" | "fill" | "system"; // live-push only (not stored) — category
+  desktop?: boolean; // live-push only: server's decision (from notif prefs) whether to pop a desktop notification
+};
+
+// Notification delivery prefs (global) — the Notifications tab writes these.
+export type NotifChannels = { bell: boolean; desktop: boolean; phone: boolean };
+export type NotifPrefs = {
+  muted: boolean;
+  categories: { alert: NotifChannels; trigger: NotifChannels; fill: NotifChannels };
+  muted_symbols: string[];
 };
 
 export type AuditEvent = {

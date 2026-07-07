@@ -20,6 +20,8 @@ Design notes
 from __future__ import annotations
 
 import asyncio
+import copy
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -27,11 +29,87 @@ from sqlalchemy import delete, func, select, update
 
 from . import phone
 from .db import SessionLocal, dialect_insert as pg_insert
-from .db.models import AuditEvent, Notification, PriceAlert
+from .db.models import AppSetting, AuditEvent, Notification, PriceAlert
 from .schwab import hub, subscribe
 from .schwab.auth import get_client
 
 log = logging.getLogger(__name__)
+
+# ---------- notification preferences (the Notifications tab writes these) ----------
+# One global blob governs delivery of the three user-facing categories across the
+# three channels. "system" notifications (re-auth nudges) are never gated. Muting is
+# non-destructive: a muted item is still recorded (marked read, so it never badges),
+# it just doesn't interrupt — matching how Slack/iOS muting behaves.
+_PREFS_KEY = "notif_prefs"
+_CATEGORIES = ("alert", "trigger", "fill")
+_CHANNELS = ("bell", "desktop", "phone")
+_DEFAULT_PREFS: dict = {
+    "muted": False,
+    "categories": {
+        "alert":   {"bell": True, "desktop": True, "phone": True},
+        "trigger": {"bell": True, "desktop": True, "phone": True},
+        # Fills are frequent and low-urgency — no desktop pop-up by default.
+        "fill":    {"bell": True, "desktop": False, "phone": True},
+    },
+    "muted_symbols": [],
+}
+_prefs_cache: dict | None = None
+
+
+def _merge_prefs(stored: dict | None) -> dict:
+    """Overlay stored values on the defaults so a partial/older blob is always complete."""
+    p = copy.deepcopy(_DEFAULT_PREFS)
+    if isinstance(stored, dict):
+        p["muted"] = bool(stored.get("muted", p["muted"]))
+        p["muted_symbols"] = [str(s).upper() for s in stored.get("muted_symbols", []) if s]
+        for cat in _CATEGORIES:
+            sc = (stored.get("categories") or {}).get(cat, {})
+            if isinstance(sc, dict):
+                for ch in _CHANNELS:
+                    if ch in sc:
+                        p["categories"][cat][ch] = bool(sc[ch])
+    return p
+
+
+async def get_notif_prefs() -> dict:
+    global _prefs_cache
+    if _prefs_cache is None:
+        async with SessionLocal() as s:
+            row = await s.get(AppSetting, _PREFS_KEY)
+        try:
+            _prefs_cache = _merge_prefs(json.loads(row.value) if row and row.value else None)
+        except (ValueError, TypeError):
+            _prefs_cache = _merge_prefs(None)
+    return _prefs_cache
+
+
+async def set_notif_prefs(patch: dict) -> dict:
+    global _prefs_cache
+    merged = _merge_prefs({**(await get_notif_prefs()), **(patch or {})})
+    payload = json.dumps(merged)
+    async with SessionLocal() as s:
+        await s.execute(
+            pg_insert(AppSetting).values(key=_PREFS_KEY, value=payload)
+            .on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": payload})
+        )
+        await s.commit()
+    _prefs_cache = merged
+    return merged
+
+
+def _gate(prefs: dict, category: str, symbol: str | None) -> dict:
+    """Resolve one notification's delivery: whether it lands read (no badge), and
+    whether desktop/phone copies go out. 'system' always fully delivers."""
+    if category == "system":
+        return {"read": False, "desktop": True, "phone": True}
+    active = (not prefs.get("muted")) and ((symbol or "").upper() not in set(prefs.get("muted_symbols", [])))
+    cat = (prefs.get("categories") or {}).get(category, {})
+    bell = cat.get("bell", True)
+    return {
+        "read": not (active and bell),                 # muted/off → recorded as already-read
+        "desktop": bool(active and cat.get("desktop", True)),
+        "phone": bool(active and cat.get("phone", True)),
+    }
 
 # Audit-log retention: the table grows forever otherwise. Prune rows that are BOTH
 # older than this AND beyond the newest N (so we always keep at least N regardless of age).
@@ -188,8 +266,9 @@ async def _fire(a: dict, symbol: str, px: float) -> None:
     msg = f"{symbol} {_sym(a['direction'])} {a['threshold']:g} (now {px:g})"
     if a.get("note"):
         msg += f" — {a['note']}"
+    g = _gate(await get_notif_prefs(), "alert", symbol)
     async with SessionLocal() as s:
-        n = Notification(alert_id=a["id"], symbol=symbol, message=msg, price=px)
+        n = Notification(alert_id=a["id"], symbol=symbol, message=msg, price=px, read=g["read"])
         s.add(n)
         await s.flush()  # assign n.id
         nid = n.id
@@ -207,26 +286,31 @@ async def _fire(a: dict, symbol: str, px: float) -> None:
 
     _push({
         "id": nid, "alert_id": a["id"], "symbol": symbol, "message": msg,
-        "price": px, "read": False, "created_at": _iso(), "kind": "alert",
+        "price": px, "read": g["read"], "created_at": _iso(), "kind": "alert", "desktop": g["desktop"],
     })
-    phone.dispatch(f"{symbol} alert", msg, category="alert")  # optional phone copy; silent no-op when off
+    if g["phone"]:
+        phone.dispatch(f"{symbol} alert", msg)  # unified prefs already decided phone
     # ASCII-only log line (Windows console is cp1252 and chokes on ≥/≤)
     log.info(f"[alerts] fired #{a['id']}: {symbol} {a['direction']} "
              f"{a['threshold']:g} @ {px:g}")
 
 
-async def post_system_notification(symbol: str | None, message: str, price: float | None = None) -> int:
-    """Post a non-price-alert notification (e.g. a strategy trigger) to the bell feed +
-    live push (which also pops a desktop notification). alert_id is NULL. Returns the id."""
+async def post_system_notification(symbol: str | None, message: str, price: float | None = None,
+                                   category: str = "trigger") -> int:
+    """Post a non-price-alert notification to the bell feed + live push. `category` is
+    one of alert|trigger|fill (gated by the user's notification prefs) or "system"
+    (re-auth nudges — always delivered). alert_id is NULL. Returns the id."""
+    g = _gate(await get_notif_prefs(), category, symbol)
     async with SessionLocal() as s:
-        n = Notification(alert_id=None, symbol=symbol, message=message, price=price)
+        n = Notification(alert_id=None, symbol=symbol, message=message, price=price, read=g["read"])
         s.add(n)
         await s.flush()
         nid = n.id
         await s.commit()
     _push({"id": nid, "alert_id": None, "symbol": symbol, "message": message,
-           "price": price, "read": False, "created_at": _iso(), "kind": "trigger"})
-    phone.dispatch(symbol or "Schwab Trader", message, category="trigger")  # optional phone copy (strategy triggers)
+           "price": price, "read": g["read"], "created_at": _iso(), "kind": category, "desktop": g["desktop"]})
+    if g["phone"]:
+        phone.dispatch(symbol or "Schwab Trader", message)
     return nid
 
 
@@ -249,15 +333,17 @@ async def _on_quote(symbol: str, px: float) -> None:
 
 # ---------- fill notifications ----------
 async def _emit(symbol: str | None, message: str, price: float | None, alert_id=None) -> None:
+    g = _gate(await get_notif_prefs(), "fill", symbol)
     async with SessionLocal() as s:
-        n = Notification(alert_id=alert_id, symbol=symbol, message=message, price=price)
+        n = Notification(alert_id=alert_id, symbol=symbol, message=message, price=price, read=g["read"])
         s.add(n)
         await s.flush()
         nid = n.id
         await s.commit()
     _push({"id": nid, "alert_id": alert_id, "symbol": symbol, "message": message,
-           "price": price, "read": False, "created_at": _iso(), "kind": "fill"})
-    phone.dispatch(symbol or "Fill", message, category="fill")  # optional phone copy (resting fills)
+           "price": price, "read": g["read"], "created_at": _iso(), "kind": "fill", "desktop": g["desktop"]})
+    if g["phone"]:
+        phone.dispatch(symbol or "Fill", message)
 
 
 def _naive_utc(dt):

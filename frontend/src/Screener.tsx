@@ -6,6 +6,7 @@ import type { CandidateScreen, MarketHours, Mover, VetResult } from "./types";
 import { tickerRiskColor, RISK_LABEL } from "./columns";
 
 import { API } from "./api";
+import { IconRefresh } from "./Icon";
 
 const SORTS: { key: string; label: string }[] = [
   { key: "PERCENT_CHANGE_UP", label: "Gainers" },
@@ -210,7 +211,7 @@ export function Screener({ onAdded }: { onAdded?: (symbol: string) => void }) {
                 </button>
               ))}
             </span>
-            <button className="btn btn-secondary btn-sm" onClick={() => setRefreshNonce((n) => n + 1)} title="Refresh movers" aria-label="Refresh movers">↻</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setRefreshNonce((n) => n + 1)} title="Refresh movers" aria-label="Refresh movers"><IconRefresh /></button>
           </div>
         </div>
         {moversErr && <p style={S.err}>{moversErr}</p>}

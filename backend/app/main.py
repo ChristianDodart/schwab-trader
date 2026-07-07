@@ -106,7 +106,7 @@ async def _maybe_reauth_nudge() -> None:
         "expired": "Schwab connection has expired — the app is running on stale data. "
                    "Click the banner (or Settings > Schwab connection) to reconnect.",
     }[stage]
-    await notifications_svc.post_system_notification(None, msg)
+    await notifications_svc.post_system_notification(None, msg, category="system")
     await accounts_svc.set_setting("reauth_nudge", f"{issued}|{rank}")
 
 

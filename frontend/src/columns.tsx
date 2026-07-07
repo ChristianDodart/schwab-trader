@@ -4,6 +4,7 @@ import type { DashboardRow, Lot } from "./types";
 import { matchesRule, type SignalRule } from "./signals";
 
 import { API } from "./api";
+import { IconWarning } from "./Icon";
 
 // ============================================================================
 // Customizable columns. Each view (dashboard, ticker drill-down) has its own
@@ -50,7 +51,7 @@ const PortfolioPct = ({ r }: { r: DashboardRow }) => {
   return (
     <span style={over ? { color: "var(--warn)", fontWeight: 600 } : undefined}
       title={over ? `Over the ${(CONCENTRATION_CAP * 100).toFixed(0)}% single-stock cap` : undefined}>
-      {pct(r.portfolio_pct)}{over ? " ⚠" : ""}
+      {pct(r.portfolio_pct)}{over ? <> <IconWarning size={12} /></> : ""}
     </span>
   );
 };

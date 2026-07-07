@@ -1,6 +1,7 @@
 import type { Alert } from "../types";
 import { fmtNum, fmtTime } from "./format";
 import { PS } from "./ui";
+import { IconClose } from "../Icon";
 
 /** The "Alerts" tab: the price-alerts manager — add form + active/triggered list.
  * Form state lives in the bell so it survives tab switches and prefill opens. */
@@ -88,7 +89,7 @@ export function AlertsPanel({ alerts, sym, onSym, dir, onDir, price, onPrice, re
               aria-label={`Delete alert for ${a.symbol}`}
               onClick={() => onRemove(a)}
             >
-              ✕
+              <IconClose />
             </button>
           </div>
         ))

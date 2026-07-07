@@ -11,15 +11,10 @@ import { BenchmarkPicker } from "./settings/BenchmarkPicker";
 import { DataHealth } from "./settings/DataHealth";
 import { Diagnostics } from "./settings/Diagnostics";
 import { FmpKey } from "./settings/FmpKey";
-import { PhoneNotify } from "./settings/PhoneNotify";
 import { SchwabCreds } from "./settings/SchwabCreds";
 import { SetupGuideReset } from "./settings/SetupGuideReset";
-import { SignalRulesEditor } from "./settings/SignalRulesEditor";
 import { TaxSection } from "./settings/TaxSection";
 import { WhatsNew } from "./settings/WhatsNew";
-
-// Re-export the section components so existing deep-imports keep working.
-export { SignalRulesEditor } from "./settings/SignalRulesEditor";
 
 type Config = {
   account_hash: string;
@@ -99,16 +94,8 @@ export function Settings({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) =
         <TaxSection filing={c.tax_filing} stateRate={c.tax_state_rate} onChange={set} />
       </Section>
 
-      <Section title="Signals" info="Dashboard buy/sell flags. The default rule is built in (BUY at the next ladder rung, SELL at the strategy sell target — set those under Rules). Add your own OR rules with custom colors — a ticker flags when the default OR any enabled rule matches.">
-        <SignalRulesEditor />
-      </Section>
-
       <Section title="Benchmark" info="The buy-and-hold yardstick for the Ledger's 'If it were all …' comparison — what your exact deposits would be worth in this ticker instead of actively traded.">
         <BenchmarkPicker />
-      </Section>
-
-      <Section title="Phone notifications" info="Optional. Also send resting-fill, strategy-trigger, and price alerts to your phone. ntfy.sh needs no account — pick a hard-to-guess topic and subscribe to it in the free ntfy app. Or use email via SMTP (an app password, not your login password). The in-app bell always works regardless.">
-        <PhoneNotify />
       </Section>
 
       <Section title="Data health & import" info="The app rebuilds your ladder and realized history from a durable fill ledger: recent trades sync from Schwab automatically, and one Transactions CSV export backfills years of history in a single upload (trades, deposits, and dividends are all routed from the same file). Re-importing is always safe — nothing double-counts.">

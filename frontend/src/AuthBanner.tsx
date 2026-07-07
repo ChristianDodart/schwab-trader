@@ -3,6 +3,7 @@ import { ReauthButton } from "./Reauth";
 import type { AuthStatus } from "./types";
 
 import { API } from "./api";
+import { IconBlocked, IconWarning, IconClose } from "./Icon";
 
 export function AuthBanner() {
   const [status, setStatus] = useState<AuthStatus | null>(null);
@@ -54,7 +55,7 @@ export function AuthBanner() {
   const c = status.severity === "expired" ? COLORS.expired : COLORS.warn;
   return (
     <div style={{ ...S.bar, background: c.bg, borderColor: c.border }}>
-      <span style={{ fontSize: 15 }}>{status.severity === "expired" ? "⛔" : "⚠️"}</span>
+      <span style={{ display: "inline-flex" }}>{status.severity === "expired" ? <IconBlocked size={16} /> : <IconWarning size={16} />}</span>
       <span style={S.msg}>{status.message}</span>
       <button style={S.check} disabled={checking} onClick={checkNow}
         title="Make a real authenticated call to Schwab right now">
@@ -62,7 +63,7 @@ export function AuthBanner() {
       </button>
       <ReauthButton onComplete={load} label={status.expired ? "Connect Schwab" : "Re-authorize"} style={S.reauth} autoStart={autoStart} />
       {status.severity !== "expired" && (
-        <button style={S.x} title="dismiss for now" aria-label="Dismiss for now" onClick={() => setDismissed(true)}>✕</button>
+        <button style={S.x} title="dismiss for now" aria-label="Dismiss for now" onClick={() => setDismissed(true)}><IconClose /></button>
       )}
     </div>
   );

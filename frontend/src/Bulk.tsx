@@ -5,6 +5,7 @@ import type { BulkUI } from "./DashboardTable";
 import type { BulkPrefs, BulkResult, BuyCandidate, DashboardRow, ExitCandidate, SellCandidate } from "./types";
 
 import { API } from "./api";
+import { IconSettings, IconClose, IconWarning } from "./Icon";
 type Kind = "sell" | "buy" | "exit";
 type AnyCandidate = SellCandidate | BuyCandidate | ExitCandidate;
 const PLAN_PATH: Record<Kind, string> = { sell: "sell-plan", buy: "buy-plan", exit: "exit-plan" };
@@ -132,7 +133,7 @@ export function BulkGear({ kind }: { kind: Kind }) {
   return (
     <span style={{ position: "relative", display: "inline-block" }} ref={wrapRef}>
       <button className="btn btn-secondary btn-sm" aria-label={`Configure ${kind} settings`}
-        aria-expanded={open} title="Configure" onClick={() => setOpen((o) => !o)}>⚙</button>
+        aria-expanded={open} title="Configure" onClick={() => setOpen((o) => !o)}><IconSettings /></button>
       {open && (
         <div style={S.gearPop} role="dialog" aria-label={`${kind} settings`}>
           <div style={S.gearTitle}>{title}</div>
@@ -271,7 +272,7 @@ export function BulkReviewModal({
                           </td>
                         )}
                         <td style={{ textAlign: "right" }}>
-                          <button className="btn btn-ghost btn-sm" aria-label={`Remove ${r.symbol}`} title="Remove" onClick={() => removeRow(i)}>✕</button>
+                          <button className="btn btn-ghost btn-sm" aria-label={`Remove ${r.symbol}`} title="Remove" onClick={() => removeRow(i)}><IconClose /></button>
                         </td>
                       </tr>
                     );
@@ -292,7 +293,7 @@ export function BulkReviewModal({
             {/* Advisory only — never blocks; the broker enforces margin/settlement. */}
             {!isSell && buyingPower != null && totalCost > buyingPower && (
               <p style={S.warnNote}>
-                ⚠ Selected total exceeds available buying power ({usd(buyingPower)}) — advisory only; the
+                <IconWarning /> Selected total exceeds available buying power ({usd(buyingPower)}) — advisory only; the
                 broker enforces margin.
               </p>
             )}

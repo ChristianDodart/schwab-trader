@@ -6,12 +6,13 @@ import { PS } from "./ui";
 // Classify a feed row for its scannable type glyph. Live pushes carry `kind`;
 // stored rows don't, so infer: an alert_id ⇒ a price alert; else read the message
 // (fills say bought/sold/filled; strategy triggers say dipped/target/trigger).
-function inferKind(n: Notification): "alert" | "trigger" | "fill" {
+function inferKind(n: Notification): "alert" | "trigger" | "fill" | "system" {
   if (n.kind) return n.kind;
   if (n.alert_id != null) return "alert";
   const m = (n.message || "").toLowerCase();
   if (/\b(bought|sold|filled|fill)\b/.test(m)) return "fill";
   if (/\b(dip|dipped|target|trigger|rung|next buy)\b/.test(m)) return "trigger";
+  if (/\b(schwab|connection|re-?auth|reconnect|expire)\b/.test(m)) return "system";
   return "alert";
 }
 
@@ -20,6 +21,7 @@ const KIND_ICON: Record<string, { glyph: string; color: string; label: string }>
   alert: { glyph: "!", color: "var(--warn)", label: "Price alert" },
   trigger: { glyph: "▸", color: "var(--accent)", label: "Strategy trigger" },
   fill: { glyph: "✓", color: "var(--pos)", label: "Order fill" },
+  system: { glyph: "i", color: "var(--text-dim)", label: "System" },
 };
 
 function KindIcon({ n }: { n: Notification }) {
@@ -35,9 +37,9 @@ function KindIcon({ n }: { n: Notification }) {
   );
 }
 
-/** The "Notifications" tab: recent feed with day separators, history search, and the
- * desktop pop-up controls. State lives in the bell (it survives tab switches). */
-export function FeedPanel({ notes, unread, q, onQ, desktopPerm, onEnableDesktop, onMarkAllRead, dcats, onToggleDcat }: {
+/** The notification feed: recent items with day separators + history search.
+ * Delivery toggles now live on the tab's Settings sub-tab (unified prefs). */
+export function FeedPanel({ notes, unread, q, onQ, desktopPerm, onEnableDesktop, onMarkAllRead }: {
   notes: Notification[];
   unread: number;
   q: string;
@@ -45,8 +47,6 @@ export function FeedPanel({ notes, unread, q, onQ, desktopPerm, onEnableDesktop,
   desktopPerm: string;
   onEnableDesktop: () => void;
   onMarkAllRead: () => void;
-  dcats: Record<string, boolean>;
-  onToggleDcat: (k: string) => void;
 }) {
   const feed = notes.filter((n) => matchText(q, n.message, n.symbol));
   return (
@@ -55,7 +55,7 @@ export function FeedPanel({ notes, unread, q, onQ, desktopPerm, onEnableDesktop,
         <span style={PS.dim}>{notes.length} recent</span>
         <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
           {desktopPerm === "granted" ? (
-            <span style={{ ...PS.dim, color: "var(--pos)" }}>🔔 desktop on</span>
+            <span style={{ ...PS.dim, color: "var(--pos)" }}>desktop pop-ups on</span>
           ) : desktopPerm === "unsupported" ? null : (
             <button style={PS.linkBtn} onClick={onEnableDesktop}>Enable desktop alerts</button>
           )}
@@ -68,16 +68,6 @@ export function FeedPanel({ notes, unread, q, onQ, desktopPerm, onEnableDesktop,
       </div>
       <input className="field" value={q} onChange={(e) => onQ(e.target.value)}
         placeholder="Filter by symbol or text" aria-label="Filter notifications" style={PS.search} />
-      {desktopPerm === "granted" && (
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", padding: "0 14px 6px", fontSize: "var(--fs-2xs)", color: "var(--text-dim)" }}>
-          <span>Desktop pop-ups:</span>
-          {([["alert", "Alerts"], ["trigger", "Triggers"], ["fill", "Fills"]] as const).map(([k, label]) => (
-            <label key={k} style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
-              <input type="checkbox" checked={dcats[k] !== false} onChange={() => onToggleDcat(k)} />{label}
-            </label>
-          ))}
-        </div>
-      )}
       {notes.length === 0 ? (
         <p style={PS.empty}>No notifications yet. Set a price alert →</p>
       ) : feed.length === 0 ? (
