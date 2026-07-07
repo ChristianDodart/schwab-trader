@@ -315,6 +315,80 @@ async def build_activity(grain: str = "week", account_hash: str = "",
     return {"grain": grain, "rows": out, "totals": totals}
 
 
+def compute_streaks(profits: list[float]) -> dict:
+    """Longest win/loss streaks + the streak in progress, from profits in
+    CHRONOLOGICAL order. Zero-profit trades break both streaks (neither win nor
+    loss). current > 0 = consecutive wins running, < 0 = consecutive losses."""
+    longest_win = longest_loss = 0
+    run = 0  # signed: positive counts wins, negative counts losses
+    for p in profits:
+        if p > 0:
+            run = run + 1 if run > 0 else 1
+            longest_win = max(longest_win, run)
+        elif p < 0:
+            run = run - 1 if run < 0 else -1
+            longest_loss = max(longest_loss, -run)
+        else:
+            run = 0
+    return {"longest_win": longest_win, "longest_loss": longest_loss, "current": run}
+
+
+def compute_drawdown(series: list[tuple[date, float]]) -> dict | None:
+    """Max + current drawdown over an equity series ((day, balance), chronological).
+    Drawdown = fall from the running peak; max is the deepest such fall anywhere in
+    the span, current is where today sits below the latest peak (0 = at a high).
+    None when fewer than 2 points — no meaningful drawdown exists yet."""
+    if len(series) < 2:
+        return None
+    peak_val = series[0][1]
+    peak_day = trough_day = series[0][0]
+    max_dd = 0.0
+    max_dd_pct = 0.0
+    for day, bal in series:
+        if bal > peak_val:
+            peak_val, peak_day = bal, day
+        dd = peak_val - bal
+        if dd > max_dd:
+            max_dd = dd
+            max_dd_pct = dd / peak_val if peak_val > 0 else 0.0
+            trough_day = day
+    last_day, last_bal = series[-1]
+    cur_dd = peak_val - last_bal
+    return {
+        "max_dd": round(max_dd, 2),
+        "max_dd_pct": round(max_dd_pct, 4),
+        "max_dd_date": trough_day.isoformat(),
+        "current_dd": round(max(cur_dd, 0.0), 2),
+        "current_dd_pct": round(max(cur_dd, 0.0) / peak_val, 4) if peak_val > 0 else 0.0,
+        "peak_date": peak_day.isoformat(),
+        "as_of": last_day.isoformat(),
+    }
+
+
+def _best_worst_periods(day_profits: dict[date, float]) -> dict:
+    """Best/worst single day and ISO week from realized profit bucketed per day."""
+    def entry(items, pick):
+        if not items:
+            return None
+        k, v = pick(items, key=lambda kv: kv[1])
+        return {"period": k, "profit": round(v, 2)}
+
+    days = list(day_profits.items())
+    weeks: dict[str, float] = {}
+    for d, p in days:
+        monday = d - timedelta(days=d.weekday())
+        k = monday.isoformat()
+        weeks[k] = weeks.get(k, 0.0) + p
+    day_items = [(d.isoformat(), p) for d, p in days]
+    week_items = list(weeks.items())
+    return {
+        "best_day": entry(day_items, max),
+        "worst_day": entry(day_items, min),
+        "best_week": entry(week_items, max),
+        "worst_week": entry(week_items, min),
+    }
+
+
 async def build_trades(account_hash: str, from_date: date | None = None,
                        to_date: date | None = None, symbol: str | None = None) -> dict:
     """Trade journal + performance analytics for the selected account: the full closed
@@ -385,7 +459,31 @@ async def build_trades(account_hash: str, from_date: date | None = None,
         key=lambda r: r["total_profit"], reverse=True,
     )
 
-    return {"trades": trades, "summary": summary, "by_symbol": by_symbol}
+    # Streaks + best/worst periods (pure, from the scoped trades, chronological).
+    # `rows` is completed_at DESC, so reverse; same-day ties keep insertion order.
+    chrono = [t["profit"] for t in reversed(trades) if t["completed_at"]]
+    streaks = compute_streaks(chrono)
+    day_profits: dict[date, float] = {}
+    for t in rows:
+        if t.completed_at:
+            day_profits[t.completed_at] = day_profits.get(t.completed_at, 0.0) + _f(t.profit)
+    periods = _best_worst_periods(day_profits)
+
+    # Drawdown from the daily_balance equity series (scoped like the trades).
+    dd_conds = [DailyBalance.account_hash == account_hash]
+    if from_date is not None:
+        dd_conds.append(DailyBalance.day >= from_date)
+    if to_date is not None:
+        dd_conds.append(DailyBalance.day <= to_date)
+    async with SessionLocal() as s:
+        bal_rows = (
+            await s.execute(select(DailyBalance.day, DailyBalance.balance)
+                            .where(*dd_conds).order_by(DailyBalance.day))
+        ).all()
+    drawdown = compute_drawdown([(d, _f(b)) for d, b in bal_rows if d and b is not None])
+
+    return {"trades": trades, "summary": summary, "by_symbol": by_symbol,
+            "streaks": streaks, "periods": periods, "drawdown": drawdown}
 
 
 async def build_positions(account_hash: str) -> dict:

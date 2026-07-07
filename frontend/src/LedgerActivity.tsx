@@ -3,6 +3,7 @@ import { usd } from "./App";
 import { SkeletonCards, SkeletonPanel } from "./Skeleton";
 import { ALL_TIME, Card, Panel, PeriodSelector, S, moneyColor, type Period } from "./LedgerUI";
 import type { LedgerActivity as Activity } from "./types";
+import { PLCalendar } from "./PLCalendar";
 import { API } from "./api";
 
 type Grain = "day" | "week" | "month" | "year";
@@ -38,7 +39,7 @@ function label(period: string, grain: Grain): string {
 
 // "$ bought and sold" per period — the "what did I do this week/month?" view. Sourced
 // from the fill log so it reflects real executed activity, not just closed round-trips.
-export function LedgerActivity() {
+export function LedgerActivity({ onDayClick }: { onDayClick?: (iso: string) => void } = {}) {
   const year = new Date().getFullYear();
   const [grain, setGrain] = useState<Grain>("week");
   const [scope, setScope] = useState<Period>(ALL_TIME);
@@ -121,6 +122,8 @@ export function LedgerActivity() {
           </div>
         )}
       </Panel>
+
+      <PLCalendar onDayClick={onDayClick} />
     </div>
   );
 }

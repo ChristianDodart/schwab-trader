@@ -711,6 +711,26 @@ combined totals. Read-only aggregation over the existing per-account endpoints;
 respects profiles. Entry: a row in the account picker or a small nav item.
 
 # WAVE 26 — ANALYTICS DEPTH (the delight wave)
+# EXECUTED as v0.28.0 (2026-07-07). What shipped:
+#   W26-1 PLCalendar.tsx — Monday-first month grid off /ledger/activity?grain=day,
+#     cell tint = alpha-scaled --pos/--neg by |profit| vs the month's max, today
+#     outlined, month nav + month total, hover tooltip with profit/bought/sold.
+#     Click a traded day → Ledger switches to Trades scoped to that single day
+#     (tradesScope state in Ledger.tsx; LedgerTrades gained initialScope + key
+#     remount; switching sub-tabs clears the scope).
+#   W26-2 compute_streaks / compute_drawdown / _best_worst_periods in ledger.py
+#     (pure; zero-profit closes break streaks; drawdown None under 2 points,
+#     current_dd clamped ≥0). build_trades response gained streaks / periods /
+#     drawdown (DailyBalance scoped like the trades). StreakStats strip on the
+#     Trades sub-tab (worst day/week only shown when actually negative). 10 unit
+#     tests (tests/test_streaks_drawdown.py).
+#   W26-3 SymbolReport in LedgerTrades.tsx — "By symbol" rows are now expandable
+#     (aria-expanded, keyboard-operable): fetches /ledger/trades?symbol=X within
+#     the current scope; closes count, win rate W/L, total P/L, avg hold, best
+#     streak, cumulative sparkline + 8 most recent closes.
+#   Verified on a live-DB copy (Christian: streak 14 running, best day +$482.92
+#   2025-12-23, calendar tints match real July days, day-click scopes Trades,
+#   IREN report 7 closes 100%). 159 backend + 21 frontend tests, tsc + build clean.
 
 ## W26-1 — Daily P/L calendar heatmap
 Month-grid heatmap of realized profit per day (data already exists via

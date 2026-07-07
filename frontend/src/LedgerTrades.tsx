@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { usd } from "./App";
 import { SkeletonCards, SkeletonPanel } from "./Skeleton";
 import { AccountStamp, ALL_TIME, Card, Panel, PeriodSelector, S, moneyColor, type Period } from "./LedgerUI";
@@ -26,13 +26,14 @@ const downloadCsv = (url: string) => {
   a.click();
 };
 
-export function LedgerTrades() {
+export function LedgerTrades({ initialScope }: { initialScope?: Period } = {}) {
   const year = new Date().getFullYear();
-  const [scope, setScope] = useState<Period>(ALL_TIME);
+  const [scope, setScope] = useState<Period>(initialScope ?? ALL_TIME);
   const [taxYear, setTaxYear] = useState(year);
   const [sym, setSym] = useState("");
   const [d, setD] = useState<TradeLog | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [openSym, setOpenSym] = useState<string | null>(null);
   const seqRef = useRef(0);
 
   const load = useCallback(() => {
@@ -102,6 +103,8 @@ export function LedgerTrades() {
         </div>
       )}
 
+      {s.count > 0 && <StreakStats d={d} />}
+
       <Panel
         title="Closed trades"
         right={
@@ -163,6 +166,7 @@ export function LedgerTrades() {
 
       {d.by_symbol.length > 1 && (
         <Panel title="By symbol">
+          <p style={S.fine}>Click a symbol for its full history in this period — every close, win rate, and cumulative P/L.</p>
           <div style={{ overflowX: "auto" }}>
             <table className="tbl">
               <thead>
@@ -170,14 +174,26 @@ export function LedgerTrades() {
               </thead>
               <tbody>
                 {d.by_symbol.map((r) => (
-                  <tr key={r.symbol}>
-                    <td className="left"><b>{r.symbol}</b></td>
-                    <td style={{ textAlign: "right" }}>{r.count}</td>
-                    <td style={{ textAlign: "right" }}>{pct(r.win_rate)}</td>
-                    <td style={{ textAlign: "right", color: moneyColor(r.total_profit), fontVariantNumeric: "tabular-nums" }}>
-                      {r.total_profit > 0 ? "+" : ""}{usd(r.total_profit)}
-                    </td>
-                  </tr>
+                  <Fragment key={r.symbol}>
+                    <tr className="rowlink" tabIndex={0} role="button" aria-expanded={openSym === r.symbol}
+                      aria-label={`${r.symbol} — ${openSym === r.symbol ? "hide" : "show"} its trade history`}
+                      onClick={() => setOpenSym(openSym === r.symbol ? null : r.symbol)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenSym(openSym === r.symbol ? null : r.symbol); } }}>
+                      <td className="left"><b>{r.symbol}</b> <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-xs)" }}>{openSym === r.symbol ? "▾" : "▸"}</span></td>
+                      <td style={{ textAlign: "right" }}>{r.count}</td>
+                      <td style={{ textAlign: "right" }}>{pct(r.win_rate)}</td>
+                      <td style={{ textAlign: "right", color: moneyColor(r.total_profit), fontVariantNumeric: "tabular-nums" }}>
+                        {r.total_profit > 0 ? "+" : ""}{usd(r.total_profit)}
+                      </td>
+                    </tr>
+                    {openSym === r.symbol && (
+                      <tr>
+                        <td colSpan={4} style={{ padding: 0 }}>
+                          <SymbolReport symbol={r.symbol} scope={scope} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -187,6 +203,113 @@ export function LedgerTrades() {
     </div>
   );
 }
+
+// Compact streak / best-worst-period / drawdown strip (W26-2). All values come
+// precomputed from the backend; this only formats them.
+function StreakStats({ d }: { d: TradeLog }) {
+  const st = d.streaks;
+  const p = d.periods;
+  const dd = d.drawdown;
+  const day = (ps: { period: string; profit: number } | null, label: string, neg = false) =>
+    ps && (neg ? ps.profit < 0 : ps.profit > 0) ? (
+      <span>{label} <b style={{ color: neg ? "var(--neg)" : "var(--pos)" }}>
+        {ps.profit > 0 ? "+" : ""}{usd(ps.profit)}</b> <span style={ST.dim}>({ps.period})</span></span>
+    ) : null;
+  return (
+    <div style={ST.wrap}>
+      {st.longest_win > 0 && (
+        <span title="Most consecutive winning trades in this period (in close order)">
+          Longest win streak <b style={{ color: "var(--pos)" }}>{st.longest_win}</b>
+          {st.current > 1 && <span style={ST.dim}> · {st.current} running</span>}
+        </span>
+      )}
+      {st.longest_loss > 0 && (
+        <span title="Most consecutive losing trades in this period">
+          Longest loss streak <b style={{ color: "var(--neg)" }}>{st.longest_loss}</b>
+        </span>
+      )}
+      {day(p.best_day, "Best day")}
+      {day(p.worst_day, "Worst day", true)}
+      {day(p.best_week, "Best week")}
+      {day(p.worst_week, "Worst week", true)}
+      {dd && dd.max_dd > 0 && (
+        <span title={`Deepest fall from a balance peak in this span — hit ${dd.max_dd_date}. Current: how far today sits below the latest peak (${dd.peak_date}).`}>
+          Max drawdown <b style={{ color: "var(--neg)" }}>-{usd(dd.max_dd)} ({(dd.max_dd_pct * 100).toFixed(1)}%)</b>
+          {dd.current_dd > 0
+            ? <span style={ST.dim}> · now -{usd(dd.current_dd)} below peak</span>
+            : <span style={ST.dim}> · now at the peak</span>}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Inline per-symbol mini-report (W26-3): fetches the same journal filtered to one
+// symbol and shows its numbers + cumulative sparkline + most recent closes.
+function SymbolReport({ symbol, scope }: { symbol: string; scope: Period }) {
+  const [d, setD] = useState<TradeLog | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setD(null);
+    fetch(`${API}/ledger/trades${qs(scope, symbol)}`)
+      .then((r) => r.json())
+      .then((j) => { if (alive) (j && !j.error ? setD(j) : setErr(j?.error || "Couldn't load.")); })
+      .catch(() => { if (alive) setErr("Couldn't load — network error."); });
+    return () => { alive = false; };
+  }, [symbol, scope]);
+
+  if (err) return <p style={{ ...S.fine, padding: "10px 14px" }}>{err}</p>;
+  if (!d) return <p style={{ ...S.fine, padding: "10px 14px" }}>Loading {symbol}…</p>;
+  const s = d.summary;
+  const recent = d.trades.slice(0, 8);
+
+  return (
+    <div style={ST.report}>
+      <div style={ST.reportStats}>
+        <span>{s.count} closes</span>
+        <span>Win rate <b>{pct(s.win_rate)}</b> <span style={ST.dim}>({s.wins}W/{s.losses}L)</span></span>
+        <span>Total <b style={{ color: moneyColor(s.total_profit) }}>{s.total_profit > 0 ? "+" : ""}{usd(s.total_profit)}</b></span>
+        {s.avg_hold_days != null && <span>Avg hold <b>{s.avg_hold_days}d</b></span>}
+        {d.streaks.longest_win > 1 && <span>Best streak <b style={{ color: "var(--pos)" }}>{d.streaks.longest_win}</b></span>}
+        <CumulativeSpark trades={d.trades} />
+      </div>
+      {recent.length > 0 && (
+        <table className="tbl" style={{ marginTop: 8 }}>
+          <thead>
+            <tr><th className="left">Closed</th><th>Shares</th><th>Buy</th><th>Sell</th><th>P/L</th><th className="left">Held</th></tr>
+          </thead>
+          <tbody>
+            {recent.map((t) => (
+              <tr key={t.id}>
+                <td className="left">{t.completed_at ?? "—"}</td>
+                <td style={ST.num}>{t.shares.toLocaleString()}</td>
+                <td style={ST.num}>{usd(t.buy_price)}</td>
+                <td style={ST.num}>{usd(t.sell_price)}</td>
+                <td style={{ ...ST.num, color: moneyColor(t.profit) }}>{t.profit > 0 ? "+" : ""}{usd(t.profit)}</td>
+                <td className="left">{t.is_day_trade ? "same day" : t.hold_days == null ? "—" : `${t.hold_days}d`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {d.trades.length > recent.length && (
+        <p style={{ ...S.fine, margin: "8px 0 0" }}>
+          Showing the {recent.length} most recent of {d.trades.length} — use the symbol filter above for the full list.
+        </p>
+      )}
+    </div>
+  );
+}
+
+const ST: Record<string, React.CSSProperties> = {
+  wrap: { display: "flex", gap: 20, flexWrap: "wrap", fontSize: "var(--fs-sm)", margin: "10px 2px 0", color: "var(--text-muted)", alignItems: "center" },
+  dim: { color: "var(--text-faint)", fontSize: "var(--fs-xs)" },
+  report: { background: "var(--panel-2)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", padding: "12px 14px" },
+  reportStats: { display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center", fontSize: "var(--fs-sm)", color: "var(--text-muted)" },
+  num: { textAlign: "right", fontVariantNumeric: "tabular-nums" },
+};
 
 // Tiny inline-SVG sparkline of cumulative realized P/L across the scoped closed
 // trades (oldest → newest). Inline SVG (unlike canvas) resolves CSS vars, so it

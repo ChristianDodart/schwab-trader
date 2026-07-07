@@ -3,6 +3,21 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.28.0 — "Know your numbers"
+
+Analytics depth on the Ledger:
+- A profit calendar on Ledger → Activity: a month grid where each day is tinted
+  by the realized profit it booked — deeper green or red means a bigger day.
+  Hover for the day's exact numbers, click a traded day to open its closed
+  trades, and page back through any month of your history.
+- The Trades journal now shows your streaks and swings: longest win and loss
+  streaks (plus the one you're on), best and worst day and week, and max
+  drawdown with how far below the peak the account sits right now (from the
+  daily balance history the app has been snapshotting).
+- Click any row in the "By symbol" table for that ticker's mini-report: every
+  close in the period, win rate, average hold, total P/L, and its own
+  cumulative sparkline.
+
 ## v0.27.0 — "Daily driver"
 
 Conveniences for the trading day:

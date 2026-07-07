@@ -114,7 +114,17 @@ export type TradeLog = {
     worst: { symbol: string; profit: number } | null;
   };
   by_symbol: { symbol: string; count: number; total_profit: number; win_rate: number | null }[];
+  streaks: { longest_win: number; longest_loss: number; current: number };
+  periods: {
+    best_day: PeriodStat | null; worst_day: PeriodStat | null;
+    best_week: PeriodStat | null; worst_week: PeriodStat | null;
+  };
+  drawdown: {
+    max_dd: number; max_dd_pct: number; max_dd_date: string;
+    current_dd: number; current_dd_pct: number; peak_date: string; as_of: string;
+  } | null;
 };
+export type PeriodStat = { period: string; profit: number };
 
 export type ActivityRow = {
   period: string; bought: number; sold: number; net: number; buy_count: number; sell_count: number;
