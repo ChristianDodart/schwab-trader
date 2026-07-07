@@ -23,6 +23,21 @@ def _f(x) -> float:
     return float(x) if x is not None else 0.0
 
 
+def position_day_change(net_change: float, price: float, shares: float,
+                        bought_today: float, cost_today: float) -> float:
+    """Schwab-style intraday P/L for a currently-held position.
+
+    Shares carried in from yesterday move from the prior close (= price − net_change);
+    shares BOUGHT TODAY move from their actual purchase price, not the prior close —
+    otherwise a fresh buy would book a full day's move it never lived through. This
+    matches how Schwab computes a position's "Day Chng $". Deposits/withdrawals never
+    enter here (this is per-holding, not account value)."""
+    at_open = max(0.0, shares - bought_today)          # shares held since yesterday's close
+    from_today = shares - at_open                       # = min(bought_today, shares)
+    avg_today = (cost_today / bought_today) if bought_today else 0.0
+    return net_change * at_open + (price - avg_today) * from_today
+
+
 def _today() -> date:
     """Market-local 'today' (matches the ledger), so the YTD boundary and ages
     don't shift by the UTC offset on a server in another timezone."""
@@ -96,7 +111,7 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
                  realized: tuple[float, int, date | None],
                  year_realized: tuple[float, int], total_invested: float,
                  cfg: StrategyConfig, deployed_pct: float | None = None,
-                 sym_div: float = 0.0) -> dict:
+                 sym_div: float = 0.0, today_buy: tuple[float, float] = (0.0, 0.0)) -> dict:
     quote = hub.latest.get(symbol, {})
     price = quote.get("last")
     price = _f(price) if price is not None else None
@@ -136,9 +151,11 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
         "price": round(price, 4) if has_price else None,
         "current_value": round(shares * price, 2) if has_price else None,
         "unrealized": round(shares * price - invested, 2) if has_price else None,
-        # today's P/L on the shares still held = per-share day change × shares
-        # (None in demo / when the quote carries no NET_CHANGE).
-        "day_change": round(_f(quote.get("netChange")) * shares, 2)
+        # today's P/L on the shares still held, Schwab-style: shares bought today are
+        # measured from their purchase price, not yesterday's close (None in demo /
+        # when the quote carries no NET_CHANGE).
+        "day_change": round(position_day_change(_f(quote.get("netChange")), price, shares,
+                                                today_buy[0], today_buy[1]), 2)
         if has_price and quote.get("netChange") is not None else None,
         "lilo_pct": round(rules.lilo_pct(price, min_buy), 4) if has_price else None,
         # 52-week average + median of daily closes — "where it spends most of its
@@ -192,6 +209,25 @@ async def build_dashboard(account_hash: str) -> dict:
     return snap
 
 
+async def _today_buys(account_hash: str) -> dict[str, tuple[float, float]]:
+    """{symbol: (shares_bought_today, total_cost_today)} from the fill ledger for the
+    market-local day — used to baseline today's-bought shares at their purchase price
+    in the Schwab-style day-change calc."""
+    from .db.models import FillRecord
+    out: dict[str, tuple[float, float]] = {}
+    async with SessionLocal() as s:
+        rows = (await s.execute(
+            select(FillRecord.symbol, FillRecord.shares, FillRecord.price)
+            .where(FillRecord.account_hash == account_hash,
+                   FillRecord.side == "BUY", FillRecord.trade_date == _today())
+        )).all()
+    for sym, sh, px in rows:
+        sh, px = _f(sh), _f(px)
+        s0, c0 = out.get(sym, (0.0, 0.0))
+        out[sym] = (s0 + sh, c0 + sh * px)
+    return out
+
+
 async def _deployed_pct_if_scaling(account_hash: str, cfg: StrategyConfig) -> float | None:
     """Account deployment % for ladder scaling — only when the user enabled it (else
     None ⇒ the ladder engine no-ops and behaves exactly as the fixed ladder)."""
@@ -220,11 +256,12 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
     # Per-symbol rule overrides: each row is computed against its EFFECTIVE strategy
     # (global config + that ticker's overrides — sell target / dip depth).
     sym_overrides = await config_store.get_symbol_overrides(account_hash)
+    today_buys = await _today_buys(account_hash)  # for Schwab-style day change on same-day buys
     rows = [
         _summary_row(sym, by[sym], tickers.get(sym), realized.get(sym, (0.0, 0, None)),
                      year_realized.get(sym, (0.0, 0)), total_invested,
                      config_store.apply_symbol_override(cfg, sym_overrides.get(sym)), deployed,
-                     sym_div=div_by_sym.get(sym, 0.0))
+                     sym_div=div_by_sym.get(sym, 0.0), today_buy=today_buys.get(sym, (0.0, 0.0)))
         for sym in by
     ]
     rows.sort(key=lambda r: r["portfolio_pct"] or 0, reverse=True)

@@ -3,6 +3,16 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.31.1 — "Day change, done right"
+
+Day Change now matches how Schwab calculates it. Before, every share was
+measured against yesterday's close — so a position you bought TODAY booked a
+full day's move it never actually experienced, throwing the number off. Now
+shares held from yesterday are measured from the prior close, and shares bought
+today are measured from what you actually paid — exactly Schwab's per-position
+"Day Chng." Deposits and withdrawals don't count (this is your holdings' move,
+not account-value change).
+
 ## v0.31.0 — "Notifications, under control"
 
 Notifications got a real home and a volume knob, and the whole app switched to
