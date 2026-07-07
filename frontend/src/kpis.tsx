@@ -29,7 +29,7 @@ export const KPI_CATALOG: KpiDef[] = [
     hint: "Cost basis of every open position (what you paid, excludes cash).",
     num: (d) => d.total_invested },
   { id: "day_change", label: "Day change", tone: "signed",
-    hint: "Today's profit or loss on the shares you hold — the sum of each position's day change. Blank until every holding has a live quote.",
+    hint: "Change in total account value since yesterday's close — matches Schwab's 'Total day change'. Includes trading and any deposits/withdrawals (so moving cash in shows here too).",
     num: (d) => d.total_day_change },
   { id: "harvestable", label: "Harvestable", tone: "positive",
     hint: "Profit you could lock in right now by selling every profitable last position — equals what the 'Sell profitable' bulk action would realize.",

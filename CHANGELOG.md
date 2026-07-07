@@ -3,6 +3,15 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.31.4 — "Day change = Schwab's Total day change"
+
+The dashboard's Day Change now matches the big number in Schwab's account summary
+(their "Total day change") — the change in your total account value since
+yesterday's close, deposits and withdrawals included. It comes straight from
+Schwab's own balances (today's value minus its value at the open), so it lines up
+with what Schwab shows. Move cash in from another account and it'll show here,
+just like on Schwab. (Falls back to a local estimate only when offline.)
+
 ## v0.31.3 — "Day change, straight from Schwab"
 
 Day Change now uses Schwab's own per-position number verbatim, so the header

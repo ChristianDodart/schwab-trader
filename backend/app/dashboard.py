@@ -247,28 +247,30 @@ async def _today_trades(account_hash: str) -> dict[str, tuple[float, float, floa
     return {k: (v[0], v[1], v[2], v[3]) for k, v in out.items()}
 
 
-# Schwab's own per-position day P/L, cached briefly. This is the number Schwab shows
-# as "Day Chng $" — it already folds in same-day buys AND intraday realized trades
-# (which our fill-based math can't reproduce exactly for a day-traded symbol). So when
-# we can reach Schwab we use THEIR number verbatim; the header Day Change then equals
-# Schwab's positions day-change total. Refreshed ~45s (quotes still tick live for the
-# rest of the table); empty on demo / no token → the computed fallback is used.
-_daypl_cache: dict[str, tuple[float, dict[str, float]]] = {}
+# Schwab's own day-change numbers, cached briefly. From one account fetch we take BOTH:
+#   • per-position currentDayProfitLoss (Schwab's "Day Chng $" — folds in same-day buys
+#     and intraday realized, which our fill math can't reproduce exactly), and
+#   • the account-level day change = currentBalances − initialBalances liquidationValue,
+#     i.e. total account value now minus its value at today's open. By Schwab's own
+#     definition this INCLUDES deposits/withdrawals + trading — the "Total day change"
+#     shown in Schwab's account summary. That's what the dashboard's Day Change widget
+#     shows. Refreshed ~45s; on demo / no token we fall back to the computed sum.
+_daypl_cache: dict[str, tuple[float, dict[str, float], float | None]] = {}
 _DAYPL_TTL_S = 45.0
 
 
-async def _schwab_day_pl(account_hash: str) -> dict[str, float]:
+async def _schwab_day_pl(account_hash: str) -> tuple[dict[str, float], float | None]:
     now = time.monotonic()
     hit = _daypl_cache.get(account_hash)
     if hit and (now - hit[0]) < _DAYPL_TTL_S:
-        return hit[1]
+        return hit[1], hit[2]
     from .schwab.auth import get_client
     try:
         client = get_client()
     except Exception:
         client = None
     if client is None or not account_hash:
-        return hit[1] if hit else {}
+        return (hit[1], hit[2]) if hit else ({}, None)
 
     def fetch():
         r = client.get_account(account_hash, fields=client.Account.Fields.POSITIONS)
@@ -276,21 +278,24 @@ async def _schwab_day_pl(account_hash: str) -> dict[str, float]:
             return None
         body = r.json()
         sa = body.get("securitiesAccount") if isinstance(body, dict) else None
-        return (sa.get("positions") or []) if isinstance(sa, dict) else None
+        return sa if isinstance(sa, dict) else None
 
     try:
-        positions = await asyncio.to_thread(fetch)
+        sa = await asyncio.to_thread(fetch)
     except Exception:
-        return hit[1] if hit else {}     # transient — reuse last good, never crash the dashboard
-    if positions is None:
-        return hit[1] if hit else {}
+        return (hit[1], hit[2]) if hit else ({}, None)   # transient — reuse last good
+    if sa is None:
+        return (hit[1], hit[2]) if hit else ({}, None)
     m: dict[str, float] = {}
-    for p in positions:
+    for p in sa.get("positions") or []:
         sym = (p.get("instrument") or {}).get("symbol")
         if sym and p.get("currentDayProfitLoss") is not None:
             m[sym] = _f(p.get("currentDayProfitLoss"))
-    _daypl_cache[account_hash] = (now, m)
-    return m
+    cur = (sa.get("currentBalances") or {}).get("liquidationValue")
+    init = (sa.get("initialBalances") or {}).get("liquidationValue")
+    account_dc = (_f(cur) - _f(init)) if cur is not None and init is not None else None
+    _daypl_cache[account_hash] = (now, m, account_dc)
+    return m, account_dc
 
 
 async def _deployed_pct_if_scaling(account_hash: str, cfg: StrategyConfig) -> float | None:
@@ -322,7 +327,7 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
     # (global config + that ticker's overrides — sell target / dip depth).
     sym_overrides = await config_store.get_symbol_overrides(account_hash)
     today_trades = await _today_trades(account_hash)   # fallback day-change inputs (same-day buys + sells)
-    day_pl = await _schwab_day_pl(account_hash)         # Schwab's exact per-position "Day Chng $"
+    day_pl, acct_day_change = await _schwab_day_pl(account_hash)   # Schwab's per-position + account day change
     rows = [
         _summary_row(sym, by[sym], tickers.get(sym), realized.get(sym, (0.0, 0, None)),
                      year_realized.get(sym, (0.0, 0)), total_invested,
@@ -381,12 +386,18 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
     # so total_day_change is gated on every held row HAVING a day_change.
     day_priced = bool(held) and all(r["day_change"] is not None for r in held)
     val_priced = bool(held) and all(r["current_value"] is not None for r in held)
+    # Day Change = Schwab's account-level "Total day change" (today's account value minus
+    # its value at the open — includes deposits/withdrawals + trading), taken straight
+    # from Schwab's balances so it matches their summary. Falls back to the per-holding
+    # sum only when Schwab is unreachable (demo/offline).
+    total_day_change = (round(acct_day_change, 2) if acct_day_change is not None
+                        else (round(sum(r["day_change"] for r in held), 2) if day_priced else None))
     return {
         "mode": hub.mode,
         "account_hash": account_hash,
         "total_invested": round(total_invested, 2),
         "harvestable": round(sum(r["last_pos_profit"] for r in held if r["last_pos_profit"] > 0), 2) if priced else None,
-        "total_day_change": round(sum(r["day_change"] for r in held), 2) if day_priced else None,
+        "total_day_change": total_day_change,
         "total_value": round(sum(r["current_value"] for r in held), 2) if val_priced else None,
         "total_unrealized": round(sum(r["unrealized"] for r in held), 2) if val_priced else None,
         "rows": rows,
