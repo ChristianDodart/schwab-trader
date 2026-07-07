@@ -3,6 +3,15 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.31.3 — "Day change, straight from Schwab"
+
+Day Change now uses Schwab's own per-position number verbatim, so the header
+matches Schwab's Positions "Day Chng" total to the penny — including how they
+account for same-day buys and intraday round-trips (which are genuinely hard to
+reproduce exactly from trade history). It refreshes about every 45 seconds; if
+the app can't reach Schwab, it falls back to computing the figure locally. This
+supersedes the local calculation from the last update.
+
 ## v0.31.2 — "Round-trips and journals count"
 
 Two accuracy fixes:

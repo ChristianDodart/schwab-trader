@@ -6,6 +6,8 @@ frontend just renders what this returns — no strategy logic in the browser.
 """
 from __future__ import annotations
 
+import asyncio
+import time
 from datetime import date, datetime
 
 from sqlalchemy import func, select
@@ -122,7 +124,8 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
                  year_realized: tuple[float, int], total_invested: float,
                  cfg: StrategyConfig, deployed_pct: float | None = None,
                  sym_div: float = 0.0,
-                 today_trade: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)) -> dict:
+                 today_trade: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0),
+                 schwab_day_pl: float | None = None) -> dict:
     quote = hub.latest.get(symbol, {})
     price = quote.get("last")
     price = _f(price) if price is not None else None
@@ -162,13 +165,14 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
         "price": round(price, 4) if has_price else None,
         "current_value": round(shares * price, 2) if has_price else None,
         "unrealized": round(shares * price - invested, 2) if has_price else None,
-        # today's P/L on the shares still held, Schwab-style: shares bought today are
-        # measured from their purchase price, not yesterday's close (None in demo /
-        # when the quote carries no NET_CHANGE).
-        "day_change": round(position_day_change(_f(quote.get("netChange")), price, shares,
-                                                today_trade[0], today_trade[1],
-                                                today_trade[2], today_trade[3]), 2)
-        if has_price and quote.get("netChange") is not None else None,
+        # Day change: prefer Schwab's own per-position number (exact "Day Chng $",
+        # folds in same-day buys + intraday realized). Only when Schwab is unreachable
+        # (demo / offline) fall back to computing it from the live quote + today's fills.
+        "day_change": round(schwab_day_pl, 2) if schwab_day_pl is not None
+        else (round(position_day_change(_f(quote.get("netChange")), price, shares,
+                                        today_trade[0], today_trade[1],
+                                        today_trade[2], today_trade[3]), 2)
+              if has_price and quote.get("netChange") is not None else None),
         "lilo_pct": round(rules.lilo_pct(price, min_buy), 4) if has_price else None,
         # 52-week average + median of daily closes — "where it spends most of its
         # time"; below = historical discount, above = rich. Median is spike-robust
@@ -243,6 +247,52 @@ async def _today_trades(account_hash: str) -> dict[str, tuple[float, float, floa
     return {k: (v[0], v[1], v[2], v[3]) for k, v in out.items()}
 
 
+# Schwab's own per-position day P/L, cached briefly. This is the number Schwab shows
+# as "Day Chng $" — it already folds in same-day buys AND intraday realized trades
+# (which our fill-based math can't reproduce exactly for a day-traded symbol). So when
+# we can reach Schwab we use THEIR number verbatim; the header Day Change then equals
+# Schwab's positions day-change total. Refreshed ~45s (quotes still tick live for the
+# rest of the table); empty on demo / no token → the computed fallback is used.
+_daypl_cache: dict[str, tuple[float, dict[str, float]]] = {}
+_DAYPL_TTL_S = 45.0
+
+
+async def _schwab_day_pl(account_hash: str) -> dict[str, float]:
+    now = time.monotonic()
+    hit = _daypl_cache.get(account_hash)
+    if hit and (now - hit[0]) < _DAYPL_TTL_S:
+        return hit[1]
+    from .schwab.auth import get_client
+    try:
+        client = get_client()
+    except Exception:
+        client = None
+    if client is None or not account_hash:
+        return hit[1] if hit else {}
+
+    def fetch():
+        r = client.get_account(account_hash, fields=client.Account.Fields.POSITIONS)
+        if r.status_code != 200:
+            return None
+        body = r.json()
+        sa = body.get("securitiesAccount") if isinstance(body, dict) else None
+        return (sa.get("positions") or []) if isinstance(sa, dict) else None
+
+    try:
+        positions = await asyncio.to_thread(fetch)
+    except Exception:
+        return hit[1] if hit else {}     # transient — reuse last good, never crash the dashboard
+    if positions is None:
+        return hit[1] if hit else {}
+    m: dict[str, float] = {}
+    for p in positions:
+        sym = (p.get("instrument") or {}).get("symbol")
+        if sym and p.get("currentDayProfitLoss") is not None:
+            m[sym] = _f(p.get("currentDayProfitLoss"))
+    _daypl_cache[account_hash] = (now, m)
+    return m
+
+
 async def _deployed_pct_if_scaling(account_hash: str, cfg: StrategyConfig) -> float | None:
     """Account deployment % for ladder scaling — only when the user enabled it (else
     None ⇒ the ladder engine no-ops and behaves exactly as the fixed ladder)."""
@@ -271,13 +321,15 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
     # Per-symbol rule overrides: each row is computed against its EFFECTIVE strategy
     # (global config + that ticker's overrides — sell target / dip depth).
     sym_overrides = await config_store.get_symbol_overrides(account_hash)
-    today_trades = await _today_trades(account_hash)  # Schwab-style day change (same-day buys + realized sells)
+    today_trades = await _today_trades(account_hash)   # fallback day-change inputs (same-day buys + sells)
+    day_pl = await _schwab_day_pl(account_hash)         # Schwab's exact per-position "Day Chng $"
     rows = [
         _summary_row(sym, by[sym], tickers.get(sym), realized.get(sym, (0.0, 0, None)),
                      year_realized.get(sym, (0.0, 0)), total_invested,
                      config_store.apply_symbol_override(cfg, sym_overrides.get(sym)), deployed,
                      sym_div=div_by_sym.get(sym, 0.0),
-                     today_trade=today_trades.get(sym, (0.0, 0.0, 0.0, 0.0)))
+                     today_trade=today_trades.get(sym, (0.0, 0.0, 0.0, 0.0)),
+                     schwab_day_pl=day_pl.get(sym))
         for sym in by
     ]
     rows.sort(key=lambda r: r["portfolio_pct"] or 0, reverse=True)
