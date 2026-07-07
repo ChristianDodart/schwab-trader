@@ -335,11 +335,14 @@ async def refresh_cashflows_from_schwab(account_hash: str) -> dict:
 
 
 # ----- CSV import (Schwab "Transactions" export) -----
-# Only OUTSIDE-money rows (transfers & wires) count as contributions — never
-# trades, dividends, or interest. JOURNAL is an internal move (ambiguous) so it's
-# excluded, matching the API-side transfer classification.
+# Rows that move CASH into/out of THIS account count as contributions — never trades,
+# dividends, or interest. Transfers & wires are outside money. A JOURNAL is an internal
+# move between your own Schwab accounts; a CASH journal (no ticker, just an Amount, e.g.
+# "JOURNAL FRM ...896 $1500.00") still adds/removes cash from THIS account, so per-account
+# it must be counted for the cash identity to close. A journal WITH a ticker is a share
+# transfer (no cash) and is skipped here. The 60-day Schwab transfer auto-pull excludes
+# journals, so counting them from the CSV can't double-count.
 _CSV_TRANSFER_KEYS = ("transfer", "wire")
-_CSV_TRANSFER_EXCLUDE = ("journal",)
 # Max gap (days) between a CSV 'as of' effective date and Schwab's posted date for the
 # same transfer — settlement is T+1, longer over weekends/holidays. Used for dedup only.
 _CSV_DEDUP_WINDOW_DAYS = 4
@@ -382,7 +385,10 @@ async def import_cashflows_csv(account_hash: str, csv_text: str) -> dict:
     for r in rows:
         action = (col(r, "action") or "").strip()
         al = action.lower()
-        if not (any(k in al for k in _CSV_TRANSFER_KEYS) and not any(x in al for x in _CSV_TRANSFER_EXCLUDE)):
+        has_symbol = bool((col(r, "symbol") or "").strip())
+        is_transfer = any(k in al for k in _CSV_TRANSFER_KEYS)
+        is_cash_journal = ("journal" in al) and not has_symbol   # cash move; share journals carry a ticker
+        if not (is_transfer or is_cash_journal):
             skipped_nontransfer += 1
             continue
         d = _parse_csv_date(col(r, "date"))

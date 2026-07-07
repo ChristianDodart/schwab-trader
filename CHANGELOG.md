@@ -3,6 +3,22 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.31.2 — "Round-trips and journals count"
+
+Two accuracy fixes:
+- Day Change now includes the profit you realize by trading in and out during the
+  day. Before, it only measured the paper move on shares you still hold — so a day
+  where you sold a position for a gain and rebought it (an intraday round-trip)
+  under-counted badly. It now matches Schwab's per-position "Day Chng" exactly:
+  today's value + what today's sells brought in − what today's buys cost − where
+  the position stood at yesterday's close.
+- Cash journals are now counted as deposits/withdrawals. Moving cash between your
+  Schwab accounts posts as a "Journal" — the app was skipping those, so a transfer
+  in (e.g. from the LLC) went untracked and left the cash cross-check off. Cash
+  journals now flow into the deposit log; share journals (which carry a ticker,
+  not cash) are still left out. Re-import your Transactions CSV to pick up past
+  journals — it's deduplicated, so nothing double-counts.
+
 ## v0.31.1 — "Day change, done right"
 
 Day Change now matches how Schwab calculates it. Before, every share was

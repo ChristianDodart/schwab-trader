@@ -24,18 +24,28 @@ def _f(x) -> float:
 
 
 def position_day_change(net_change: float, price: float, shares: float,
-                        bought_today: float, cost_today: float) -> float:
-    """Schwab-style intraday P/L for a currently-held position.
+                        bought_today: float, cost_today: float,
+                        sold_today: float = 0.0, proceeds_today: float = 0.0) -> float:
+    """Schwab-style intraday P/L for a symbol, including today's realized trades.
 
-    Shares carried in from yesterday move from the prior close (= price − net_change);
-    shares BOUGHT TODAY move from their actual purchase price, not the prior close —
-    otherwise a fresh buy would book a full day's move it never lived through. This
-    matches how Schwab computes a position's "Day Chng $". Deposits/withdrawals never
-    enter here (this is per-holding, not account value)."""
-    at_open = max(0.0, shares - bought_today)          # shares held since yesterday's close
-    from_today = shares - at_open                       # = min(bought_today, shares)
-    avg_today = (cost_today / bought_today) if bought_today else 0.0
-    return net_change * at_open + (price - avg_today) * from_today
+    The identity Schwab uses: how much did this holding's value change today, counting
+    cash pulled out by today's sells and cash put in by today's buys —
+
+        day change = value_now + today's sell proceeds − today's buy cost
+                     − value_at_yesterday's_close
+
+    where value_at_close = (shares held at the open) × prior close, and
+    shares_at_open = shares_now − bought_today + sold_today.
+
+    This naturally does the right thing in every case: a plain hold reduces to
+    net_change × shares; a share bought today is measured from its purchase price, not
+    the prior close; and an intraday round-trip (sell then rebuy, like today's RCAX)
+    books its realized gain even though the share count barely moved. Our earlier
+    formula omitted the sell leg, so realized intraday gains were missing — that was
+    the −$127-vs-Schwab's-+$923 gap. Deposits/withdrawals never enter here."""
+    prior_close = price - net_change
+    shares_at_open = shares - bought_today + sold_today
+    return shares * price + proceeds_today - cost_today - shares_at_open * prior_close
 
 
 def _today() -> date:
@@ -111,7 +121,8 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
                  realized: tuple[float, int, date | None],
                  year_realized: tuple[float, int], total_invested: float,
                  cfg: StrategyConfig, deployed_pct: float | None = None,
-                 sym_div: float = 0.0, today_buy: tuple[float, float] = (0.0, 0.0)) -> dict:
+                 sym_div: float = 0.0,
+                 today_trade: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)) -> dict:
     quote = hub.latest.get(symbol, {})
     price = quote.get("last")
     price = _f(price) if price is not None else None
@@ -155,7 +166,8 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
         # measured from their purchase price, not yesterday's close (None in demo /
         # when the quote carries no NET_CHANGE).
         "day_change": round(position_day_change(_f(quote.get("netChange")), price, shares,
-                                                today_buy[0], today_buy[1]), 2)
+                                                today_trade[0], today_trade[1],
+                                                today_trade[2], today_trade[3]), 2)
         if has_price and quote.get("netChange") is not None else None,
         "lilo_pct": round(rules.lilo_pct(price, min_buy), 4) if has_price else None,
         # 52-week average + median of daily closes — "where it spends most of its
@@ -209,23 +221,26 @@ async def build_dashboard(account_hash: str) -> dict:
     return snap
 
 
-async def _today_buys(account_hash: str) -> dict[str, tuple[float, float]]:
-    """{symbol: (shares_bought_today, total_cost_today)} from the fill ledger for the
-    market-local day — used to baseline today's-bought shares at their purchase price
-    in the Schwab-style day-change calc."""
+async def _today_trades(account_hash: str) -> dict[str, tuple[float, float, float, float]]:
+    """{symbol: (bought_qty, bought_cost, sold_qty, sold_proceeds)} from the fill ledger
+    for the market-local day — feeds the Schwab-style day-change calc (baselines
+    today's buys at cost and books today's realized sells). Gross of fees (pennies)."""
     from .db.models import FillRecord
-    out: dict[str, tuple[float, float]] = {}
+    out: dict[str, list[float]] = {}
     async with SessionLocal() as s:
         rows = (await s.execute(
-            select(FillRecord.symbol, FillRecord.shares, FillRecord.price)
+            select(FillRecord.symbol, FillRecord.side, FillRecord.shares, FillRecord.price)
             .where(FillRecord.account_hash == account_hash,
-                   FillRecord.side == "BUY", FillRecord.trade_date == _today())
+                   FillRecord.side.in_(["BUY", "SELL"]), FillRecord.trade_date == _today())
         )).all()
-    for sym, sh, px in rows:
+    for sym, side, sh, px in rows:
         sh, px = _f(sh), _f(px)
-        s0, c0 = out.get(sym, (0.0, 0.0))
-        out[sym] = (s0 + sh, c0 + sh * px)
-    return out
+        e = out.setdefault(sym, [0.0, 0.0, 0.0, 0.0])
+        if side == "SELL":
+            e[2] += sh; e[3] += sh * px
+        else:
+            e[0] += sh; e[1] += sh * px
+    return {k: (v[0], v[1], v[2], v[3]) for k, v in out.items()}
 
 
 async def _deployed_pct_if_scaling(account_hash: str, cfg: StrategyConfig) -> float | None:
@@ -256,12 +271,13 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
     # Per-symbol rule overrides: each row is computed against its EFFECTIVE strategy
     # (global config + that ticker's overrides — sell target / dip depth).
     sym_overrides = await config_store.get_symbol_overrides(account_hash)
-    today_buys = await _today_buys(account_hash)  # for Schwab-style day change on same-day buys
+    today_trades = await _today_trades(account_hash)  # Schwab-style day change (same-day buys + realized sells)
     rows = [
         _summary_row(sym, by[sym], tickers.get(sym), realized.get(sym, (0.0, 0, None)),
                      year_realized.get(sym, (0.0, 0)), total_invested,
                      config_store.apply_symbol_override(cfg, sym_overrides.get(sym)), deployed,
-                     sym_div=div_by_sym.get(sym, 0.0), today_buy=today_buys.get(sym, (0.0, 0.0)))
+                     sym_div=div_by_sym.get(sym, 0.0),
+                     today_trade=today_trades.get(sym, (0.0, 0.0, 0.0, 0.0)))
         for sym in by
     ]
     rows.sort(key=lambda r: r["portfolio_pct"] or 0, reverse=True)

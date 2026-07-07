@@ -53,7 +53,6 @@ from .analytics import (
 )
 from .income import (
     _CSV_DEDUP_WINDOW_DAYS,
-    _CSV_TRANSFER_EXCLUDE,
     _CSV_TRANSFER_KEYS,
     _DIV_KEY,
     _OTHER_CASH_KEY,
