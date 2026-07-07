@@ -666,6 +666,30 @@ connect Schwab" chip that links to the reauth flow (today it's inconsistent
 between tabs). Small, copy-level work.
 
 # WAVE 25 — TRADER CONVENIENCES (the daily-driver wave)
+# EXECUTED as v0.27.0 (2026-07-07). What shipped:
+#   W25-1 replace_order() in orders.py + PUT /api/orders/{id} — uses Schwab's
+#     NATIVE cancel-and-replace (atomic at the broker; never orderless mid-swap,
+#     strictly better than the planned place-then-cancel). Hard guards: selected
+#     trading-enabled account only, single-leg working LIMIT only, BUY/SELL only,
+#     nothing-changed refused. Soft rails re-applied to the NEW terms: fat-finger,
+#     BUY notional, no-quote fail-closed, partial-fill acknowledgment; SELL-held
+#     fail-closed check NOT confirm-overridable. place_order untouched.
+#     EditOrderModal in Orders.tsx (prefilled qty/price, needs_confirm Back /
+#     Replace-anyway flow). 12 unit tests (tests/test_replace_order.py).
+#   W25-2 working_summary() → /api/orders/working-count now returns
+#     {count, by_symbol}; App polls 30s and passes by_symbol to DashboardTable,
+#     which renders an amber "N working" tag next to the ticker; clicking it
+#     opens Orders pre-filtered to that symbol (Orders gained a filter box +
+#     initialFilter prop; manual nav to Orders clears the filter).
+#   W25-3 /api/accounts entries gained day_profit (sum of per-position
+#     currentDayProfitLoss) + invested (longMarketValue). "All accounts" button
+#     beside the picker (shown when >1 account) opens a read-only rollup modal:
+#     per-account cards (value / day profit / cash / positions, restricted
+#     labeled) + combined totals band; clicking a card switches accounts.
+#   Verified E2E on a scratch live-DB copy with the broker layer stubbed
+#   (fake working orders + fake accounts): marker → filtered Orders deep link,
+#   Edit modal fail-closed confirm → Replace anyway → success toast, rollup
+#   totals math correct. 149 backend + 21 frontend tests, tsc + build clean.
 
 ## W25-1 — Modify a working order (cancel + replace)
 Orders tab only cancels today; changing a resting limit means cancel + manually

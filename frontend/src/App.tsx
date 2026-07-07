@@ -71,6 +71,8 @@ export function App() {
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [pendingNav, setPendingNav] = useState<(() => void) | null>(null);
   const [workingOrders, setWorkingOrders] = useState(0);
+  const [workingBySym, setWorkingBySym] = useState<Record<string, number>>({});
+  const [ordersFilter, setOrdersFilter] = useState<string | null>(null);
   const bulk = useBulk(data?.rows, data?.mode, toast);
   const live = useLiveness();
   // Prices are stale only when we're MEANT to be live (not demo) but Schwab isn't
@@ -120,17 +122,22 @@ export function App() {
     return () => { alive = false; clearInterval(t); };
   }, [acctKey]);
 
-  // Ambient working-order count for the nav badge (per selected account). Refetch on
-  // account switch (acctKey) + every 60s.
+  // Ambient working orders (per selected account): total for the nav badge +
+  // per-symbol counts for the dashboard row markers. Refetch on account switch
+  // (acctKey) + every 30s — placing/canceling also pokes it via view changes.
   useEffect(() => {
     let alive = true;
     const load = () =>
       fetch(`${API}/orders/working-count`).then((r) => r.json())
-        .then((j) => { if (alive) setWorkingOrders(j?.count ?? 0); }).catch(() => {});
+        .then((j) => {
+          if (!alive) return;
+          setWorkingOrders(j?.count ?? 0);
+          setWorkingBySym(j?.by_symbol && typeof j.by_symbol === "object" ? j.by_symbol : {});
+        }).catch(() => {});
     load();
-    const t = setInterval(load, 60_000);
+    const t = setInterval(load, 30_000);
     return () => { alive = false; clearInterval(t); };
-  }, [acctKey]);
+  }, [acctKey, view]);
 
   // Guard tab/account switches when Settings has unsaved edits → custom confirm.
   const guardedNav = (action: () => void) => {
@@ -274,7 +281,7 @@ export function App() {
                   key={t.id}
                   className="navtab"
                   aria-current={view === t.id ? "page" : undefined}
-                  onClick={() => guardedNav(() => setView(t.id))}
+                  onClick={() => guardedNav(() => { if (t.id === "orders") setOrdersFilter(null); setView(t.id); })}
                 >
                   {t.label}
                   {t.id === "orders" && workingOrders > 0 && (
@@ -423,7 +430,7 @@ export function App() {
         ) : view === "ledger" ? (
           <Ledger key={acctKey} />
         ) : view === "orders" ? (
-          <Orders key={acctKey} />
+          <Orders key={`${acctKey}:${ordersFilter ?? ""}`} initialFilter={ordersFilter ?? undefined} />
         ) : (
           <>
             {data ? (
@@ -495,6 +502,8 @@ export function App() {
                         onAlert={onAlert}
                         bulk={bulk.bulkUI}
                         signalRules={signalRules}
+                        working={workingBySym}
+                        onShowOrders={(sym) => { setOrdersFilter(sym); guardedNav(() => setView("orders")); }}
                         renderDetail={(sym) => (
                           <PositionDetail symbol={sym} mode={mode} onClose={() => setSelected(null)} embedded />
                         )}

@@ -329,6 +329,141 @@ async def working_count(account_hash: str | None = None) -> int:
     return sum(1 for o in orders if o.get("status") in _WORKING_STATUSES)
 
 
+async def working_summary(account_hash: str | None = None) -> dict:
+    """Nav-badge count PLUS a per-symbol breakdown, so dashboard rows can mark
+    tickers that already have a resting order (prevents double-placing a rung).
+    READ-ONLY (reuses list_orders); never touches place/cancel."""
+    orders = await list_orders(days=7, account_hash=account_hash)
+    count = 0
+    by_symbol: dict[str, int] = {}
+    for o in orders:
+        if o.get("status") not in _WORKING_STATUSES:
+            continue
+        count += 1
+        if o.get("symbol"):
+            by_symbol[o["symbol"]] = by_symbol.get(o["symbol"], 0) + 1
+    return {"count": count, "by_symbol": by_symbol}
+
+
+async def replace_order(order_id, new_quantity: int | None = None,
+                        new_limit_price=None, account_hash: str | None = None,
+                        confirm: bool = False) -> dict:
+    """Modify a WORKING limit order (price and/or quantity) via Schwab's native
+    replace — the broker cancels the original and books the replacement in one
+    operation, so there is never a moment with no order resting.
+
+    Same posture as place_order: hard guards (selected + trading-enabled account,
+    working single-leg LIMIT only), then the same soft rails on the NEW terms
+    (fat-finger, notional, sell-held). place_order itself is untouched.
+    """
+    client = get_client()
+    if client is None:
+        return {"ok": False, "error": "no Schwab token"}
+
+    target = await accounts_svc.get_trading_account()
+    if not target:
+        return {"ok": False, "trading_disabled": True,
+                "error": "This account isn't enabled for trading — turn it on in Settings → Account."}
+    if account_hash and account_hash != target:
+        return {"ok": False, "error": "orders may only be modified on the selected (trading-enabled) account"}
+
+    try:
+        orig = await asyncio.to_thread(lambda: client.get_order(order_id, target).json() or {})
+    except Exception as e:
+        return {"ok": False, "error": f"could not read the original order: {e!r}"}
+
+    status = orig.get("status")
+    if status not in _WORKING_STATUSES:
+        return {"ok": False, "error": f"order is {status or 'unknown'} — only a working order can be modified"}
+    legs = orig.get("orderLegCollection") or []
+    if len(legs) != 1:
+        return {"ok": False, "error": "only single-leg orders can be modified here"}
+    side = (legs[0].get("instruction") or "").upper()
+    if side not in ("BUY", "SELL"):
+        return {"ok": False, "error": f"unsupported instruction {side or 'unknown'} — modify it at Schwab"}
+    if (orig.get("orderType") or "").upper() != "LIMIT":
+        return {"ok": False, "error": "only LIMIT orders can be modified here — cancel and re-place instead"}
+    symbol = (legs[0].get("instrument") or {}).get("symbol")
+    if not symbol:
+        return {"ok": False, "error": "could not resolve the order's symbol"}
+
+    quantity = int(new_quantity) if new_quantity else int(_f(orig.get("quantity")))
+    limit_price = float(new_limit_price) if new_limit_price else _f(orig.get("price"))
+    if quantity <= 0 or limit_price <= 0:
+        return {"ok": False, "error": "quantity and limit price must be positive"}
+    if quantity == int(_f(orig.get("quantity"))) and abs(limit_price - _f(orig.get("price"))) < 0.005:
+        return {"ok": False, "error": "nothing changed — adjust the price or quantity first"}
+
+    # Partial fills: the replacement's quantity is IN ADDITION to what already
+    # executed (those shares are done). Make the user acknowledge that.
+    filled = _f(orig.get("filledQuantity"))
+    if filled > 0 and not confirm:
+        return {"ok": False, "needs_confirm": True,
+                "warning": f"{filled:g} of {_f(orig.get('quantity')):g} shares already filled — "
+                           f"the replacement {side.lower()}s {quantity} MORE shares on top of those. Confirm."}
+
+    # --- same soft rails as place_order, applied to the NEW terms ---
+    last_ref = _ref_price(symbol)
+    if not confirm:
+        if not last_ref or last_ref <= 0:
+            return {"ok": False, "needs_confirm": True,
+                    "warning": f"No live quote for {symbol.upper()} to sanity-check the "
+                               f"${limit_price:.2f} limit — confirm the price."}
+        dev = abs(limit_price / last_ref - 1)
+        if dev > _FATFINGER_PCT:
+            return {"ok": False, "needs_confirm": True,
+                    "warning": f"Limit ${limit_price:.2f} is {dev * 100:.0f}% "
+                               f"from the last price ${last_ref:.2f} — confirm this isn't a typo."}
+        if side == "BUY" and quantity * limit_price > _NOTIONAL_CONFIRM:
+            return {"ok": False, "needs_confirm": True,
+                    "warning": f"This buy is about ${quantity * limit_price:,.0f} "
+                               f"({quantity} × ${limit_price:.2f}) — confirm the quantity isn't a typo."}
+
+    # --- SELL guard (fail CLOSED). The original order's shares still count as held
+    # (they haven't sold), so the plain held >= quantity check is the right bound. ---
+    if side == "SELL":
+        held = await accounts_svc.held_shares(target, symbol)
+        if held is None:
+            return {"ok": False, "error": "could not verify shares held — modify refused"}
+        if quantity > held:
+            return {"ok": False,
+                    "error": f"sell {quantity} exceeds {held:g} shares held — refused to avoid a short"}
+
+    try:
+        builder = _build_order(symbol, side, quantity, "LIMIT", limit_price,
+                               duration=orig.get("duration") or "DAY",
+                               session=orig.get("session") or "NORMAL")
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+
+    def go():
+        from schwab.utils import Utils
+        resp = client.replace_order(target, order_id, builder.build())
+        oid, warn = None, None
+        try:
+            oid = Utils(client, target).extract_order_id(resp)
+        except Exception as e:
+            warn = f"replacement order-id not resolved: {e!r}"
+        return resp.status_code, resp.text, oid, warn
+
+    try:
+        http, body, oid, warn = await asyncio.to_thread(go)
+    except Exception as e:
+        return {"ok": False, "error": repr(e)}
+    ok = http in (200, 201)
+    if ok:
+        from .schwab import poke_resync
+        poke_resync()
+    return {
+        "ok": ok,
+        "http": http,
+        "order_id": oid,
+        "needs_verify": bool(ok and not oid),
+        "warning": warn,
+        "detail": None if ok else (body[:300] or f"HTTP {http}"),
+    }
+
+
 async def cancel_order(order_id, account_hash: str | None = None) -> dict:
     client = get_client()
     h = await _account_hash(account_hash)

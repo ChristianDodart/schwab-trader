@@ -3,6 +3,23 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.27.0 — "Daily driver"
+
+Conveniences for the trading day:
+- Edit a working order without the cancel-and-retype dance. Working limit orders
+  in the Orders tab now have an Edit button: change the price or quantity and
+  Schwab swaps the old order for the new one in a single operation — you are
+  never left without an order resting mid-change. The same safety rails as
+  placing apply (typo-sized prices and quantities ask for confirmation, sells
+  can never exceed shares held, partial fills are called out).
+- Dashboard rows now show a small "working" marker when a ticker already has a
+  resting order, so you can't double-place a rung by accident. Click the marker
+  to jump to the Orders tab filtered to that symbol.
+- The Orders tab has a symbol filter box.
+- An "All accounts" button next to the account picker shows every account on
+  your profile at once — value, day profit, cash, and position count per
+  account, plus combined totals. Click a card to switch to that account.
+
 ## v0.26.0 — "Welcome aboard"
 
 The first ten minutes, made obvious:

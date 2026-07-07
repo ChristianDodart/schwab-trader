@@ -1110,8 +1110,9 @@ async def list_orders(days: int = 7, account_hash: str | None = None) -> dict:
 
 @app.get("/api/orders/working-count")
 async def orders_working_count() -> dict:
-    """Count of still-working orders on the selected account (drives the nav badge)."""
-    return {"count": await orders_svc.working_count()}
+    """Working orders on the selected account: total (nav badge) + per-symbol
+    breakdown (dashboard row markers)."""
+    return await orders_svc.working_summary()
 
 
 @app.get("/api/orders/{order_id}")
@@ -1133,6 +1134,22 @@ async def place_order(body: PlaceOrderBody) -> dict:
 @app.delete("/api/orders/{order_id}")
 async def cancel_order(order_id: str, account_hash: str | None = None) -> dict:
     return await orders_svc.cancel_order(order_id, account_hash)
+
+
+class ReplaceOrderBody(BaseModel):
+    quantity: int | None = None       # omit → keep the original
+    limit_price: float | None = None  # omit → keep the original
+    account_hash: str | None = None
+    confirm: bool = False             # acknowledge soft-rail warnings
+
+
+@app.put("/api/orders/{order_id}")
+async def replace_order(order_id: str, body: ReplaceOrderBody) -> dict:
+    """Modify a working LIMIT order via Schwab's native cancel-and-replace."""
+    return await orders_svc.replace_order(
+        order_id, new_quantity=body.quantity, new_limit_price=body.limit_price,
+        account_hash=body.account_hash, confirm=body.confirm,
+    )
 
 
 @app.get("/api/suggest/buy/{symbol}")

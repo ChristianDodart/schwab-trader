@@ -101,6 +101,8 @@ export function DashboardTable({
   bulk,
   renderDetail,
   signalRules = [],
+  working,
+  onShowOrders,
 }: {
   rows: DashboardRow[];
   cols: string[];
@@ -112,6 +114,8 @@ export function DashboardTable({
   bulk?: BulkUI | null;
   renderDetail?: (symbol: string) => React.ReactNode; // drill-down, rendered inline under its row
   signalRules?: SignalRule[];
+  working?: Record<string, number>;        // symbol → count of resting orders
+  onShowOrders?: (symbol: string) => void; // open the Orders tab filtered to it
 }) {
   const defs = cols.map((id) => DASH_COLUMNS[id]).filter(Boolean);
   const colSpan = 1 /* ticker */ + PINNED_DASH.length + defs.length + (bulk ? 1 : 0);
@@ -227,6 +231,17 @@ export function DashboardTable({
                       )}
                       {r.has_note && <NoteDot preview={r.note_preview} />}
                       {r.has_rules && <span style={S.rulesDot} title="Uses its own ticker rules (sell target / dip depth) — open to see or edit them" aria-label="custom rules">◆</span>}
+                      {(working?.[r.symbol] ?? 0) > 0 && (
+                        <button
+                          className="tag"
+                          style={S.workTag}
+                          title={`${working![r.symbol]} resting order${working![r.symbol] === 1 ? "" : "s"} on ${r.symbol} — click to view before placing another`}
+                          aria-label={`${working![r.symbol]} working orders on ${r.symbol} — open the Orders tab`}
+                          onClick={(e) => { e.stopPropagation(); onShowOrders?.(r.symbol); }}
+                        >
+                          {working![r.symbol]} working
+                        </button>
+                      )}
                       {rowSignalChips(r, signalRules)}
                       {r.is_watch && (
                         <span className="tag" style={S.watchTag}>
@@ -337,5 +352,7 @@ const S: Record<string, React.CSSProperties> = {
   underlyingCtx: { fontSize: "var(--fs-2xs)", color: "var(--accent-quiet)", marginTop: 2 },
   noteDot: { color: "var(--accent-quiet)", fontSize: 8, cursor: "help", lineHeight: 1 },
   rulesDot: { color: "var(--warn)", fontSize: 8, cursor: "help", lineHeight: 1 },
+  workTag: { color: "var(--warn)", background: "var(--warn-bg)", border: "1px solid var(--warn-border)",
+    marginLeft: 2, cursor: "pointer", font: "inherit", fontSize: "var(--fs-2xs)" },
   bell: { background: "transparent", border: "none", cursor: "pointer", fontSize: "var(--fs-xs)", padding: 0, verticalAlign: "middle" },
 };

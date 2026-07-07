@@ -78,6 +78,8 @@ def _fetch_accounts_sync(client) -> list[dict]:
             "liquidation_value": None,
             "cash": None,
             "positions_count": None,
+            "day_profit": None,     # sum of per-position currentDayProfitLoss
+            "invested": None,       # long market value
             "tradable": True,
         }
         try:
@@ -85,10 +87,14 @@ def _fetch_accounts_sync(client) -> list[dict]:
             if r.status_code == 200:
                 sa = r.json().get("securitiesAccount", {})
                 bal = sa.get("currentBalances", {}) or {}
+                positions = sa.get("positions", []) or []
                 entry["type"] = sa.get("type")
                 entry["liquidation_value"] = bal.get("liquidationValue")
                 entry["cash"] = bal.get("cashBalance")
-                entry["positions_count"] = len(sa.get("positions", []) or [])
+                entry["positions_count"] = len(positions)
+                entry["day_profit"] = round(sum(
+                    float(p.get("currentDayProfitLoss") or 0.0) for p in positions), 2)
+                entry["invested"] = bal.get("longMarketValue")
             else:
                 entry["tradable"] = False  # API reachable but this account is restricted
         except Exception:
