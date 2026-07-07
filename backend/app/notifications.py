@@ -20,6 +20,7 @@ Design notes
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, select, update
@@ -29,6 +30,8 @@ from .db import SessionLocal, dialect_insert as pg_insert
 from .db.models import AuditEvent, Notification, PriceAlert
 from .schwab import hub, subscribe
 from .schwab.auth import get_client
+
+log = logging.getLogger(__name__)
 
 # Audit-log retention: the table grows forever otherwise. Prune rows that are BOTH
 # older than this AND beyond the newest N (so we always keep at least N regardless of age).
@@ -53,6 +56,32 @@ async def prune_audit_log(retention_days: int = AUDIT_RETENTION_DAYS,
             return 0  # fewer than min_rows rows exist → keep everything
         res = await s.execute(
             delete(AuditEvent).where(AuditEvent.id < floor_id, AuditEvent.created_at < cutoff)
+        )
+        await s.commit()
+        return res.rowcount or 0
+
+
+# Notification-feed retention: same both-conditions shape as the audit log, with a
+# smaller floor — the bell feed is a working set, not an archive (the audit log is).
+NOTIF_RETENTION_DAYS = 180
+NOTIF_MIN_ROWS = 2000
+
+
+async def prune_notifications(retention_days: int = NOTIF_RETENTION_DAYS,
+                              min_rows: int = NOTIF_MIN_ROWS) -> int:
+    """Delete notifications older than `retention_days` AND beyond the newest
+    `min_rows`. Returns the number pruned."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+    async with SessionLocal() as s:
+        floor_id = (
+            await s.execute(
+                select(Notification.id).order_by(Notification.id.desc()).limit(1).offset(min_rows - 1)
+            )
+        ).scalar()
+        if floor_id is None:
+            return 0
+        res = await s.execute(
+            delete(Notification).where(Notification.id < floor_id, Notification.created_at < cutoff)
         )
         await s.commit()
         return res.rowcount or 0
@@ -182,8 +211,8 @@ async def _fire(a: dict, symbol: str, px: float) -> None:
     })
     phone.dispatch(f"{symbol} alert", msg, category="alert")  # optional phone copy; silent no-op when off
     # ASCII-only log line (Windows console is cp1252 and chokes on ≥/≤)
-    print(f"[alerts] fired #{a['id']}: {symbol} {a['direction']} "
-          f"{a['threshold']:g} @ {px:g}")
+    log.info(f"[alerts] fired #{a['id']}: {symbol} {a['direction']} "
+             f"{a['threshold']:g} @ {px:g}")
 
 
 async def post_system_notification(symbol: str | None, message: str, price: float | None = None) -> int:
@@ -293,11 +322,11 @@ async def notify_fills(account_hash: str, fills) -> None:
                 verb = "bought" if str(f.side).upper() == "BUY" else "sold"
                 base = f"{f.symbol} {verb} {f.shares:g} @ ${float(f.price):.2f}"
                 await _emit(f.symbol, f"{base} — {ot.replace('_', ' ').title()} order filled", float(f.price))
-                print(f"[notify] resting fill: {base} ({ot})")
+                log.info(f"resting fill: {base} ({ot})")
             else:
-                print(f"[audit] fill recorded ({ot or 'order'}): {f.symbol} {f.shares:g} @ {f.price}")
+                log.info(f"[audit] fill recorded ({ot or 'order'}): {f.symbol} {f.shares:g} @ {f.price}")
         except Exception as e:  # next resync retries (idempotent), nothing is lost
-            print(f"[notify] fill handling failed: {e!r}")
+            log.warning(f"fill handling failed: {e!r}")
 
 
 async def list_audit(limit: int = 100) -> dict:
@@ -332,7 +361,7 @@ async def run_alert_watcher() -> None:
                 try:
                     await _on_quote(symbol, float(last))
                 except Exception as e:  # never let one bad tick kill the watcher
-                    print(f"[alerts] check failed for {symbol}: {e!r}")
+                    log.warning(f"[alerts] check failed for {symbol}: {e!r}")
     finally:
         hub.unsubscribe(q)
 

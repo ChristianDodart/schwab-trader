@@ -17,12 +17,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import smtplib
 import ssl
 import urllib.request
 from email.message import EmailMessage
 
 from . import credentials
+
+log = logging.getLogger(__name__)
 
 _K_CFG = "phone_notify_cfg"  # Fernet-encrypted JSON blob
 
@@ -149,7 +152,7 @@ async def send(title: str, message: str, category: str | None = None) -> None:
             return  # this category is muted for the phone (still in the in-app bell)
         await asyncio.to_thread(_send_sync, cfg, title, message)
     except Exception as e:
-        print(f"[phone] send failed: {e!r}")
+        log.warning(f"send failed: {e!r}")
 
 
 def dispatch(title: str, message: str, category: str | None = None) -> None:

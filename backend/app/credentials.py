@@ -7,9 +7,13 @@ instance keeps working with zero changes.
 """
 from __future__ import annotations
 
+import logging
+
 from .config import settings
 from .db import SessionLocal, dialect_insert as pg_insert
 from .db.models import AppSetting
+
+log = logging.getLogger(__name__)
 
 _K_ID = "schwab_client_id"
 _K_SECRET = "schwab_client_secret"
@@ -38,7 +42,8 @@ def _decrypt_secret(stored: str | None) -> str | None:
         from .profiles import _fernet
 
         return _fernet().decrypt(stored[len(_ENC_PREFIX):].encode()).decode()
-    except Exception:
+    except Exception as e:
+        log.warning(f"stored secret could not be decrypted (rotated/lost key?) — treating as not configured: {e!r}")
         return None
 
 # Seeded from .env at import so get() is valid even before load() runs at startup.

@@ -15,6 +15,7 @@ confirm step. Server-side safety rails:
 from __future__ import annotations
 
 import asyncio
+import logging
 import math
 from datetime import datetime, timedelta, timezone
 
@@ -27,6 +28,8 @@ from .db.models import Lot
 from .schwab import hub
 from .schwab.auth import get_client
 from .strategy import rules
+
+log = logging.getLogger(__name__)
 
 # An order can be canceled unless it's already terminal. Denylist is robust to
 # Schwab adding new live statuses (broker is the final authority on the cancel).
@@ -291,7 +294,8 @@ async def list_orders(days: int = 7, account_hash: str | None = None) -> list[di
 
     try:
         data = await asyncio.to_thread(go)
-    except Exception:
+    except Exception as e:
+        log.warning(f"order list fetch failed for {h[-4:]}: {e!r}")
         return []
 
     out = []

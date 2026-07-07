@@ -749,6 +749,37 @@ win rate over time, avg hold, total P/L sparkline. Reuses build_trades with the
 existing symbol filter.
 
 # WAVE 27 — ENGINE ROOM (internals & hardening)
+# EXECUTED as v0.29.0 (2026-07-07). What shipped:
+#   W27-1 prune_notifications (180d / newest-2000 floor, both conditions) in the
+#     nightly snapshot loop; other_cash blob capped 10k rows (oldest-day trim);
+#     notes capped 500 symbols (net-new refused, updates/deletes always allowed).
+#     tests/test_notif_retention.py.
+#   W27-2 app/logsetup.py — rotating app.log (2MB x3) in the data dir + console +
+#     WARNING+ ring buffer; /api/logs/recent; RecentErrors panel in Settings >
+#     Diagnostics. 51/53 prints converted (17 info / 32 warning / 1 exception /
+#     1 critical; authorize.py CLI prints intentionally kept); 12 silent excepts
+#     now log with context (corrupt stored JSON blobs, list_orders fetch fail,
+#     undecryptable credentials), ~43 intentional ones left alone, none narrowed.
+#   W27-3 ledger.py (1668) → app/ledger/ package (analytics 857 / income 455 /
+#     settings_store 170 / snapshots 150 / _shared 74 / __init__ re-exports);
+#     main.py (1439→315) → app/api/ routers (auth/accounts/trading/ledger/data/
+#     config/market). Zero behavior change: tests unmodified, route inventory
+#     set-identical (107 HTTP + 3 ws), set_note cap stays patchable via package.
+#     NOTE: latent bug found (POST /api/tickers/enrich shadows enrich_tickers →
+#     startup enrichment silently no-ops) — left as-is, flagged for later.
+#   W27-4 Settings.tsx 889→~180 + src/settings/ (12 sections); Notifications.tsx
+#     635→~330 + src/notifications/ (FeedPanel/ActivityPanel/AlertsPanel +
+#     desktop/format/ui helpers); shared <Hint> tooltip (Ledger Card hints +
+#     cash-check breakdown); a11y: 6 aria-labels, 4 aria-live regions,
+#     focus-return on ColumnManager + Hint.
+#   W27-5 upsert_api_fills skips CSV-owned (day,symbol,side) groups (strictly
+#     more CSV shares than API can account for) — kills the ~30-row/cycle
+#     resync churn; tie still goes to API and flips ownership via heal.
+#     tests/test_resync_churn.py + first endpoint smoke tests
+#     (tests/test_endpoint_smoke.py: TestClient, no lifespan, throwaway account).
+#   Verified: 173 backend + 21 frontend tests, tsc + build clean, live-DB-copy
+#   smoke across all router domains (all 200), app.log created, zero console
+#   errors, /api/logs/recent serving.
 
 ## W27-1 — Notification retention + app_setting caps
 Mirror the audit-log pruning for the Notification table (e.g. 180 days / newest

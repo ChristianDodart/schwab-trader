@@ -12,12 +12,15 @@ Restore = stop the app, replace data/schwab_trader.db with a backup file, start.
 from __future__ import annotations
 
 import asyncio
+import logging
 import sqlite3
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import settings
+
+log = logging.getLogger(__name__)
 
 _KEEP = 14                    # newest N backups survive rotation
 _INTERVAL_S = 24 * 3600.0
@@ -99,15 +102,15 @@ async def run_backup_scheduler() -> None:
     """Startup backup, then one per day. Failures are logged and retried next cycle —
     a backup problem must never take the app down."""
     if _db_path() is None:
-        print("[backup] non-SQLite database — scheduler idle.")
+        log.info("non-SQLite database — scheduler idle.")
         return
     while True:
         try:
             res = await run_backup()
             if res.get("ok"):
-                print(f"[backup] wrote {res['file']} ({res['bytes']:,} bytes)")
+                log.info(f"wrote {res['file']} ({res['bytes']:,} bytes)")
             else:
-                print(f"[backup] FAILED: {res.get('error')}")
-        except Exception as e:
-            print(f"[backup] scheduler error: {e!r}")
+                log.warning(f"FAILED: {res.get('error')}")
+        except Exception:
+            log.exception("scheduler error")
         await asyncio.sleep(_INTERVAL_S + (time.monotonic() % 60))  # slight jitter

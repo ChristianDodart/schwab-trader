@@ -5,12 +5,15 @@ account; NULL => YAML defaults. Auto-creates a row on first access.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import replace as _dc_replace
 
 from .db import SessionLocal, dialect_insert as _insert
 from .db.models import AccountConfig, AppSetting
 from .strategy import StrategyConfig
 from .strategy.config import SellConfig
+
+log = logging.getLogger(__name__)
 
 _DEFAULTS = StrategyConfig.load()
 
@@ -51,7 +54,8 @@ async def get_strategy(account_hash: str | None) -> StrategyConfig:
         return cached[1]
     try:
         cfg = StrategyConfig.from_mapping(json.loads(row.strategy_json))
-    except Exception:
+    except Exception as e:
+        log.warning(f"stored strategy JSON for {account_hash[-4:]} is unreadable — using defaults: {e!r}")
         return _DEFAULTS
     _parsed_cache[account_hash] = (row.strategy_json, cfg)
     return cfg
@@ -150,7 +154,8 @@ async def get_symbol_overrides(account_hash: str) -> dict:
         row = await s.get(AppSetting, _SYMBOL_RULES_KEY + account_hash)
     try:
         data = json.loads(row.value) if row and row.value else {}
-    except Exception:
+    except Exception as e:
+        log.warning(f"stored symbol-override JSON for {account_hash[-4:]} is unreadable — ignoring: {e!r}")
         data = {}
     return data if isinstance(data, dict) else {}
 

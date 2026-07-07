@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 
 from sqlalchemy.ext.asyncio import (
@@ -12,6 +13,8 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from ..config import settings
+
+log = logging.getLogger(__name__)
 
 _BACKEND_DIR = Path(__file__).resolve().parents[2]  # .../backend
 
@@ -106,7 +109,7 @@ def _migrate_to_head() -> None:
     try:
         command.upgrade(cfg, "head")
     except Exception as e:  # don't brick local boot on a migration hiccup
-        print(f"[db] alembic upgrade failed ({e!r}); falling back to create_all + stamp.")
+        log.warning(f"alembic upgrade failed ({e!r}); falling back to create_all + stamp.")
         sync_engine = create_engine(_sync_url())
         try:
             Base.metadata.create_all(sync_engine)

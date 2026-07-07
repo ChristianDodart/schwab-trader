@@ -241,8 +241,10 @@ function PositionNote({ symbol, onSaved, onError }: { symbol: string; onSaved: (
     <div style={{ marginTop: 14 }}>
       <label style={{ fontSize: "var(--fs-xs)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-dim)", display: "inline-flex", alignItems: "center", gap: 8 }}>
         Notes
-        {flash && <span style={{ color: "var(--pos)", textTransform: "none", letterSpacing: 0, fontWeight: 600, transition: "opacity .2s" }}>✓ Saved</span>}
-        {!flash && dirty && <span style={{ color: "var(--text-faint)", textTransform: "none", letterSpacing: 0 }}>unsaved — click away to save</span>}
+        <span aria-live="polite">
+          {flash && <span style={{ color: "var(--pos)", textTransform: "none", letterSpacing: 0, fontWeight: 600, transition: "opacity .2s" }}>✓ Saved</span>}
+          {!flash && dirty && <span style={{ color: "var(--text-faint)", textTransform: "none", letterSpacing: 0 }}>unsaved — click away to save</span>}
+        </span>
       </label>
       <textarea value={note} onChange={(e) => setNote(e.target.value)} onBlur={save}
         placeholder="Your thesis, targets, reminders for this position — saved to this account."

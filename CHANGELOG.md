@@ -3,6 +3,25 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.29.0 — "Engine room"
+
+Internals hardening — little to see, lots to trust:
+- The app now keeps a proper log file (app.log in the data folder, self-rotating,
+  never grows past a few MB), and Settings → About & diagnostics shows the most
+  recent warnings and errors right in the app — no file digging when something
+  looks off.
+- Fixed a quiet inefficiency where every minute's sync re-added rows of history
+  the app then immediately re-evicted. Imports and syncs now settle instead of
+  churning.
+- The notification bell now prunes old entries the same way the audit log does
+  (180 days, always keeping the newest 2,000), so years of use can't bloat it.
+- Accessibility: screen-reader labels on icon buttons, save confirmations that
+  announce themselves, and tooltips/popovers that return focus where you were.
+- Under the hood, the two largest files in the codebase were split into focused
+  modules and the app gained its first end-to-end endpoint tests. Nothing
+  changed in behavior — verified by the full 173-test suite and a route-by-route
+  comparison.
+
 ## v0.28.0 — "Know your numbers"
 
 Analytics depth on the Ledger:

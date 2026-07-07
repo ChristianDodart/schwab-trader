@@ -7,6 +7,7 @@ Once token.json exists, it streams real level-one equity quotes.
 from __future__ import annotations
 
 import asyncio
+import logging
 import random
 import time
 from datetime import datetime, timezone
@@ -14,6 +15,8 @@ from datetime import datetime, timezone
 from . import auth
 from ..config import settings
 from .auth import get_client
+
+log = logging.getLogger(__name__)
 
 
 def _is_auth_error(e: Exception) -> bool:
@@ -115,7 +118,7 @@ async def _held_symbols() -> list[str]:
             )
             symbols.update(r[0] for r in alert_rows)
     except Exception as e:
-        print(f"[stream] could not load symbols from DB: {e!r}")
+        log.warning(f"could not load symbols from DB: {e!r}")
     return sorted(symbols)
 
 
@@ -131,7 +134,7 @@ async def subscribe(symbol: str) -> bool:
             await _stream.level_one_equity_add([symbol])
             return True
         except Exception as e:
-            print(f"[stream] dynamic add failed for {symbol}: {e!r}")
+            log.warning(f"dynamic add failed for {symbol}: {e!r}")
     return False
 
 
@@ -194,9 +197,9 @@ async def _schwab_stream(client, symbols: list[str]) -> None:
     try:
         stream.add_account_activity_handler(_activity_handler)
         await stream.account_activity_sub()
-        print("[stream] subscribed to ACCT_ACTIVITY (fill re-sync trigger)")
+        log.info("subscribed to ACCT_ACTIVITY (fill re-sync trigger)")
     except Exception as e:
-        print(f"[stream] account-activity subscribe failed (quotes unaffected): {e!r}")
+        log.warning(f"account-activity subscribe failed (quotes unaffected): {e!r}")
 
     try:
         while True:
@@ -220,11 +223,11 @@ async def run_quote_stream() -> None:
     try:
         client = get_client()
     except Exception as e:  # malformed/expired token, etc.
-        print(f"[stream] could not load Schwab client: {e!r}")
+        log.warning(f"could not load Schwab client: {e!r}")
 
     if client is None:
-        print("[stream] no Schwab token -> DEMO mode. "
-              "Connect a profile in Settings for live data.")
+        log.info("no Schwab token -> DEMO mode. "
+                 "Connect a profile in Settings for live data.")
         await _demo_stream(symbols)
         return
 
@@ -239,7 +242,7 @@ async def run_quote_stream() -> None:
             if _is_auth_error(e):
                 auth.note_stream_auth_error()  # token is bad — reflect it in the banner now
                 hub.mode = "reauth"            # stop showing "connecting…" forever; it's rejected
-            print(f"[stream] Schwab stream error ({e!r}); reconnecting in {backoff:.0f}s")
+            log.warning(f"Schwab stream error ({e!r}); reconnecting in {backoff:.0f}s")
         if time.monotonic() - started > 120:
             backoff = 5.0  # it ran healthily for a while — treat the next drop as fresh
         await asyncio.sleep(backoff)
@@ -250,7 +253,7 @@ async def run_quote_stream() -> None:
         try:
             client = get_client() or client
         except Exception:
-            pass
+            log.debug("client re-resolve failed; keeping previous client", exc_info=True)
         symbols = await _held_symbols()
 
 
@@ -280,7 +283,7 @@ async def run_activity_resync() -> None:
         except asyncio.CancelledError:
             raise
         except Exception as e:  # never let one bad poke kill the loop
-            print(f"[resync] failed: {e!r}")
+            log.warning(f"[resync] failed: {e!r}")
             try:
                 _activity_q.put_nowait(True)  # re-arm so the trigger isn't lost
             except asyncio.QueueFull:

@@ -1,63 +1,18 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+// Notifications bell orchestrator (split in W27-4): owns the data (feed, alerts,
+// audit), the live WebSocket, and the popover shell; the tab panels live in
+// src/notifications/ (FeedPanel / ActivityPanel / AlertsPanel).
+import { useEffect, useRef, useState } from "react";
 import { useToast } from "./Toast";
 import type { Alert, AlertPrefill, AuditEvent, Notification } from "./types";
 
 import { API, wsUrl } from "./api";
+import { desktopSupported, desktopCats, DESKTOP_CATS_KEY, fireDesktop } from "./notifications/desktop";
+import { round2, fmtNum } from "./notifications/format";
+import { FeedPanel } from "./notifications/FeedPanel";
+import { ActivityPanel } from "./notifications/ActivityPanel";
+import { AlertsPanel } from "./notifications/AlertsPanel";
+
 const WS_URL = wsUrl("/ws/notifications");
-
-const desktopSupported = typeof window !== "undefined" && "Notification" in window;
-// Which categories may pop a DESKTOP notification (localStorage; default all on). The
-// in-app bell always shows everything — these only gate the OS pop-up.
-const DESKTOP_CATS_KEY = "desktop.cats.v1";
-function desktopCats(): Record<string, boolean> {
-  try { return { alert: true, trigger: true, fill: true, ...JSON.parse(localStorage.getItem(DESKTOP_CATS_KEY) || "{}") }; }
-  catch { return { alert: true, trigger: true, fill: true }; }
-}
-
-function fireDesktop(n: Notification) {
-  if (!desktopSupported || Notification.permission !== "granted") return;
-  if (n.kind && desktopCats()[n.kind] === false) return; // category muted for desktop
-  try {
-    new Notification(n.symbol ? `${n.symbol} alert` : "Schwab Trader", {
-      body: n.message,
-      tag: `note-${n.id}`,
-    });
-  } catch {
-    /* some browsers throw if invoked without a user gesture / SW — ignore */
-  }
-}
-
-// Classify a feed row for its scannable type glyph. Live pushes carry `kind`;
-// stored rows don't, so infer: an alert_id ⇒ a price alert; else read the message
-// (fills say bought/sold/filled; strategy triggers say dipped/target/trigger).
-function inferKind(n: Notification): "alert" | "trigger" | "fill" {
-  if (n.kind) return n.kind;
-  if (n.alert_id != null) return "alert";
-  const m = (n.message || "").toLowerCase();
-  if (/\b(bought|sold|filled|fill)\b/.test(m)) return "fill";
-  if (/\b(dip|dipped|target|trigger|rung|next buy)\b/.test(m)) return "trigger";
-  return "alert";
-}
-
-// Emoji-free glyphs (matches the app's ●/▲/▼ language), color-coded per type.
-const KIND_ICON: Record<string, { glyph: string; color: string; label: string }> = {
-  alert: { glyph: "!", color: "var(--warn)", label: "Price alert" },
-  trigger: { glyph: "▸", color: "var(--accent)", label: "Strategy trigger" },
-  fill: { glyph: "✓", color: "var(--pos)", label: "Order fill" },
-};
-
-function KindIcon({ n }: { n: Notification }) {
-  const k = KIND_ICON[inferKind(n)];
-  return (
-    <span title={k.label} aria-label={k.label}
-      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center",
-               width: 16, minWidth: 16, height: 16, borderRadius: 4, marginTop: 1,
-               fontSize: 11, fontWeight: 700, color: k.color,
-               border: `1px solid ${k.color}`, lineHeight: 1 }}>
-      {k.glyph}
-    </span>
-  );
-}
 
 export function NotificationsBell({
   prefill,
@@ -79,15 +34,13 @@ export function NotificationsBell({
     try { localStorage.setItem(DESKTOP_CATS_KEY, JSON.stringify(next)); } catch { /* private mode */ }
     return next;
   });
-  const match = (msg?: string | null, sym?: string | null) =>
-    !q || (msg || "").toLowerCase().includes(q.toLowerCase()) || (sym || "").toLowerCase().includes(q.toLowerCase());
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [desktopPerm, setDesktopPerm] = useState<string>(desktopSupported ? Notification.permission : "unsupported");
   const wrapRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
 
-  // add-alert form
+  // add-alert form (lives here so it survives tab switches and popover close)
   const [sym, setSym] = useState("");
   const [dir, setDir] = useState<"above" | "below">("above");
   const [price, setPrice] = useState("");
@@ -300,198 +253,35 @@ export function NotificationsBell({
           </div>
 
           {tab === "feed" ? (
-            <div style={S.body} id="nt-panel-feed" role="tabpanel" aria-labelledby="nt-tab-feed" tabIndex={0}>
-              <div style={S.barRow}>
-                <span style={S.dim}>{notes.length} recent</span>
-                <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  {desktopPerm === "granted" ? (
-                    <span style={{ ...S.dim, color: "var(--pos)" }}>🔔 desktop on</span>
-                  ) : desktopPerm === "unsupported" ? null : (
-                    <button style={S.linkBtn} onClick={enableDesktop}>Enable desktop alerts</button>
-                  )}
-                  {unread > 0 && (
-                    <button style={S.linkBtn} onClick={markAllRead}>
-                      Mark all read
-                    </button>
-                  )}
-                </span>
-              </div>
-              <input className="field" value={q} onChange={(e) => setQ(e.target.value)}
-                placeholder="Filter by symbol or text" aria-label="Filter notifications" style={S.search} />
-              {desktopPerm === "granted" && (
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", padding: "0 14px 6px", fontSize: "var(--fs-2xs)", color: "var(--text-dim)" }}>
-                  <span>Desktop pop-ups:</span>
-                  {([["alert", "Alerts"], ["trigger", "Triggers"], ["fill", "Fills"]] as const).map(([k, label]) => (
-                    <label key={k} style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
-                      <input type="checkbox" checked={dcats[k] !== false} onChange={() => toggleDcat(k)} />{label}
-                    </label>
-                  ))}
-                </div>
-              )}
-              {notes.length === 0 ? (
-                <p style={S.empty}>No notifications yet. Set a price alert →</p>
-              ) : notes.filter((n) => match(n.message, n.symbol)).length === 0 ? (
-                <p style={S.empty}>No matches for "{q}".</p>
-              ) : (
-                (() => {
-                  const feed = notes.filter((n) => match(n.message, n.symbol));
-                  let lastDay = "";
-                  return feed.map((n) => {
-                    const dk = dayKey(n.created_at);
-                    const sep = dk !== lastDay ? <div style={S.daySep}>{dayLabel(n.created_at)}</div> : null;
-                    lastDay = dk;
-                    return (
-                      <Fragment key={n.id}>
-                        {sep}
-                        <div style={{ ...S.note, opacity: n.read ? 0.55 : 1 }}>
-                          {!n.read && <span style={S.dot} />}
-                          <KindIcon n={n} />
-                          <div style={{ flex: 1 }}>
-                            <div style={S.noteMsg}>{n.message}</div>
-                            <div style={S.noteTime}>{fmtTime(n.created_at)}</div>
-                          </div>
-                        </div>
-                      </Fragment>
-                    );
-                  });
-                })()
-              )}
-            </div>
+            <FeedPanel
+              notes={notes}
+              unread={unread}
+              q={q}
+              onQ={setQ}
+              desktopPerm={desktopPerm}
+              onEnableDesktop={enableDesktop}
+              onMarkAllRead={markAllRead}
+              dcats={dcats}
+              onToggleDcat={toggleDcat}
+            />
           ) : tab === "activity" ? (
-            <div style={S.body} id="nt-panel-activity" role="tabpanel" aria-labelledby="nt-tab-activity" tabIndex={0}>
-              <div style={S.barRow}>
-                <span style={S.dim}>{audit.length} events — every fill (incl. market) is logged here, not pushed</span>
-              </div>
-              <input className="field" value={q} onChange={(e) => setQ(e.target.value)}
-                placeholder="Filter by symbol or text" aria-label="Filter activity" style={S.search} />
-              {audit.length === 0 ? (
-                <p style={S.empty}>No activity yet.</p>
-              ) : audit.filter((e) => match(e.message, e.symbol)).length === 0 ? (
-                <p style={S.empty}>No matches for "{q}".</p>
-              ) : (
-                audit.filter((e) => match(e.message, e.symbol)).map((e) => (
-                  <div key={e.id} style={S.note}>
-                    <div style={{ flex: 1 }}>
-                      <div style={S.noteMsg}>{e.message}</div>
-                      <div style={S.noteTime}>
-                        {fmtTime(e.at || e.created_at)}
-                        {e.order_type ? ` · ${e.order_type.replace(/_/g, " ")}` : ""}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+            <ActivityPanel audit={audit} q={q} onQ={setQ} />
           ) : (
-            <div style={S.body} id="nt-panel-alerts" role="tabpanel" aria-labelledby="nt-tab-alerts" tabIndex={0}>
-              <div style={S.form}>
-                <input
-                  className="field"
-                  style={{ width: 70 }}
-                  placeholder="SYM"
-                  aria-label="Alert symbol"
-                  value={sym}
-                  onChange={(e) => setSym(e.target.value.toUpperCase())}
-                />
-                <select
-                  className="field"
-                  value={dir}
-                  aria-label="Alert direction"
-                  onChange={(e) => setDir(e.target.value as "above" | "below")}
-                >
-                  <option value="above">rises ≥</option>
-                  <option value="below">falls ≤</option>
-                </select>
-                <input
-                  className="field"
-                  style={{ width: 80 }}
-                  placeholder="price"
-                  aria-label="Alert price"
-                  inputMode="decimal"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addAlert()}
-                />
-                <label style={S.repeat} title="re-arm and fire on every future crossing">
-                  <input
-                    type="checkbox"
-                    checked={repeat}
-                    onChange={(e) => setRepeat(e.target.checked)}
-                  />
-                  repeat
-                </label>
-                <button className="btn btn-primary btn-sm" onClick={addAlert}>
-                  Set
-                </button>
-              </div>
-              {formMsg && <div style={S.formMsg}>{formMsg}</div>}
-
-              {alerts.length === 0 ? (
-                <p style={S.empty}>No alerts. Add one above.</p>
-              ) : (
-                alerts.map((a) => (
-                  <div key={a.id} style={{ ...S.note, opacity: a.active ? 1 : 0.5 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={S.noteMsg}>
-                        <b>{a.symbol}</b> {a.direction === "above" ? "≥" : "≤"}{" "}
-                        {fmtNum(a.threshold)}
-                        {a.repeat && <span style={S.tagRepeat}>repeat</span>}
-                        {!a.active && <span style={S.tagDone}>triggered</span>}
-                      </div>
-                      <div style={S.noteTime}>
-                        {a.active
-                          ? "watching…"
-                          : `fired ${fmtTime(a.last_fired_at)}`}
-                      </div>
-                    </div>
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      title="delete alert"
-                      aria-label={`Delete alert for ${a.symbol}`}
-                      onClick={() => removeAlert(a)}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
+            <AlertsPanel
+              alerts={alerts}
+              sym={sym} onSym={setSym}
+              dir={dir} onDir={setDir}
+              price={price} onPrice={setPrice}
+              repeat={repeat} onRepeat={setRepeat}
+              formMsg={formMsg}
+              onAdd={addAlert}
+              onRemove={removeAlert}
+            />
           )}
         </div>
       )}
     </div>
   );
-}
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
-const fmtNum = (n: number) =>
-  n.toLocaleString("en-US", { maximumFractionDigits: 2 });
-function fmtTime(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-// Local-date key (for grouping) + a friendly label (Today / Yesterday / Mon D).
-function dayKey(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-}
-function dayLabel(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const now = new Date();
-  const k = (x: Date) => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
-  const y = new Date(now); y.setDate(now.getDate() - 1);
-  if (k(d) === k(now)) return "Today";
-  if (k(d) === k(y)) return "Yesterday";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: d.getFullYear() === now.getFullYear() ? undefined : "numeric" });
 }
 
 const tabStyle = (active: boolean): React.CSSProperties => ({
@@ -562,74 +352,5 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: "var(--fs-md)",
     cursor: "pointer",
     padding: "0 12px",
-  },
-  body: { maxHeight: 420, overflowY: "auto", padding: "6px 0" },
-  barRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "4px 14px 8px",
-  },
-  dim: { color: "var(--text-faint)", fontSize: "var(--fs-xs)" },
-  linkBtn: {
-    background: "transparent",
-    color: "var(--accent-quiet)",
-    border: "none",
-    fontSize: "var(--fs-xs)",
-    cursor: "pointer",
-  },
-  empty: { color: "var(--text-faint)", fontSize: "var(--fs-sm)", padding: "12px 14px" },
-  search: { width: "calc(100% - 28px)", margin: "0 14px 8px", height: 28, fontSize: "var(--fs-sm)" },
-  note: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 8,
-    padding: "9px 14px",
-    borderTop: "1px solid var(--border-hairline)",
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: "var(--r-pill)",
-    background: "var(--accent)",
-    marginTop: 5,
-    flexShrink: 0,
-  },
-  noteMsg: { fontSize: "var(--fs-sm)", color: "var(--text)" },
-  noteTime: { fontSize: "var(--fs-2xs)", color: "var(--text-faint)", marginTop: 2 },
-  daySep: { fontSize: "var(--fs-2xs)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-faint)", padding: "8px 14px 2px" },
-  form: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "8px 14px",
-    flexWrap: "wrap",
-  },
-  repeat: {
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
-    fontSize: "var(--fs-xs)",
-    color: "var(--text-muted)",
-    cursor: "pointer",
-  },
-  formMsg: { fontSize: "var(--fs-xs)", color: "var(--warn)", padding: "0 14px 6px" },
-  tagRepeat: {
-    fontSize: 10,
-    color: "var(--accent-quiet)",
-    border: "1px solid #3a4a5a",
-    borderRadius: "var(--r-sm)",
-    padding: "0 5px",
-    marginLeft: 6,
-    textTransform: "uppercase",
-  },
-  tagDone: {
-    fontSize: 10,
-    color: "var(--warn)",
-    border: "1px solid var(--warn-border)",
-    borderRadius: "var(--r-sm)",
-    padding: "0 5px",
-    marginLeft: 6,
-    textTransform: "uppercase",
   },
 };

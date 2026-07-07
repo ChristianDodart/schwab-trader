@@ -62,7 +62,7 @@ export function AuthBanner() {
       </button>
       <ReauthButton onComplete={load} label={status.expired ? "Connect Schwab" : "Re-authorize"} style={S.reauth} autoStart={autoStart} />
       {status.severity !== "expired" && (
-        <button style={S.x} title="dismiss for now" onClick={() => setDismissed(true)}>✕</button>
+        <button style={S.x} title="dismiss for now" aria-label="Dismiss for now" onClick={() => setDismissed(true)}>✕</button>
       )}
     </div>
   );

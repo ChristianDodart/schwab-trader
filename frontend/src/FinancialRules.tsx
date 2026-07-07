@@ -269,8 +269,10 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
 
       <div style={S.saveBar}>
         <button className="btn btn-primary" onClick={save}>Save rules</button>
-        {dirty ? <span style={S.dirty}>● Unsaved changes</span>
-          : saved ? <span style={S.savedMsg}>✓ Saved — new suggestions use these immediately</span> : null}
+        <span aria-live="polite">
+          {dirty ? <span style={S.dirty}>● Unsaved changes</span>
+            : saved ? <span style={S.savedMsg}>✓ Saved — new suggestions use these immediately</span> : null}
+        </span>
       </div>
     </div>
   );

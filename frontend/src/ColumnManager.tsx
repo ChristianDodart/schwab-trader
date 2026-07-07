@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ColumnPrefs } from "./columns";
 
 /** A "⚙ Columns" button + popover to reorder, remove, add, and reset the columns
@@ -16,6 +16,14 @@ export function ColumnManager({
   const [toAdd, setToAdd] = useState("");
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // Closing via ✕ or Escape puts keyboard focus back on the "⚙ Columns" trigger
+  // (otherwise it falls to <body> when the popover unmounts).
+  const close = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
 
   const doAdd = () => {
     if (toAdd) {
@@ -26,15 +34,17 @@ export function ColumnManager({
 
   return (
     <span style={S.wrap}>
-      <button className="btn btn-ghost btn-sm" onClick={() => setOpen((o) => !o)} title="customize columns">
+      <button ref={triggerRef} className="btn btn-ghost btn-sm" onClick={() => setOpen((o) => !o)}
+        title="customize columns" aria-expanded={open}>
         ⚙ Columns
       </button>
       {open && (
-        <div style={{ ...S.pop, left: align === "left" ? 0 : undefined, right: align === "right" ? 0 : undefined }}>
+        <div style={{ ...S.pop, left: align === "left" ? 0 : undefined, right: align === "right" ? 0 : undefined }}
+          onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); close(); } }}>
           <div style={S.head}>
             <span style={S.title}>Columns</span>
             <button className="btn btn-ghost btn-sm" style={S.reset} onClick={prefs.reset} title="restore default layout">Reset</button>
-            <button className="btn btn-ghost btn-sm" style={S.close} onClick={() => setOpen(false)} aria-label="close column manager">✕</button>
+            <button className="btn btn-ghost btn-sm" style={S.close} onClick={close} aria-label="close column manager">✕</button>
           </div>
 
           <div style={S.list}>

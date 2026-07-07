@@ -24,6 +24,7 @@ proceed on TRUSTWORTHY inputs; an empty/partial read is never trusted to delete 
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import date, timedelta
 
 from sqlalchemy import delete, func, select
@@ -31,6 +32,8 @@ from sqlalchemy import delete, func, select
 from .db import SessionLocal, dialect_insert as pg_insert
 from .db.models import CompletedTrade, Lot, Ticker
 from .reconstruct import Fill, reconcile_open_lots, reconstruct
+
+log = logging.getLogger(__name__)
 
 _locks: dict[str, asyncio.Lock] = {}
 
@@ -81,7 +84,7 @@ async def _fetch_positions_map(account_hash: str):
     try:
         rows = await asyncio.to_thread(_fetch_positions_sync, client, account_hash)
     except Exception as e:
-        print(f"[rebuild] positions fetch failed for {account_hash[-4:]}: {e!r}")
+        log.warning(f"positions fetch failed for {account_hash[-4:]}: {e!r}")
         return None
     if rows is None:
         return None
@@ -114,8 +117,8 @@ async def _write(account_hash: str, fills, positions=None) -> dict:
         # themselves fills). Trusting it would wipe real completed trades and flatten
         # the ladder into synthetic lots — so refuse and leave the account untouched.
         if not fills and await _has_fill_derived_data(account_hash):
-            print(f"[rebuild] {account_hash[-4:]} REFUSED — empty fills but account has "
-                  f"fill-derived history (transient/misconfigured read); left data intact")
+            log.warning(f"{account_hash[-4:]} REFUSED — empty fills but account has "
+                        f"fill-derived history (transient/misconfigured read); left data intact")
             return {"ok": False, "refused": "empty fills on an account with fill-derived history "
                     "— left existing data intact"}
         # Positions are the authoritative CURRENT holdings — reconcile to them
@@ -124,14 +127,14 @@ async def _write(account_hash: str, fills, positions=None) -> dict:
         horizon = date.today() - timedelta(days=366)
         open_by_symbol = reconcile_open_lots(open_by_symbol, positions, horizon)
         if oversold:
-            print(f"[rebuild] {account_hash[-4:]} oversold reconciled against positions: {oversold}")
+            log.warning(f"{account_hash[-4:]} oversold reconciled against positions: {oversold}")
     else:
         # No positions truth to reconcile against → be conservative.
         if not fills:
             return {"ok": True, "skipped": "no fills, no positions — left existing data intact",
                     "open_lots": 0, "closed": 0}
         if oversold:
-            print(f"[rebuild] {account_hash[-4:]} REFUSED — oversold, no positions to reconcile: {oversold}")
+            log.warning(f"{account_hash[-4:]} REFUSED — oversold, no positions to reconcile: {oversold}")
             return {"ok": False, "refused": "oversold, no positions to reconcile — left existing data intact",
                     "oversold": len(oversold)}
 
@@ -163,8 +166,8 @@ async def _write(account_hash: str, fills, positions=None) -> dict:
             ))
         await s.commit()
 
-    print(f"[rebuild] {account_hash[-4:]}: {n_lots} open lots ({n_backfill} backfilled from "
-          f"positions), {len(closed)} closed trades from {len(fills)} fills")
+    log.info(f"{account_hash[-4:]}: {n_lots} open lots ({n_backfill} backfilled from "
+             f"positions), {len(closed)} closed trades from {len(fills)} fills")
     return {"ok": True, "open_lots": n_lots, "backfilled": n_backfill,
             "closed": len(closed), "fills": len(fills)}
 
@@ -248,14 +251,14 @@ async def resync_account(account_hash: str) -> dict:
                 try:
                     up = await fill_store.upsert_api_fills(account_hash, fills)
                     if up["added"] or up["upgraded_csv"]:
-                        print(f"[resync] {account_hash[-4:]} fill ledger: +{up['added']} api "
-                              f"({up['upgraded_csv']} csv upgraded, {up['skipped']} known)")
+                        log.info(f"[resync] {account_hash[-4:]} fill ledger: +{up['added']} api "
+                                 f"({up['upgraded_csv']} csv upgraded, {up['skipped']} known)")
                 except Exception as e:
-                    print(f"[resync] fill-ledger persist failed (projecting from fetch): {e!r}")
+                    log.warning(f"[resync] fill-ledger persist failed (projecting from fetch): {e!r}")
             try:
                 await fill_store.heal_ledger(account_hash)   # idempotent self-repair
             except Exception as e:
-                print(f"[resync] ledger heal failed (continuing): {e!r}")
+                log.warning(f"[resync] ledger heal failed (continuing): {e!r}")
             stored = await fill_store.load_fills(account_hash)
             if stored:
                 effective = stored
@@ -270,7 +273,7 @@ async def resync_account(account_hash: str) -> dict:
                 from . import ledger as ledger_svc
                 await ledger_svc.set_last_held(account_hash, closed)
             except Exception as e:
-                print(f"[resync] last-held record failed: {e!r}")
+                log.warning(f"[resync] last-held record failed: {e!r}")
 
         # Update the hint ONLY after a real probe with a trustworthy result (fills is a
         # list, not None=error). Empty + no fill-derived history ⇒ this account exposes
@@ -287,5 +290,5 @@ async def resync_account(account_hash: str) -> dict:
         from . import notifications as notifications_svc
         await notifications_svc.notify_fills(account_hash, fills or [])
     except Exception as e:
-        print(f"[resync] notify_fills failed: {e!r}")
+        log.warning(f"[resync] notify_fills failed: {e!r}")
     return result

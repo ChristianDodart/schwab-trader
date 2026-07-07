@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import csv as _csvmod
 import io
+import logging
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -28,6 +29,8 @@ from sqlalchemy import delete, select
 from .db import SessionLocal
 from .db.models import FillRecord
 from .reconstruct import Fill
+
+log = logging.getLogger(__name__)
 
 _EPS = 1e-9
 # Schwab's ledger day (and the Transactions CSV) is the EASTERN trade date. An
@@ -179,15 +182,50 @@ async def upsert_api_fills(account_hash: str, fills: list[Fill]) -> dict:
             "dkey": day_key(td, f.symbol, f.side, f.shares, f.price),
         })
 
-    added = skipped = 0
+    # Anti-churn (W27-5): if a (day, symbol, side) group is currently CSV-OWNED —
+    # CSV rows account for strictly more shares than the API (incoming + already
+    # stored) can — heal's totals rule would evict whatever we insert here, and the
+    # eviction deletes the fill_key, so the next resync would re-insert it forever
+    # (~30 rows/cycle observed live). Skip those groups up front. If API coverage
+    # ever grows to meet/beat the CSV total (tie → API wins for leg fidelity), the
+    # skip stops applying and heal flips ownership as designed.
+    groups: dict[tuple, float] = {}
+    for f in incoming:
+        g = group_key(f["trade_date"], f["symbol"], f["side"])
+        groups[g] = groups.get(g, 0.0) + f["shares"]
+
+    added = skipped = csv_owned = 0
     async with SessionLocal() as s:
         known = set((await s.execute(
             select(FillRecord.fill_key).where(FillRecord.account_hash == account_hash,
                                               FillRecord.source == "api")
         )).scalars().all())
+
+        days = {g[0] for g in groups}
+        syms = {g[1] for g in groups}
+        totals: dict[tuple[tuple, str], float] = {}   # (group, source) -> shares
+        if days:
+            rows = (await s.execute(
+                select(FillRecord.trade_date, FillRecord.symbol, FillRecord.side,
+                       FillRecord.source, FillRecord.shares)
+                .where(FillRecord.account_hash == account_hash,
+                       FillRecord.trade_date.in_(days), FillRecord.symbol.in_(syms))
+            )).all()
+            for d, sym, side, src, sh in rows:
+                g = group_key(d, sym, side)
+                if g in groups:
+                    totals[(g, src)] = totals.get((g, src), 0.0) + float(sh or 0)
+        skip_groups = {
+            g for g, inc_shares in groups.items()
+            if totals.get((g, "csv"), 0.0) > inc_shares + totals.get((g, "api"), 0.0) + 1e-9
+        }
+
         for f in incoming:
             if f["fill_key"] in known:
                 skipped += 1
+                continue
+            if group_key(f["trade_date"], f["symbol"], f["side"]) in skip_groups:
+                csv_owned += 1
                 continue
             f.pop("dkey", None)
             s.add(FillRecord(account_hash=account_hash, source="api", **f))
@@ -196,7 +234,8 @@ async def upsert_api_fills(account_hash: str, fills: list[Fill]) -> dict:
         await s.commit()
     # Cross-source conflicts (a CSV row describing a trade the API now also has) are
     # resolved centrally by heal_ledger's totals rule — resync runs it right after this.
-    return {"added": added, "skipped": skipped, "upgraded_csv": 0}
+    return {"added": added, "skipped": skipped + csv_owned, "upgraded_csv": 0,
+            "csv_owned": csv_owned}
 
 
 # --- Schwab Transactions CSV → fills ----------------------------------------
@@ -471,8 +510,8 @@ async def import_csv_fills(account_hash: str, csv_text: str) -> dict:
                         removed_stale += 1
         await s.commit()
     if updated_times or removed_stale:
-        print(f"[import] {account_hash[-4:]}: repaired ordering on {updated_times} stored fills, "
-              f"removed {removed_stale} stale rows")
+        log.info(f"import {account_hash[-4:]}: repaired ordering on {updated_times} stored fills, "
+                 f"removed {removed_stale} stale rows")
     cov = parsed["coverage"]
     return {"ok": True, "added": added, "skipped_known": skipped, "removed_stale": removed_stale,
             "reordered": updated_times,
@@ -528,8 +567,8 @@ async def heal_ledger(account_hash: str) -> dict:
             await s.execute(delete(FillRecord).where(FillRecord.id.in_(doomed_ids)))
         await s.commit()
     if redated or evicted_csv or evicted_api:
-        print(f"[heal] {account_hash[-4:]} fill ledger: {redated} api dates fixed, "
-              f"{evicted_csv} duplicate csv + {evicted_api} partial api fills evicted")
+        log.info(f"heal {account_hash[-4:]} fill ledger: {redated} api dates fixed, "
+                 f"{evicted_csv} duplicate csv + {evicted_api} partial api fills evicted")
     return {"redated": redated, "evicted": evicted_csv, "evicted_api": evicted_api}
 
 

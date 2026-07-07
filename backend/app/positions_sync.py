@@ -9,7 +9,11 @@ forex are skipped (see fills._SKIP_ASSET_TYPES).
 """
 from __future__ import annotations
 
+import logging
+
 from .fills import _SKIP_ASSET_TYPES
+
+log = logging.getLogger(__name__)
 
 
 def _f(x) -> float:
@@ -30,7 +34,7 @@ def _fetch_positions_sync(client, account_hash):
     if not isinstance(sa, dict):
         # 200 but no account object (degraded / shape-changed / list payload) → NOT a
         # trustworthy 'you hold nothing'; signal unavailable so we don't reconcile.
-        print(f"[positions] {account_hash[-4:]}: 200 but no securitiesAccount — treating as unavailable")
+        log.warning(f"{account_hash[-4:]}: 200 but no securitiesAccount — treating as unavailable")
         return None
     out = []
     for p in sa.get("positions", []) or []:

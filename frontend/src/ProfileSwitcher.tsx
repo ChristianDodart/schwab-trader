@@ -84,7 +84,7 @@ export function ProfileSwitcher() {
               {confirmDel === p.id ? (
                 <span style={S.confirmRow}>
                   <button className="btn btn-danger btn-sm" onClick={() => del(p.id)}>Delete</button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDel(null)}>✕</button>
+                  <button className="btn btn-ghost btn-sm" aria-label="Cancel delete" onClick={() => setConfirmDel(null)}>✕</button>
                 </span>
               ) : (
                 !p.active && (
@@ -103,7 +103,7 @@ export function ProfileSwitcher() {
                 onKeyDown={(e) => { if (e.key === "Enter") addProfile(); if (e.key === "Escape") { e.stopPropagation(); setAdding(false); } }}
                 style={{ height: 30, flex: 1 }} aria-label="New profile name" />
               <button className="btn btn-primary btn-sm" disabled={busy || !newName.trim()} onClick={addProfile}>Add</button>
-              <button className="btn btn-ghost btn-sm" onClick={() => { setAdding(false); setNewName(""); }}>✕</button>
+              <button className="btn btn-ghost btn-sm" aria-label="Cancel adding profile" onClick={() => { setAdding(false); setNewName(""); }}>✕</button>
             </div>
           ) : (
             <button role="menuitem" style={S.addBtn} onClick={() => setAdding(true)}>+ Add profile</button>

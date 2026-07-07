@@ -6,6 +6,9 @@ it (it falls back to streamer 52wk data and shows symbols without names).
 from __future__ import annotations
 
 import asyncio
+import logging
+
+log = logging.getLogger(__name__)
 
 
 async def enrich_tickers(client) -> None:
@@ -24,7 +27,7 @@ async def enrich_tickers(client) -> None:
             resp = await asyncio.to_thread(client.get_quotes, symbols)
             data = resp.json()
         except Exception as e:
-            print(f"[enrich] quote fetch failed: {e!r}")
+            log.warning(f"quote fetch failed: {e!r}")
             return
 
         for sym, payload in data.items():
@@ -37,4 +40,4 @@ async def enrich_tickers(client) -> None:
             t.year_high = q.get("52WeekHigh") or t.year_high
             t.year_low = q.get("52WeekLow") or t.year_low
         await s.commit()
-    print(f"[enrich] updated {len(symbols)} tickers")
+    log.info(f"updated {len(symbols)} tickers")

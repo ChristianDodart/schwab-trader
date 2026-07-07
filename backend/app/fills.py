@@ -13,10 +13,13 @@ Account-scoped: always takes an explicit account hash (never "selected"). Read-o
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 
 from .reconstruct import Fill
 from .schwab.auth import get_client
+
+log = logging.getLogger(__name__)
 
 _WINDOW_DAYS = 60          # Schwab's hard per-query cap
 _DEFAULT_LOOKBACK_DAYS = 366   # default history horizon (override via the 'fills_lookback_days' setting)
@@ -100,7 +103,7 @@ def _fills_from_order(o: dict) -> list[Fill]:
             if not symbol or side is None:
                 continue  # unresolved leg / short instruction
             if asset in _SKIP_ASSET_TYPES:
-                print(f"[fills] skipping non-share fill {symbol} ({asset}) — not reconstructable as a share lot")
+                log.info(f"skipping non-share fill {symbol} ({asset}) — not reconstructable as a share lot")
                 continue
             shares, price, at = _f(ex.get("quantity")), _f(ex.get("price")), _parse_dt(ex.get("time"))
             if shares > 0 and price > 0 and at is not None:
@@ -115,8 +118,8 @@ def _fills_from_order(o: dict) -> list[Fill]:
             at = _parse_dt(o.get("closeTime") or o.get("enteredTime"))
             if shares > 0 and price > 0 and at is not None:
                 if not (o.get("avgFillPrice") or o.get("averagePrice")):
-                    print(f"[fills] {symbol} order {o.get('orderId')}: no execution detail; "
-                          f"using order price {price} as an ESTIMATE")
+                    log.warning(f"{symbol} order {o.get('orderId')}: no execution detail; "
+                                f"using order price {price} as an ESTIMATE")
                 out.append(Fill(symbol=symbol, side=side, shares=shares, price=price, at=at, order_type=otype, order_id=oid))
     return out
 
@@ -163,7 +166,7 @@ async def fetch_fills(account_hash: str, lookback_days: int | None = None):
     try:
         orders = await asyncio.to_thread(go)
     except Exception as e:
-        print(f"[fills] fetch failed for {account_hash[-4:]}: {e!r}")
+        log.warning(f"fetch failed for {account_hash[-4:]}: {e!r}")
         return None  # could not fetch — caller must NOT treat this as 'no fills'
 
     fills: list[Fill] = []

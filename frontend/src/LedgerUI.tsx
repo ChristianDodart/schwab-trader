@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usd } from "./App";
 import { API } from "./api";
+import { Hint } from "./Hint";
 
 // The selected account + active profile, resolved for print headers so a saved/
 // printed page identifies WHOSE account it is. Fetched once; degrades to a plain
@@ -143,8 +144,11 @@ export function Card({ label, value, sub, big, accent, hint }: {
   label: string; value: string; sub?: string; big?: boolean; accent?: string; hint?: string;
 }) {
   return (
-    <div className="panel" style={S.card} title={hint}>
-      <div style={S.cardLabel}>{label}{hint && <span style={S.q}> ⓘ</span>}</div>
+    <div className="panel" style={S.card}>
+      <div style={S.cardLabel}>
+        {label}
+        {hint && <Hint label={hint}><span style={S.q}> ⓘ</span></Hint>}
+      </div>
       <div style={{ ...S.cardValue, fontSize: big ? "var(--fs-2xl)" : "var(--fs-xl)", color: accent ?? "var(--text)" }}>{value}</div>
       {sub && <div style={S.cardSub}>{sub}</div>}
     </div>

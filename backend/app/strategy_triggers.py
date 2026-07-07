@@ -13,6 +13,9 @@ already sitting at its trigger on startup. Advisory only — never places an ord
 from __future__ import annotations
 
 import asyncio
+import logging
+
+log = logging.getLogger(__name__)
 
 _POLL_S = 30.0
 # (account_hash, symbol, kind) currently in a triggered state — the edge-detection memory.
@@ -60,9 +63,9 @@ async def run_strategy_trigger_watcher() -> None:
                     else:
                         msg = f"{symbol} reached a sell target — profit is lockable now."
                     await notifications.post_system_notification(symbol, msg, r.get("price"))
-                    print(f"[strategy] {symbol} {kind}-trigger @ {r.get('price')}")
+                    log.info(f"{symbol} {kind}-trigger @ {r.get('price')}")
         except asyncio.CancelledError:
             raise
         except Exception as e:  # never let one bad pass kill the watcher
-            print(f"[strategy] watcher error: {e!r}")
+            log.warning(f"watcher error: {e!r}")
         await asyncio.sleep(_POLL_S)
