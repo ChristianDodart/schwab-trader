@@ -181,7 +181,7 @@ export function DashboardTable({
           </thead>
           <tbody>
             {/* Bulk mode stays flat (nesting would muddle selection); otherwise nest ETFs. */}
-            {(bulk ? displayRows.map((r) => ({ row: r, depth: 0, parent: null, childCount: 0 } as DispRow)) : nestRows(displayRows)).map(({ row: r, depth, parent, childCount }) => {
+            {(bulk ? displayRows.map((r) => ({ row: r, depth: 0, parent: null, childCount: 0 } as DispRow)) : nestRows(displayRows)).map(({ row: r, depth, parent }) => {
               const isCand = bulk?.candidates.has(r.symbol) ?? false;
               const isChecked = bulk?.checked.has(r.symbol) ?? false;
               const clickable = bulk ? isCand : true; // watch rows now open a (watch-mode) detail too
@@ -223,12 +223,6 @@ export function DashboardTable({
                     <span style={S.tickerLine}>
                       {depth > 0 && <span style={S.childArrow} aria-hidden="true">↳</span>}
                       <span style={{ fontWeight: 700, color: tickerRiskColor(r.risk) }} title={r.risk ? RISK_LABEL[r.risk] : undefined}>{r.symbol}</span>
-                      {depth > 0 && parent && (
-                        <span className="tag" style={S.linkTag} title={`Leveraged ETF tracking ${parent.symbol}`}>tracks {parent.symbol}</span>
-                      )}
-                      {childCount > 0 && (
-                        <span className="tag" style={S.parentTag} title="Has a linked leveraged ETF below">▾ ETF</span>
-                      )}
                       {r.has_note && <NoteDot preview={r.note_preview} />}
                       {r.has_rules && <span style={S.rulesDot} title="Uses its own ticker rules (sell target / dip depth) — open to see or edit them" aria-label="custom rules">◆</span>}
                       {(working?.[r.symbol] ?? 0) > 0 && (
@@ -236,10 +230,10 @@ export function DashboardTable({
                           className="tag"
                           style={S.workTag}
                           title={`${working![r.symbol]} resting order${working![r.symbol] === 1 ? "" : "s"} on ${r.symbol} — click to view before placing another`}
-                          aria-label={`${working![r.symbol]} working orders on ${r.symbol} — open the Orders tab`}
+                          aria-label={`${working![r.symbol]} working order${working![r.symbol] === 1 ? "" : "s"} on ${r.symbol} — open the Orders tab`}
                           onClick={(e) => { e.stopPropagation(); onShowOrders?.(r.symbol); }}
                         >
-                          {working![r.symbol]} working
+                          {working![r.symbol]}
                         </button>
                       )}
                       {rowSignalChips(r, signalRules)}
@@ -261,7 +255,9 @@ export function DashboardTable({
                       )}
                       {!bulk && r.is_watch && (
                         <span style={{ whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
-                          <button className="btn btn-buy btn-sm" onClick={() => onBuyWatch(r)}>Buy</button>
+                          {/* Buy only once the watch row is drilled in — so its blue Buy
+                              never sits inline next to held rows and reads like a signal. */}
+                          {isOpen && <button className="btn btn-buy btn-sm" onClick={() => onBuyWatch(r)}>Buy</button>}
                           <button
                             className="btn btn-ghost btn-sm"
                             style={{ marginLeft: 4 }}
@@ -347,12 +343,12 @@ const S: Record<string, React.CSSProperties> = {
   name: { fontSize: "var(--fs-2xs)", color: "var(--text-dim)", marginTop: 2 },
   watchTag: { color: "var(--accent-quiet)", border: "1px solid #3a4a5a", marginLeft: 2 },
   childArrow: { color: "var(--text-faint)", fontSize: "var(--fs-sm)", marginRight: -2 },
-  linkTag: { color: "var(--neg)", border: "1px solid var(--neg-border, #5a3a3a)", fontSize: "var(--fs-2xs)" },
-  parentTag: { color: "var(--text-faint)", border: "1px solid var(--border)", fontSize: "var(--fs-2xs)" },
   underlyingCtx: { fontSize: "var(--fs-2xs)", color: "var(--accent-quiet)", marginTop: 2 },
   noteDot: { color: "var(--accent-quiet)", fontSize: 8, cursor: "help", lineHeight: 1 },
   rulesDot: { color: "var(--warn)", fontSize: 8, cursor: "help", lineHeight: 1 },
+  // Bare resting-order count — a compact amber badge (hover explains, click opens Orders).
   workTag: { color: "var(--warn)", background: "var(--warn-bg)", border: "1px solid var(--warn-border)",
-    marginLeft: 2, cursor: "pointer", font: "inherit", fontSize: "var(--fs-2xs)" },
+    marginLeft: 2, cursor: "pointer", font: "inherit", fontSize: "var(--fs-2xs)", fontWeight: 700,
+    minWidth: 16, textAlign: "center", borderRadius: "var(--r-pill)", padding: "0 5px" },
   bell: { background: "transparent", border: "none", cursor: "pointer", fontSize: "var(--fs-xs)", padding: 0, verticalAlign: "middle" },
 };

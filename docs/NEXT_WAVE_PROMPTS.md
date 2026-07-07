@@ -820,3 +820,29 @@ first endpoint-level coverage.
 # - Mobile/web remote access (big surface; phone notifications already cover
 #   the away-from-desk case).
 # - Order automation beyond one-click confirm (violates human-in-the-loop).
+
+# WAVE 28 — DASHBOARD DECLUTTER + CUSTOMIZABLE WIDGETS
+# EXECUTED as v0.30.0 (2026-07-07), from live field feedback (screenshots). Shipped:
+#   W28-1 grouping.detect_underlying gained a prefix fallback: when the fund name
+#     yields no in-name ticker (missing/company-spelled), link to the one known
+#     symbol sharing a 3+ letter prefix (CRWG↔CRWV, SOFX↔SOFI); ambiguous (>1)
+#     skips. Unit-tested. NOTE from live data: the v0.29.1 enrichment fix had
+#     already populated the names, so CRWG→CRWV and MRAL→MARA now match by NAME;
+#     SOFX stays standalone because SOFI isn't a separate holding in that account
+#     (nothing to nest under — correct). Prefix fallback is belt-and-suspenders.
+#   W28-2 dashboard payload header gained total_day_change / total_value /
+#     total_unrealized (all-or-nothing priced gates) for the KPI widgets.
+#   W28-3 DashboardTable declutter: removed the "tracks {parent}" child tag and
+#     "▾ ETF" parent tag; resting-order pill is now a bare count badge (hover +
+#     click-to-Orders kept); watch-row Buy shows only when the row is expanded.
+#   W28-4 AccountPicker: dropped the <select> for a read-only active-account
+#     label (switching is now the All accounts modal); Add ticker + Columns moved
+#     from the subbar into the table's filter row.
+#   W28-5 kpis.tsx — customizable header KPI cluster: KPI_CATALOG (7 metrics),
+#     useKpiPrefs (localStorage dash_kpis_v1), visibleKpis (canonical order,
+#     hides unavailable), KpiPicker gear+popover (outside-click/Esc/focus-return,
+#     rendered OUTSIDE the overflow:hidden cluster). Default = Invested, Day
+#     change, Harvestable, Cash. KPI component gained a color override.
+#   Verified: 178 backend + 21 frontend tests, tsc + build clean; live-DB-copy
+#   confirmed ETF resolution (CRWG→CRWV, MRAL→MARA, SOFX standalone), aggregates,
+#   picker toggle+persist, control relocation, account dropdown gone.

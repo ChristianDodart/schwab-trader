@@ -40,10 +40,21 @@ def detect_underlying(name: str | None, industry: str | None,
     if not is_leveraged_etf(name, industry):
         return None
     self_u = self_sym.upper()
+    # 1) Ticker embedded in the fund name — most reliable ("...2X Long QBTS Daily ETF").
     for m in _SYM_RE.finditer((name or "").upper()):
         cand = m.group(1)
         if cand != self_u and cand in known:
             return cand
+    # 2) Prefix fallback for when the name is missing (not yet enriched) or spells the
+    # company out instead of the ticker: single-stock leveraged ETFs almost always echo
+    # the underlying's opening letters (CRWG↔CRWV, SOFX↔SOFI, QBTX↔QBTS). Link to a known
+    # symbol sharing a 3+ letter prefix — but only when EXACTLY one qualifies, so an
+    # ambiguous prefix (two candidates) never guesses.
+    pref = self_u[:3]
+    if len(pref) >= 3:
+        cands = [k for k in known if k != self_u and k.upper().startswith(pref)]
+        if len(cands) == 1:
+            return cands[0]
     return None
 
 

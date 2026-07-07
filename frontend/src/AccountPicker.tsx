@@ -42,24 +42,24 @@ export function AccountPicker({ value, onAccountChange, onInit }: { value?: stri
   const cur = value ?? initial ?? "";
   const active = accounts.find((a) => a.hash === cur);
 
+  const multi = accounts.length > 1;
   return (
     <div style={S.wrap}>
       <span style={S.label}>Account</span>
-      <select className="field" value={cur} onChange={(e) => onAccountChange?.(e.target.value)}>
-        {accounts.map((a) => (
-          <option key={a.hash} value={a.hash}>
-            {a.mask} · {a.type ?? "?"}{a.tradable ? "" : " (restricted)"}
-          </option>
-        ))}
-      </select>
+      {/* Read-only active-account indicator. Switching now happens in the All accounts
+          modal (below) — no dropdown, since that path also shows each account's numbers. */}
+      <span style={S.active} title={active?.tradable === false ? "This account is restricted (no trading)" : undefined}>
+        <b>{active ? `${active.mask} · ${active.type ?? "?"}` : cur ? "…" : "No account"}</b>
+        {active?.tradable === false && <span style={S.restricted}> restricted</span>}
+      </span>
       {active && (
         <span style={S.meta}>
           {usd(active.liquidation_value)} · {active.positions_count ?? 0} positions
         </span>
       )}
-      {accounts.length > 1 && (
-        <button className="btn btn-ghost btn-sm" onClick={() => setRollup(true)}
-          title="Value, day profit, cash, and positions for every account on this profile — combined">
+      {multi && (
+        <button className="btn btn-secondary btn-sm" onClick={() => setRollup(true)}
+          title="See every account on this profile — value, day profit, cash, positions — and switch between them">
           All accounts
         </button>
       )}
@@ -162,6 +162,9 @@ function Tot({ label, value, color }: { label: string; value: string; color?: st
 const S: Record<string, React.CSSProperties> = {
   wrap: { display: "flex", alignItems: "center", gap: 8 },
   label: { fontSize: "var(--fs-2xs)", textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-faint)" },
+  active: { fontSize: "var(--fs-sm)", color: "var(--text)", background: "var(--panel-2)",
+    border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: "4px 10px", whiteSpace: "nowrap" },
+  restricted: { color: "var(--warn)", fontSize: "var(--fs-2xs)", marginLeft: 4 },
   meta: { fontSize: "var(--fs-xs)", color: "var(--text-faint)" },
 };
 

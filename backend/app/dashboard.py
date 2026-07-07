@@ -270,11 +270,20 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
     # anyone who wants intraday drift.)
     held = [r for r in rows if not r["is_watch"]]
     priced = bool(held) and all(r["last_pos_profit"] is not None for r in held)
+    # Aggregate header metrics for the customizable KPI widgets. All-or-nothing on the
+    # priced gate (same as harvestable) so a warming feed never shows a partial total.
+    # day_change can be None on a held row even when priced (quote carried no netChange),
+    # so total_day_change is gated on every held row HAVING a day_change.
+    day_priced = bool(held) and all(r["day_change"] is not None for r in held)
+    val_priced = bool(held) and all(r["current_value"] is not None for r in held)
     return {
         "mode": hub.mode,
         "account_hash": account_hash,
         "total_invested": round(total_invested, 2),
         "harvestable": round(sum(r["last_pos_profit"] for r in held if r["last_pos_profit"] > 0), 2) if priced else None,
+        "total_day_change": round(sum(r["day_change"] for r in held), 2) if day_priced else None,
+        "total_value": round(sum(r["current_value"] for r in held), 2) if val_priced else None,
+        "total_unrealized": round(sum(r["unrealized"] for r in held), 2) if val_priced else None,
         "rows": rows,
     }
 

@@ -3,6 +3,26 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.30.0 — "Your dashboard, your way"
+
+A declutter and a new customizable header:
+- The top-right metric boxes are now yours to choose. Click the gear beside them
+  to pick from Invested, Day change, Harvestable, Market value, Unrealized P/L,
+  Cash, and Buying power. The new default adds a dollar Day change (green/red,
+  like Schwab) alongside the familiar three. Your selection is remembered.
+- Dashboard cleanup: leveraged-ETF rows no longer carry a "tracks X" tag or the
+  parent an "ETF" pill — the indent and the underlying line already say it. The
+  resting-order marker is now just a compact count (hover for the detail, click
+  to open Orders). A watch ticker's Buy button only appears once you open that
+  row, so it never sits inline looking like a buy signal.
+- The account picker is now a clean label of the active account; switching moved
+  entirely into the "All accounts" view (which shows each account's numbers).
+- Add ticker and Columns moved down next to the table where you use them.
+- Better ETF matching: a leveraged single-stock ETF now links to its underlying
+  even when the fund name isn't loaded yet, by matching the shared ticker prefix
+  (so a freshly-added position groups right away). An ETF whose underlying you
+  don't actually hold correctly stays on its own.
+
 ## v0.29.1 — "Enrichment, actually"
 
 One fix: company-data enrichment (sector, industry, country) now runs at

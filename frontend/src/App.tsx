@@ -10,6 +10,7 @@ import { BulkGear, BulkReviewModal, useBulk } from "./Bulk";
 import { ColumnManager } from "./ColumnManager";
 import { ConfirmDialog } from "./Modal";
 import { DASH_COLUMNS, DASH_COLUMN_LIST, DEFAULT_DASH_COLS, useColumnPrefs } from "./columns";
+import { KpiPicker, useKpiPrefs, visibleKpis } from "./kpis";
 import { DashboardTable } from "./DashboardTable";
 import { tickerRiskColor } from "./columns";
 import { Ledger } from "./Ledger";
@@ -67,6 +68,7 @@ export function App() {
   const [alertPrefill, setAlertPrefill] = useState<AlertPrefill | null>(null);
   const [syncing, setSyncing] = useState(false);
   const dashCols = useColumnPrefs("dash.cols.v1", DEFAULT_DASH_COLS, DASH_COLUMN_LIST);
+  const kpiPrefs = useKpiPrefs();
   const toast = useToast();
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [pendingNav, setPendingNav] = useState<(() => void) | null>(null);
@@ -299,27 +301,24 @@ export function App() {
               <LiveStatusPill />
               <MarketHoursBadge />
             </div>
-            {data && (
-              <div style={S.kpiCluster}>
-                <KPI label="Invested" value={usd(data.total_invested)} first />
-                {data.harvestable != null && (
-                  <KPI
-                    label="Harvestable"
-                    value={usd(data.harvestable)}
-                    n={data.harvestable}
-                    hint="Profit you could lock in right now by selling every profitable last position — the sum of the green Last Pos P/L values. Equals what 'Sell profitable' would realize."
-                    hero
-                  />
-                )}
-                {cashInfo?.cash != null && (
-                  <KPI
-                    label="Cash"
-                    value={usd(cashInfo.cash)}
-                    hint={`Buying power ${usd(cashInfo.buying_power)}${cashInfo.margin_buying_power != null ? ` (incl. margin ${usd(cashInfo.margin_buying_power)})` : ""} — settled cash plus available margin. Fluctuates intraday.`}
-                  />
-                )}
-              </div>
-            )}
+            {data && (() => {
+              const kpis = visibleKpis(kpiPrefs.ids, data, cashInfo);
+              return (
+                <div style={S.kpiZone}>
+                  {kpis.length > 0 && (
+                    <div style={S.kpiCluster}>
+                      {kpis.map((k, i) => (
+                        <KPI key={k.id} label={k.label} value={k.value} n={k.n} color={k.color}
+                          first={i === 0} hint={k.hint} />
+                      ))}
+                    </div>
+                  )}
+                  {/* Gear lives OUTSIDE the cluster — the cluster clips its rounded corners
+                      with overflow:hidden, which would also clip the picker popover. */}
+                  <KpiPicker ids={kpiPrefs.ids} toggle={kpiPrefs.toggle} reset={kpiPrefs.reset} />
+                </div>
+              );
+            })()}
             <NotificationsBell
               prefill={alertPrefill}
               onPrefillConsumed={() => setAlertPrefill(null)}
@@ -364,19 +363,8 @@ export function App() {
             </span>
           ) : (
             <>
-              <span style={S.addWrap}>
-                <input
-                  className="field"
-                  style={{ width: 120 }}
-                  placeholder="Add ticker"
-                  aria-label="Add ticker symbol"
-                  value={addSym}
-                  onChange={(e) => setAddSym(e.target.value.toUpperCase())}
-                  onKeyDown={(e) => e.key === "Enter" && addTicker()}
-                />
-                <button className="btn btn-secondary" onClick={addTicker}>Add</button>
-              </span>
-              <ColumnManager prefs={dashCols} labelOf={(id) => DASH_COLUMNS[id]?.label ?? id} />
+              {/* Add ticker + Columns moved down next to the table (see the filter bar);
+                  the subbar keeps account-level actions only. */}
               <button className="btn btn-secondary" onClick={syncFromSchwab} disabled={syncing}
                 title="Refresh this account's holdings from Schwab">
                 {syncing ? "Syncing…" : "⟳ Sync from Schwab"}
@@ -476,6 +464,19 @@ export function App() {
                             </span>
                           )}
                           <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                            <span style={S.addWrap}>
+                              <input
+                                className="field"
+                                style={{ width: 110, height: 30 }}
+                                placeholder="Add ticker"
+                                aria-label="Add ticker symbol"
+                                value={addSym}
+                                onChange={(e) => setAddSym(e.target.value.toUpperCase())}
+                                onKeyDown={(e) => e.key === "Enter" && addTicker()}
+                              />
+                              <button className="btn btn-secondary btn-sm" onClick={addTicker}>Add</button>
+                            </span>
+                            <ColumnManager prefs={dashCols} labelOf={(id) => DASH_COLUMNS[id]?.label ?? id} />
                             {paused && <span style={S.pausedChip}>paused · frozen at {pausedSince}</span>}
                             <button className="btn btn-ghost btn-sm" aria-pressed={paused}
                               title={paused ? "Resume live updates" : "Freeze the table so a quote can't shift under you"}
@@ -617,12 +618,13 @@ function FeedTag({ mode }: { mode?: string }) {
   return null;
 }
 
-function KPI({ label, value, n, hero, first, hint }: { label: string; value: string; n?: number | null; hero?: boolean; first?: boolean; hint?: string }) {
-  const color = n == null || n === 0 ? "var(--text)" : n > 0 ? "var(--pos)" : "var(--neg)";
+function KPI({ label, value, n, color, first, hint }: { label: string; value: string; n?: number | null; color?: string; first?: boolean; hint?: string }) {
+  // `color` (explicit) wins; otherwise derive from the sign of `n` (▲/▼ signed metric).
+  const c = color ?? (n == null || n === 0 ? "var(--text)" : n > 0 ? "var(--pos)" : "var(--neg)");
   return (
     <div style={{ ...S.kpi, ...(first ? { borderLeft: "none" } : null), ...(hint ? { cursor: "help" } : null) }} title={hint}>
       <div style={S.kpiLabel}>{label}</div>
-      <div style={{ ...(hero ? S.kpiHero : S.kpiVal), color }}>
+      <div style={{ ...S.kpiVal, color: c }}>
         {n != null && n !== 0 && <span aria-hidden="true" style={{ fontSize: "0.68em", marginRight: 3 }}>{n > 0 ? "▲" : "▼"}</span>}
         {value}
       </div>
@@ -711,6 +713,7 @@ const S: Record<string, React.CSSProperties> = {
   statusZone: { display: "flex", alignItems: "center", gap: 10 },
   statusItem: { display: "inline-flex", alignItems: "center", gap: 5, fontSize: "var(--fs-xs)", color: "var(--text-dim)", whiteSpace: "nowrap" },
   dot: { width: 7, height: 7, borderRadius: "50%", display: "inline-block", flexShrink: 0 },
+  kpiZone: { display: "flex", alignItems: "center", gap: 2 },
   kpiCluster: { display: "flex", alignItems: "stretch", border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden" },
   kpi: { padding: "3px 14px", borderLeft: "1px solid var(--border-hairline)" },
   kpiLabel: { fontSize: "var(--fs-2xs)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-dim)" },
@@ -726,7 +729,7 @@ const S: Record<string, React.CSSProperties> = {
   demoTag: { color: "var(--warn)", border: "1px solid var(--warn-border)", fontWeight: 700, letterSpacing: "0.05em" },
   demoBtn: { flexShrink: 0 },
   staleNote: { color: "var(--warn)", fontSize: "var(--fs-sm)", margin: "0 0 10px", lineHeight: 1.45 },
-  filterBar: { display: "flex", alignItems: "center", gap: 8, margin: "0 0 10px" },
+  filterBar: { display: "flex", alignItems: "center", gap: 8, margin: "0 0 10px", flexWrap: "wrap" },
   activeFilter: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--fs-xs)", color: "var(--text-muted)", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--r-pill)", padding: "2px 10px" },
   filterX: { background: "transparent", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "var(--fs-xs)", padding: 0 },
   pausedChip: { fontSize: "var(--fs-2xs)", color: "var(--warn)", border: "1px solid var(--warn-border)", borderRadius: "var(--r-pill)", padding: "1px 9px", textTransform: "uppercase", letterSpacing: "0.04em" },

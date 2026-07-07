@@ -50,6 +50,9 @@ export type Dashboard = {
   mode: string;
   total_invested: number;
   harvestable?: number | null; // profit lockable now = sum of positive Last Pos P/L (= what "Sell profitable" realizes)
+  total_day_change?: number | null;  // today's P/L on held shares (null until every held row is priced)
+  total_value?: number | null;       // held market value
+  total_unrealized?: number | null;  // held market value − cost basis
   rows: DashboardRow[];
 };
 
