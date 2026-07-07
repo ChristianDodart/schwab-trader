@@ -600,3 +600,129 @@ The long-deferred polish queue:
   projected-ladder suggested-shares comma-formatted; empty states already friendly.
 - Verified live vs a DB copy (note tooltip, bell icons, sorting-with-nesting); 131 backend
   + 21 frontend tests.
+
+# =============================================================================
+# PHASE 4 — "READY FOR OTHERS" (planned 2026-07-06, full-app pass)
+# =============================================================================
+# Source: whole-app review (frontend + backend surveys + 23 waves of field history).
+# State of the app: feature-complete for Christian's daily flow; data integrity
+# proven on two real accounts; deferred backlog empty. What's left clusters into
+# four themes, ordered by the project's north star (someone like his dad could
+# start using it) and then by daily-driver value.
+#
+# App health snapshot at planning time:
+#   GOOD: zero TODOs, no native dialogs, tabular-nums everywhere, no interval
+#   leaks, all loading/empty/error states covered, 131 backend + 21 frontend
+#   tests on the pure logic, perf grade A (1s dashboard cadence is cached).
+#   DEBT: ledger.py 1544 lines (8 concerns), main.py 1358 (~108 endpoints),
+#   Settings.tsx 874, Notifications.tsx ~630; Notification table has NO retention
+#   (audit_event does); no logging framework (53 print()s, 35 bare excepts);
+#   zero endpoint-level tests; resync churns ~30 rows/cycle re-adding API fills
+#   that heal keeps evicting; native title tooltips inconsistent with the two
+#   custom popovers; a11y B+ (icon-only buttons title-only, no aria-live on
+#   async saves, popovers don't return focus).
+
+# WAVE 24 — ONBOARDING & CONNECTION (the "dad" wave)
+
+## W24-1 — First-run experience
+No onboarding exists today: a fresh install drops into an empty demo dashboard.
+Build a first-run checklist card (shown when no token AND no fills): 1. Connect
+Schwab (opens the existing Reauth flow — desktop auto-captures the redirect),
+2. Pick your trading account + enable trading, 3. Import your history (one CSV —
+the Data health import), 4. Set your rules (link to Rules tab; defaults shown).
+Steps check off as completed (probe existing endpoints); dismissible; reappears
+from Settings. Pure frontend + one tiny status endpoint if needed.
+
+## W24-2 — Proactive re-auth nudges
+The 7-day Schwab refresh token dies silently; the banner only shows once you look.
+Add: a desktop/phone notification at 2 days and on the morning of expiry ("Schwab
+connection expires today — one click to renew"), fired from the existing auth
+probe loop through post_system_notification (respects category prefs). On app
+launch with an EXPIRED token, auto-open the reauth dialog instead of waiting for
+the user to find the banner.
+
+## W24-3 — Demo-state clarity
+When not connected, every tab should carry one consistent, quiet "Demo data —
+connect Schwab" chip that links to the reauth flow (today it's inconsistent
+between tabs). Small, copy-level work.
+
+# WAVE 25 — TRADER CONVENIENCES (the daily-driver wave)
+
+## W25-1 — Modify a working order (cancel + replace)
+Orders tab only cancels today; changing a resting limit means cancel + manually
+re-place. Add an Edit button on WORKING orders: change limit price and/or qty in
+a small modal -> place the replacement through the guarded place_order rails,
+then cancel the original only after the replacement is accepted (never be
+orderless mid-swap). Money-path: full review + confirm, same as OrderTicket.
+
+## W25-2 — Pending-order awareness on the dashboard
+You can double-place a rung today because rows don't show resting orders. Add a
+small "working" marker (count) on any dashboard row with open orders for that
+symbol (source: the working-orders fetch already polled for the nav badge,
+cached ~30s). Marker links to the Orders tab filtered to that symbol.
+
+## W25-3 — All-accounts rollup
+Christian now runs 3+ accounts (personal, LLC, Andrew's). Add a compact
+"All accounts" view: per-account cards (value, day profit, positions, cash) +
+combined totals. Read-only aggregation over the existing per-account endpoints;
+respects profiles. Entry: a row in the account picker or a small nav item.
+
+# WAVE 26 — ANALYTICS DEPTH (the delight wave)
+
+## W26-1 — Daily P/L calendar heatmap
+Month-grid heatmap of realized profit per day (data already exists via
+CompletedTrade / the Activity endpoint at grain=day). Green/red intensity,
+hover for the day's numbers, click -> Trades filtered to that day. Lives as a
+third element on Ledger -> Activity.
+
+## W26-2 — Streaks & drawdown stats
+On Trades: longest win/loss streak, best/worst day and week, and max drawdown +
+current drawdown computed from the daily_balance equity series (shown on the
+equity curve). Pure computation + display; unit-test the math.
+
+## W26-3 — Per-symbol mini-report
+Expand the Trades "By symbol" rows: click a symbol -> its closed-trade history,
+win rate over time, avg hold, total P/L sparkline. Reuses build_trades with the
+existing symbol filter.
+
+# WAVE 27 — ENGINE ROOM (internals & hardening)
+
+## W27-1 — Notification retention + app_setting caps
+Mirror the audit-log pruning for the Notification table (e.g. 180 days / newest
+2000). Cap the uncapped app_setting JSON blobs (notes per account, other_cash
+rows) with sane limits + oldest-first trimming.
+
+## W27-2 — Logging framework
+Replace print() with std logging: rotating file handler in the data dir
+(app.log, ~2MB x 3), console in dev. Surface the last ~50 WARNING+ lines in
+Settings -> Diagnostics ("Recent errors"). Then audit the 35 bare `except
+Exception:` sites — each either logs with context or narrows its exception type.
+
+## W27-3 — Backend splits (no behavior change)
+ledger.py (1544) -> ledger/ package: analytics.py (historic/projection/trades/
+activity), income.py (dividends/cashflows/other_cash), settings_store.py
+(signal rules/etf links/notes), snapshots.py. main.py (~108 endpoints) ->
+APIRouter modules by domain (auth, accounts, trading, ledger, data, config).
+Tests must stay green untouched; import shims preserve `from . import ledger`.
+
+## W27-4 — Frontend splits + tooltip/a11y pass
+Split Settings.tsx (874) into section files and Notifications.tsx (~630) into
+feed/activity/alerts children. Introduce one shared <Hint> tooltip component
+(the NoteDot/cash-check popover pattern) and adopt it for the info-dense spots;
+keep native title elsewhere. A11y: aria-labels on icon-only buttons, aria-live
+on async saves, focus-return on popover close.
+
+## W27-5 — Resync churn fix + endpoint smoke tests
+upsert_api_fills re-adds partial API fills each cycle that heal then re-evicts
+(~30 rows/resync churn on Andrew's account). Skip inserting API fills whose
+(day, symbol, side) group is currently CSV-owned (totals rule says CSV wins).
+Add FastAPI TestClient smoke tests against a temp SQLite DB: /health, dashboard,
+import-csv round-trip, symbol-rules round-trip, bulk plans (read-only) — the
+first endpoint-level coverage.
+
+# Not planned (considered, rejected for now):
+# - Tax-lot method matching Schwab's election (high effort, low signal — the
+#   LIFO-vs-election note on the health panel already explains the difference).
+# - Mobile/web remote access (big surface; phone notifications already cover
+#   the away-from-desk case).
+# - Order automation beyond one-click confirm (violates human-in-the-loop).
