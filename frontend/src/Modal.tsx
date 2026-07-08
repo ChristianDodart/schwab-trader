@@ -34,8 +34,15 @@ export function Modal({
     }
   };
 
+  // Only close on a click that BOTH starts and ends on the overlay itself. Without the
+  // mousedown-origin check, dragging out of the panel (e.g. holding a number-stepper
+  // arrow) and releasing on the overlay would register as a click and close the modal.
+  const downOnOverlay = useRef(false);
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay"
+      onMouseDown={(e) => { downOnOverlay.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (e.target === e.currentTarget && downOnOverlay.current) onClose(); }}>
       <div
         className="modal"
         ref={ref}

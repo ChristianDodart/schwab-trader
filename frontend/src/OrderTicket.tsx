@@ -51,6 +51,7 @@ export function OrderTicket({
   const [status, setStatus] = useState<string | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const modalRef = useRef<HTMLDivElement>(null);
+  const downOnOverlay = useRef(false);   // only close when a click starts+ends on the overlay
   const typeRef = useRef<HTMLSelectElement>(null);
 
   const isLive = mode !== "demo"; // fail safe: only an explicit demo feed is treated as non-live
@@ -220,7 +221,9 @@ export function OrderTicket({
   const confirmCls = `btn ${!isLive ? "btn-secondary" : isBuy ? "btn-buy" : "btn-danger"}`;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay"
+      onMouseDown={(e) => { downOnOverlay.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (e.target === e.currentTarget && downOnOverlay.current) onClose(); }}>
       <div
         className="modal"
         ref={modalRef}

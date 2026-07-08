@@ -39,13 +39,19 @@ export function LedgerTrades({ initialScope }: { initialScope?: Period } = {}) {
 
   const load = useCallback(() => {
     const my = ++seqRef.current;
-    setD(null);
+    // Do NOT blank `d` here — that would swap the whole view for a skeleton on every
+    // keystroke, unmounting the symbol filter and stealing focus. Keep the current
+    // data visible while the refetch is in flight (the seq guard drops stale replies).
     fetch(`${API}/ledger/trades${qs(scope, sym)}`)
       .then((r) => r.json())
       .then((j) => { if (seqRef.current === my) (j && !j.error ? (setD(j), setErr(null)) : setErr(j?.error || "Couldn't load trades.")); })
       .catch(() => { if (seqRef.current === my) setErr("Couldn't load trades — network error."); });
   }, [scope, sym]);
-  useEffect(() => { load(); }, [load]);
+  // Debounce so a burst of typing in the symbol filter fires one request, not one per key.
+  useEffect(() => {
+    const t = setTimeout(load, 250);
+    return () => clearTimeout(t);
+  }, [load]);
 
   if (err) return <p style={S.note}>{err}</p>;
   if (!d) return <div><SkeletonCards n={4} /><SkeletonPanel /></div>;

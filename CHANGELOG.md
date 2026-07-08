@@ -3,6 +3,18 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.31.5 — "Three papercuts"
+
+- The symbol/filter boxes on Ledger → Trades no longer reset after one keystroke.
+  (They were being torn down and rebuilt on every letter, stealing focus.)
+- Modals no longer close when you click a control inside — like a number's
+  up/down arrow — and release the mouse outside the box. A modal now only closes
+  on a click that both starts and ends on the dimmed background.
+- Short activity is now visible. Settings → Data health shows a small "Short
+  activity" line (sell-short and cover fills, net cash) so the numbers aren't
+  hidden — while still being kept out of the long-only Trades and Activity
+  totals, so they can't distort those figures.
+
 ## v0.31.4 — "Day change = Schwab's Total day change"
 
 The dashboard's Day Change now matches the big number in Schwab's account summary

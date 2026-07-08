@@ -25,6 +25,7 @@ export function ReauthButton({
   const [done, setDone] = useState<string | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+  const downOnOverlay = useRef(false);   // only close when a click starts+ends on the overlay
   const desktop = typeof window !== "undefined" ? window.desktop : undefined;
   const isDesktop = !!desktop?.isDesktop;
 
@@ -123,7 +124,9 @@ export function ReauthButton({
     <>
       <button className="btn btn-secondary" style={btnStyle} onClick={begin}>{label}</button>
       {open && (
-        <div className="modal-overlay" onClick={() => setOpen(false)}>
+        <div className="modal-overlay"
+          onMouseDown={(e) => { downOnOverlay.current = e.target === e.currentTarget; }}
+          onClick={(e) => { if (e.target === e.currentTarget && downOnOverlay.current) setOpen(false); }}>
           <div
             className="modal"
             ref={modalRef}

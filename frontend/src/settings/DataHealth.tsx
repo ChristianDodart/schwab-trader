@@ -10,6 +10,7 @@ type HealthReport = {
   projection: { open_lots: number; synthetic_lots: { symbol: string; shares: number }[]; completed_trades: number; earliest_completed: string | null };
   position_diffs: { symbol: string; reconstructed: number; actual: number; diff: number }[];
   short_positions?: { symbol: string; shares: number }[];
+  shorts?: { sell_short_fills: number; cover_fills: number; net_cash: number } | null;
   basis_diffs?: { symbol: string; our_cost: number; schwab_basis: number; diff: number; count_matches?: boolean }[];
   cash_check?: {
     expected_cash: number; actual_cash: number; residual: number; residual_pct_of_flow: number;
@@ -94,6 +95,12 @@ export function DataHealth() {
             <p style={SS.credStatus}
               title="This app tracks the long-only ladder; short selling isn't modeled. The short is shown here so it doesn't read as missing data — its P/L is also excluded from the cash cross-check.">
               Open short position{h.short_positions!.length === 1 ? "" : "s"} at Schwab: {h.short_positions!.map((s) => `${s.symbol} ${s.shares.toLocaleString()} sh`).join(", ")} — outside the long-only ladder (informational).
+            </p>
+          )}
+          {h.shorts && (h.shorts.sell_short_fills > 0 || h.shorts.cover_fills > 0) && (
+            <p style={SS.credStatus}
+              title="Short-sale and covering fills are tracked for the cash cross-check but kept out of the long-only Trades and Activity totals, so they can't distort those figures.">
+              Short activity: {h.shorts.sell_short_fills} sell-short + {h.shorts.cover_fills} cover fill{h.shorts.cover_fills === 1 ? "" : "s"}, net cash {h.shorts.net_cash >= 0 ? "+" : ""}{h.shorts.net_cash.toLocaleString("en-US", { style: "currency", currency: "USD" })} — counted in the cash check, excluded from Trades/Activity totals.
             </p>
           )}
           {(h.basis_diffs?.some((b) => !b.count_matches) ?? false) && (

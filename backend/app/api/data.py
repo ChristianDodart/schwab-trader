@@ -177,6 +177,7 @@ async def data_health() -> dict:
     # A big residual now genuinely points at missing history; remaining blind spots are
     # small: per-trade fees and anything newer than the last import.
     cash_check = None
+    shorts_summary = None
     try:
         from ..db.models import CashFlow as _CF
         from ..db.models import FillRecord as _FR
@@ -193,6 +194,13 @@ async def data_health() -> dict:
                           for side, sh, px in frows)
         short_net = sum((float(sh) * float(px)) * (1 if side == "SSEL" else -1)
                         for side, sh, px in frows if side in ("SSEL", "BCOV"))
+        # Short activity is deliberately kept OUT of the long-only Trades/Activity totals
+        # (the ladder is long-only), but we surface it so the numbers aren't invisible.
+        n_ssel = sum(1 for side, _sh, _px in frows if side == "SSEL")
+        n_bcov = sum(1 for side, _sh, _px in frows if side == "BCOV")
+        if n_ssel or n_bcov:
+            shorts_summary = {"sell_short_fills": n_ssel, "cover_fills": n_bcov,
+                              "net_cash": round(short_net, 2)}
         div_data = await ledger_svc.get_dividends(acct)
         income = sum(float(d.get("amount") or 0) for d in div_data.get("rows", []))
         other_cash = (await ledger_svc.get_other_cash(acct))["total"]
@@ -249,6 +257,7 @@ async def data_health() -> dict:
         },
         "position_diffs": diffs,
         "short_positions": short_positions,
+        "shorts": shorts_summary,
         "basis_diffs": basis_diffs,
         "cash_check": cash_check,
         "positions_checked": positions is not None,
