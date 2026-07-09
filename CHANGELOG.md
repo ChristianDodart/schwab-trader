@@ -3,6 +3,21 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.31.12 — "Count all deposits (Funds Received / checks / MoneyLink Adj)"
+
+Fixes understated deposits / capital contributed. The importer only recognized cash
+transfers whose action said "transfer" or "wire" (plus cash journals), so it silently
+skipped other real external cash: "Funds Received" (incoming cashier's checks / wires
+booked as funds), "Funds Paid" (Schwab One checks written), and "MoneyLink Adj" (a bank
+transfer adjustment). On one account that left $159,400 of deposits uncounted — the
+account still balanced against Schwab overall (the money was just filed under "other
+cash"), but the capital-contributed figure and any ROI based on it were wrong.
+
+- The deposit detector now also matches "funds" and "moneylink" actions, so
+  Funds Received/Paid and MoneyLink adjustments count as deposits/withdrawals.
+
+Re-import the account's Transactions CSV to recategorize the affected rows.
+
 ## v0.31.11 — "Fix blank dashboard (hotfix)"
 
 Fixes the dashboard getting stuck on the loading skeletons (introduced in v0.31.10).

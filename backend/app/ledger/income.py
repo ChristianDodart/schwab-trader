@@ -342,7 +342,12 @@ async def refresh_cashflows_from_schwab(account_hash: str) -> dict:
 # it must be counted for the cash identity to close. A journal WITH a ticker is a share
 # transfer (no cash) and is skipped here. The 60-day Schwab transfer auto-pull excludes
 # journals, so counting them from the CSV can't double-count.
-_CSV_TRANSFER_KEYS = ("transfer", "wire")
+# Action substrings that mark an external cash movement (deposit/withdrawal). Schwab
+# labels these several ways: MoneyLink "Transfer"/"...Adj", "Wire" Received/Sent, and
+# "Funds" Received/Paid (cashier's checks, Schwab One checks). All are real capital in/out
+# of THIS account and belong in the deposit log — missing any of them understates
+# "capital contributed" and skews ROI (found: $159.4k of "Funds Received" was uncounted).
+_CSV_TRANSFER_KEYS = ("transfer", "wire", "funds", "moneylink")
 # Max gap (days) between a CSV 'as of' effective date and Schwab's posted date for the
 # same transfer — settlement is T+1, longer over weekends/holidays. Used for dedup only.
 _CSV_DEDUP_WINDOW_DAYS = 4
