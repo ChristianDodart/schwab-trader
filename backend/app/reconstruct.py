@@ -15,9 +15,9 @@ _EPS = 1e-9
 @dataclass
 class Fill:
     symbol: str
-    side: str          # "BUY" | "SELL" | "SPLT" (share split/reverse-split adjustment)
-    shares: float      # SPLT: the NEW total share count after the split
-    price: float       # SPLT: the OLD total share count before the split
+    side: str          # "BUY" | "SELL" | "SPLT" (split adjustment)
+    shares: float      # SPLT paired: NEW total shares; SPLT delta: RECEIVED shares
+    price: float       # SPLT paired: OLD total shares; SPLT delta: 0 (ratio from held)
     at: date | datetime
     order_type: str = ""   # "MARKET" | "LIMIT" | ... (for audit/notify classification; unused by LIFO)
     order_id: str = ""     # Schwab order id (for a stable audit identity; unused by LIFO)
@@ -123,14 +123,24 @@ def reconstruct(fills: list[Fill]) -> dict:
         side = f.side.upper()
         stack = stacks.setdefault(f.symbol, [])
         if side == "SPLT":
-            # Share split / reverse split: rescale the open stack by new/old. Cost
-            # basis is PRESERVED exactly (shares x price is invariant per lot) and no
-            # P/L is realized — the position just changes denomination. Fractional
-            # remainders (the broker pays cash-in-lieu) are left as-is; the positions
-            # reconcile step aligns the final total to Schwab's actual count.
+            # Rescale the open stack by the split ratio r. Cost basis is PRESERVED
+            # exactly (shares x price invariant per lot) and no P/L is realized — the
+            # position just changes denomination. Two encodings (see _pair_splits):
+            #   price > 0  -> PAIRED: shares=new_total, price=old_total, r=new/old
+            #                 (reverse split r<1, forward split r>1).
+            #   price <= 0 -> DELTA: shares=RECEIVED shares from a single-row forward
+            #                 split; r=(held+received)/held from the current stack.
+            # Fractional remainders (broker pays cash-in-lieu) are left as-is; the
+            # positions reconcile step aligns the final total to Schwab's actual count.
             old_total = f.price
             if old_total > _EPS and f.shares > _EPS:
                 r = f.shares / old_total
+            elif old_total <= _EPS and f.shares > _EPS:
+                held = sum(l.shares for l in stack)
+                r = (held + f.shares) / held if held > _EPS else 0.0
+            else:
+                r = 0.0
+            if r > _EPS:
                 for lot in stack:
                     lot.shares *= r
                     lot.price /= r

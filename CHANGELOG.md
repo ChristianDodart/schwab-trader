@@ -3,6 +3,27 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.31.8 — "Forward splits (not just reverse)"
+
+Fixes cost basis on positions that went through a forward / "stock" split (common on
+leveraged ETFs like the 2x quantum names, and on names like NVDA/CMG). Previously only
+REVERSE splits were recognized; a forward split was dropped entirely, so pre-split buy
+lots kept their pre-split price and share count. Example: a QBTX lot bought at $456
+after a 3:1 forward split should read as ~$152 across 3x the shares — it was still
+showing $456. The mismatch also forced a bogus $0-cost "prior shares" lot to be
+backfilled to make the totals add up, which showed a fake positive gain on that rung.
+
+- Forward / stock splits are now detected in the Transactions CSV, in both shapes
+  Schwab exports them: a paired "Stock Split" + "Stock Split Adj" (new + old totals),
+  and a single "Stock Split" row that only lists the shares received (the ratio is
+  derived from the shares held at the split). Both share count AND per-share price are
+  adjusted, cost basis preserved, no fake P/L.
+- Removes the $0-cost backfilled lots these dropped splits used to create.
+
+This is a CSV-sourced correction: after updating, re-import the account's Transactions
+CSV (Settings) so the split enters the ledger, then the ladder rebuilds with corrected
+lots. A plain sync won't add it — splits aren't orders, so they only arrive via the CSV.
+
 ## v0.31.7 — "No more phantom holdings"
 
 Fixes two data-integrity bugs that could make an account show positions it doesn't

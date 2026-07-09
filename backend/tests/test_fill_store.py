@@ -206,6 +206,51 @@ def test_split_applies_before_same_day_sell():
     assert "PPCB" not in r["open_lots"] or sum(l.shares for l in r["open_lots"]["PPCB"]) < 1
 
 
+def test_forward_split_paired_stock_split_adj():
+    # A forward split that posts as a PAIR: 'Stock Split' (+NEW total) + 'Stock Split
+    # Adj' (-OLD total under a CUSIP). 121 -> 1,210 == 10:1; shares x10, price /10.
+    csv = '''"Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount"
+"10/01/2024","Stock Split","SMCI","SUPER MICRO COMPUTER INC","1,210","","",""
+"10/01/2024","Stock Split Adj","86800U104","SUPER MICRO COMPUTER INCFORWARD SPLIT WITH STOCK SPLIT SHARES","-121","","",""
+"09/03/2024","Buy","SMCI","SUPER MICRO COMPUTER INC","121","$50.00","","-$6050.00"
+'''
+    from app.reconstruct import Fill, reconstruct
+    p = parse_csv_trades(csv)
+    assert p["ok"] and p["splits"] == 1 and p["unmatched_splits"] == 0
+    splt = next(f for f in p["fills"] if f["side"] == "SPLT")
+    assert splt["symbol"] == "SMCI" and splt["shares"] == 1210 and splt["price"] == 121  # paired
+    fills = [Fill(symbol=f["symbol"], side=f["side"], shares=f["shares"], price=f["price"], at=f["at"])
+             for f in p["fills"]]
+    r = reconstruct(fills)
+    lots = r["open_lots"]["SMCI"]
+    assert abs(sum(l.shares for l in lots) - 1210) < 1e-6    # 121 x 10
+    assert abs(lots[0].price - 5.0) < 0.01                    # 50 / 10, basis preserved
+
+
+def test_forward_split_single_row_derives_ratio_from_held():
+    # A forward split that posts as a SINGLE row: only the RECEIVED shares, no negative
+    # pair (leveraged-ETF / NVDA-style). Ratio comes from the held count at split time:
+    # held 18 + received 36 => 3:1. Pre-split lot rescales x3 shares, /3 price. This is
+    # the QBTX case that used to be dropped entirely, leaving a $450 lot unadjusted.
+    csv = '''"Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount"
+"10/21/2025 as of 10/20/2025","Stock Split","QBTX","TRADR 2X LONG QBTS DAILYETF","36","$89.9133","",""
+"10/15/2025","Buy","QBTX","TRADR 2X LONG QBTS DAILY","18","$456.77","","-$8221.86"
+'''
+    from app.reconstruct import Fill, reconstruct
+    p = parse_csv_trades(csv)
+    assert p["ok"] and p["splits"] == 1 and p["unmatched_splits"] == 0
+    splt = next(f for f in p["fills"] if f["side"] == "SPLT")
+    assert splt["symbol"] == "QBTX" and splt["shares"] == 36 and splt["price"] == 0.0  # delta form
+    fills = [Fill(symbol=f["symbol"], side=f["side"], shares=f["shares"], price=f["price"], at=f["at"])
+             for f in p["fills"]]
+    r = reconstruct(fills)
+    lots = r["open_lots"]["QBTX"]
+    assert len(lots) == 1
+    assert abs(lots[0].shares - 54.0) < 1e-6                        # 18 x 3
+    assert abs(lots[0].price - 456.77 / 3) < 0.01                  # /3 (≈ $152.26)
+    assert abs(lots[0].shares * lots[0].price - 18 * 456.77) < 0.01  # basis invariant
+
+
 SHORT_CSV = '''"Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount"
 "01/30/2026","Buy","RUN","SUNRUN INC","100","$19.50","","-$1950.00"
 "01/28/2026","Sell Short","RUN","SUNRUN INC","100","$21.62","$0.02","$2161.98"

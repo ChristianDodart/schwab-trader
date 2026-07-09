@@ -272,11 +272,21 @@ def _parse_date(s) -> date | None:
 
 
 def _pair_splits(split_rows: list[dict]) -> tuple[list[dict], int]:
-    """Pure: pair Schwab 'Reverse Split' row PAIRS into SPLT adjustments. A split
-    exports as two rows on the effective date: the NEW share count under the ticker
-    (positive qty) and the OLD count removed under a CUSIP (negative qty, description
-    like 'COMPANYXXXREVERSE SPLIT EFF: ...'). Pair positives to negatives per date by
-    description prefix; a lone positive/negative is reported unmatched, never guessed."""
+    """Pure: turn Schwab split rows into SPLT fills the reconstruction rescales by.
+    Two shapes appear in real exports:
+
+    - PAIRED — reverse splits, and forward splits that post as 'Stock Split' (+NEW
+      total under the ticker) plus 'Stock Split Adj' (-OLD total under a CUSIP,
+      description like 'COMPANY...REVERSE/FORWARD SPLIT EFF: ...'). Ratio = new/old
+      (reverse -> r<1, forward -> r>1); emit SPLT(shares=new_total, price=old_total).
+    - SINGLE forward 'Stock Split' — only the RECEIVED shares (positive), no negative
+      counterpart (e.g. NVDA/CMG/leveraged-ETF splits). The ratio isn't in the row, so
+      emit a DELTA-form SPLT(shares=received, price=0); reconstruct derives
+      ratio = (held + received) / held at apply time.
+
+    Pair positives to negatives per date by description prefix; a lone NEGATIVE, or a
+    lone REVERSE-split positive (e.g. a 1-share cash-in-lieu artifact), is reported
+    unmatched, never guessed."""
     out: list[dict] = []
     unmatched = 0
     by_date: dict = {}
@@ -286,24 +296,35 @@ def _pair_splits(split_rows: list[dict]) -> tuple[list[dict], int]:
         pos = [r for r in rows if r["qty"] > 0]
         neg = [r for r in rows if r["qty"] < 0]
         for p in pos:
-            match = None
             if len(pos) == 1 and len(neg) == 1:
                 match = neg[0]
             else:
                 pref = (p["desc"] or "")[:12].upper()
                 match = next((n for n in neg if pref and (n["desc"] or "").upper().startswith(pref)), None)
-            if match is None:
-                unmatched += 1
+            if match is not None:
+                neg.remove(match)
+                new_total, old_total = round(p["qty"], 4), round(-match["qty"], 4)
+                out.append({
+                    "symbol": p["symbol"], "side": "SPLT", "shares": new_total, "price": old_total,
+                    "at": datetime(d.year, d.month, d.day), "trade_date": d,
+                    "order_type": None, "order_id": None,
+                    "fill_key": f"csvsplit|{d.isoformat()}|{p['symbol']}|{new_total}|{old_total}",
+                    "dkey": day_key(d, p["symbol"], "SPLT", new_total, old_total),
+                })
                 continue
-            neg.remove(match)
-            new_total, old_total = round(p["qty"], 4), round(-match["qty"], 4)
-            out.append({
-                "symbol": p["symbol"], "side": "SPLT", "shares": new_total, "price": old_total,
-                "at": datetime(d.year, d.month, d.day), "trade_date": d,
-                "order_type": None, "order_id": None,
-                "fill_key": f"csvsplit|{d.isoformat()}|{p['symbol']}|{new_total}|{old_total}",
-                "dkey": day_key(d, p["symbol"], "SPLT", new_total, old_total),
-            })
+            # Unpaired positive. A FORWARD/stock split posts the received shares alone
+            # (delta form, price=0). A lone reverse-split positive is an artifact.
+            if p.get("action") in ("stock split", "forward split"):
+                recv = round(p["qty"], 4)
+                out.append({
+                    "symbol": p["symbol"], "side": "SPLT", "shares": recv, "price": 0.0,
+                    "at": datetime(d.year, d.month, d.day), "trade_date": d,
+                    "order_type": None, "order_id": None,
+                    "fill_key": f"csvsplit|{d.isoformat()}|{p['symbol']}|delta|{recv}",
+                    "dkey": day_key(d, p["symbol"], "SPLT", recv, 0.0),
+                })
+            else:
+                unmatched += 1
         unmatched += len(neg)
     return out, unmatched
 
@@ -352,11 +373,12 @@ def parse_csv_trades(csv_text: str) -> dict:
         d = _parse_date(col(r, "date"))
         sym = (col(r, "symbol") or "").strip().upper()
         qty = _parse_money(col(r, "quantity"))
-        if a == "reverse split":
+        if a in ("reverse split", "stock split", "stock split adj", "forward split"):
             if d is None or not sym or not qty:
                 bad_rows += 1
                 continue
-            split_rows.append({"date": d, "symbol": sym, "qty": qty, "desc": col(r, "description")})
+            split_rows.append({"date": d, "symbol": sym, "qty": qty,
+                               "desc": col(r, "description"), "action": a})
             continue
         if a not in _TRADE_ACTIONS and a != "sell short":
             if action:
