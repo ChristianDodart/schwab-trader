@@ -241,6 +241,13 @@ async def upsert_api_fills(account_hash: str, fills: list[Fill]) -> dict:
 # --- Schwab Transactions CSV → fills ----------------------------------------
 
 _TRADE_ACTIONS = {"buy", "sell"}  # exact-match after lowering; variants reported, not guessed
+# DRIP: a dividend reinvestment posts a "Reinvest Shares" row WITH quantity + price —
+# a real share purchase at that price, so we treat it as a BUY. (The paired
+# "Reinvest Dividend"/"Qual Div Reinvest" row is the cash side — income, no shares.)
+_REINVEST_ACTIONS = {"reinvest shares"}
+# Money-market sweep funds reinvest at a constant $1.00 and are cash-equivalent, not
+# tradable ladder positions — skip their reinvestments so cash doesn't become a "stock".
+_MONEY_FUNDS = {"SWVXX", "SNVXX", "SNSXX", "SNAXX", "SWGXX", "SGUXX", "SCGXX", "SUTXX"}
 
 
 def _parse_money(s) -> float | None:
@@ -380,15 +387,20 @@ def parse_csv_trades(csv_text: str) -> dict:
             split_rows.append({"date": d, "symbol": sym, "qty": qty,
                                "desc": col(r, "description"), "action": a})
             continue
-        if a not in _TRADE_ACTIONS and a != "sell short":
+        if a not in _TRADE_ACTIONS and a != "sell short" and a not in _REINVEST_ACTIONS:
             if action:
                 other_actions[action] += 1
+            continue
+        # A DRIP reinvestment into the money-market sweep is cash, not a ladder lot.
+        if a in _REINVEST_ACTIONS and sym in _MONEY_FUNDS:
+            other_actions[action] += 1
             continue
         px = _parse_money(col(r, "price"))
         if d is None or not sym or not qty or qty <= 0 or not px or px <= 0:
             bad_rows += 1
             continue
-        kind = "short" if a == "sell short" else a   # short | buy | sell
+        # DRIP "Reinvest Shares" is a real purchase at the row's price → a BUY.
+        kind = "short" if a == "sell short" else ("buy" if a in _REINVEST_ACTIONS else a)
         trades.append({"date": d, "symbol": sym, "kind": kind, "qty": round(qty, 4), "px": round(px, 4)})
 
     # Stable sort by date only — within a day the file order (already chronological

@@ -3,6 +3,30 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.31.10 — "Dividend reinvestments + honest unknown-cost lots"
+
+Two fixes for holdings whose shares arrived through something other than a plain buy.
+
+- Dividend reinvestments (DRIP) are now imported. A "Reinvest Shares" row is a real
+  purchase (it carries the shares and the price), so it's treated as a buy — with the
+  correct cost and the correct date. Before, these rows were dropped, so a
+  dividend-reinvesting holding lost cost basis and its age collapsed to ~1 year (the
+  shares fell back to a synthetic "prior holdings" lot). The money-market sweep fund
+  (SWVXX) is excluded — its reinvestments are cash, not a tradable position.
+- Lots with no known cost no longer fake a gain. When a holding's shares came in with
+  no cost basis (e.g. a rights distribution the broker booked at $0, or a
+  position-backfill Schwab reported no average for), the app used to treat them as free
+  — showing a phantom positive gain. Those shares are now left out of the cost/gain
+  math, and a position with no known cost shows "—" for unrealized instead of a made-up
+  profit. (Its share count and market value are unchanged.)
+
+Re-import the account's Transactions CSV to pull the reinvestment history in.
+
+Note on other corporate actions: mergers and spin-offs are intentionally still handled
+by reconciling to Schwab's reported holdings (which carry the correct post-event cost),
+rather than reconstructed from the CSV — so those positions already show the right cost,
+just with a ~1-year age stamp. Full merger/spin-off history is a future item.
+
 ## v0.31.9 — "No false SELL signal from un-priced lots"
 
 Fixes positions that showed a SELL signal (and fired sell notifications) while

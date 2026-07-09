@@ -206,6 +206,24 @@ def test_split_applies_before_same_day_sell():
     assert "PPCB" not in r["open_lots"] or sum(l.shares for l in r["open_lots"]["PPCB"]) < 1
 
 
+def test_drip_reinvest_shares_become_buys_but_skip_money_fund():
+    # A dividend reinvestment posts "Reinvest Shares" with qty + price — a real buy.
+    # The money-market sweep (SWVXX) reinvests at $1.00 and is cash, not a ladder lot.
+    csv = '''"Date","Action","Symbol","Description","Quantity","Price","Fees & Comm","Amount"
+"09/03/2024","Reinvest Shares","INTC","INTEL CORP","2.3744","$20.9438","","-$49.73"
+"09/03/2024 as of 09/01/2024","Qual Div Reinvest","INTC","INTEL CORP","","","","$49.73"
+"10/31/2024","Reinvest Shares","SWVXX","SCHWAB VALUE ADVANTAGE MONEY","0.46","$1.00","","-$0.46"
+"08/01/2024","Buy","INTC","INTEL CORP","10","$21.00","","-$210.00"
+'''
+    p = parse_csv_trades(csv)
+    assert p["ok"]
+    intc_buys = [f for f in p["fills"] if f["symbol"] == "INTC" and f["side"] == "BUY"]
+    assert len(intc_buys) == 2  # the plain Buy + the reinvest-shares buy
+    assert any(abs(f["shares"] - 2.3744) < 1e-6 and abs(f["price"] - 20.9438) < 1e-4 for f in intc_buys)
+    assert all(f["symbol"] != "SWVXX" for f in p["fills"])          # money-fund reinvest skipped
+    assert "Reinvest Shares" in p["other_actions"]                  # the SWVXX one is reported
+
+
 def test_forward_split_paired_stock_split_adj():
     # A forward split that posts as a PAIR: 'Stock Split' (+NEW total) + 'Stock Split
     # Adj' (-OLD total under a CUSIP). 121 -> 1,210 == 10:1; shares x10, price /10.

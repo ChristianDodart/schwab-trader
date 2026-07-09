@@ -131,21 +131,22 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
     price = _f(price) if price is not None else None
     year_high = quote.get("yearHigh") or (_f(ticker.year_high) if ticker and ticker.year_high else None)
 
-    buy_prices = [_f(l.buy_price) for l in lots]
-    shares = sum(_f(l.shares) for l in lots)
-    invested = sum(_f(l.shares) * _f(l.buy_price) for l in lots)
+    shares = sum(_f(l.shares) for l in lots)   # total shares held (every lot)
     positions = len(lots)
     last = lots[-1]  # highest rung (loaded ordered by rung)
     last_amount = _f(last.shares) * _f(last.buy_price)
 
-    # Signals & dip math consider only lots with a KNOWN cost basis. A backfilled lot
-    # we couldn't price (buy_price <= 0 — e.g. Schwab reported no average cost) has a
-    # sell target near $0, which would force a permanent SELL mark on the whole
-    # position no matter how underwater it is; it also can't be judged "in profit".
-    # Exclude it from the marks and the dip anchors (its shares still count elsewhere).
+    # Cost basis, P/L, signals and dip math all use only lots with a KNOWN cost basis.
+    # A backfilled lot we couldn't price (buy_price <= 0 — e.g. Schwab reported no
+    # average, or a rights/merger share with no basis in the CSV) would otherwise fake
+    # free profit (cost $0 → all upside) AND, via a ~$0 sell target, force a permanent
+    # SELL mark. Its shares still count in `shares`/`current_value`; we just don't
+    # invent a cost for them. `unrealized` is None when the WHOLE position is un-priced.
     priced_lots = [l for l in lots if _f(l.buy_price) > 0]
-    priced_buys = [_f(l.buy_price) for l in priced_lots]
-    min_buy = min(priced_buys) if priced_buys else 0.0
+    priced_shares = sum(_f(l.shares) for l in priced_lots)
+    invested = sum(_f(l.shares) * _f(l.buy_price) for l in priced_lots)
+    buy_prices = [_f(l.buy_price) for l in priced_lots]
+    min_buy = min(buy_prices) if buy_prices else 0.0
 
     sell_anchor = priced_lots[-1] if priced_lots else last
     next_buy = rules.next_buy_price(_f(sell_anchor.buy_price), positions + 1, cfg, deployed_pct)
@@ -170,10 +171,14 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
         "positions": positions,
         "shares": round(shares, 4),
         "invested": round(invested, 2),
-        "basis_per_share": round(rules.basis_per_share(invested, shares), 4),
+        "basis_per_share": round(rules.basis_per_share(invested, priced_shares), 4) if priced_shares > 0 else None,
         "price": round(price, 4) if has_price else None,
         "current_value": round(shares * price, 2) if has_price else None,
-        "unrealized": round(shares * price - invested, 2) if has_price else None,
+        # Unrealized is the gain on shares whose cost we KNOW. If the whole position is
+        # un-priced (e.g. a rights/backfill lot at $0), we can't state a gain → None
+        # (shown as "—") rather than pretending the shares were free.
+        "unrealized": (round(priced_shares * price - invested, 2) if priced_shares > 0 else None)
+        if has_price else None,
         # Day change: prefer Schwab's own per-position number (exact "Day Chng $",
         # folds in same-day buys + intraday realized). Only when Schwab is unreachable
         # (demo / offline) fall back to computing it from the live quote + today's fills.
