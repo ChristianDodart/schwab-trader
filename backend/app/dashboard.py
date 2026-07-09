@@ -171,14 +171,14 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
         "positions": positions,
         "shares": round(shares, 4),
         "invested": round(invested, 2),
-        "basis_per_share": round(rules.basis_per_share(invested, priced_shares), 4) if priced_shares > 0 else None,
+        "basis_per_share": round(rules.basis_per_share(invested, priced_shares), 4) if priced_shares > 0 else 0.0,
         "price": round(price, 4) if has_price else None,
         "current_value": round(shares * price, 2) if has_price else None,
-        # Unrealized is the gain on shares whose cost we KNOW. If the whole position is
-        # un-priced (e.g. a rights/backfill lot at $0), we can't state a gain → None
-        # (shown as "—") rather than pretending the shares were free.
-        "unrealized": (round(priced_shares * price - invested, 2) if priced_shares > 0 else None)
-        if has_price else None,
+        # Unrealized is the gain on shares whose cost we KNOW. A fully un-priced position
+        # (e.g. a rights/backfill lot at $0) resolves to 0 here — neutral, NOT the phantom
+        # positive gain it used to show (price x shares against $0 cost). Kept numeric (not
+        # None) so header/aggregate sums over rows don't hit float + None.
+        "unrealized": round(priced_shares * price - invested, 2) if has_price else None,
         # Day change: prefer Schwab's own per-position number (exact "Day Chng $",
         # folds in same-day buys + intraday realized). Only when Schwab is unreachable
         # (demo / offline) fall back to computing it from the live quote + today's fills.
@@ -412,8 +412,8 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
         "total_invested": round(total_invested, 2),
         "harvestable": round(sum(r["last_pos_profit"] for r in held if r["last_pos_profit"] > 0), 2) if priced else None,
         "total_day_change": total_day_change,
-        "total_value": round(sum(r["current_value"] for r in held), 2) if val_priced else None,
-        "total_unrealized": round(sum(r["unrealized"] for r in held), 2) if val_priced else None,
+        "total_value": round(sum((r["current_value"] or 0) for r in held), 2) if val_priced else None,
+        "total_unrealized": round(sum((r["unrealized"] or 0) for r in held), 2) if val_priced else None,
         "rows": rows,
     }
 

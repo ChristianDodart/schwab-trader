@@ -3,6 +3,14 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.31.11 — "Fix blank dashboard (hotfix)"
+
+Fixes the dashboard getting stuck on the loading skeletons (introduced in v0.31.10).
+An unknown-cost position reported its unrealized gain as blank, and the account-total
+that sums every position's unrealized choked on the blank value — which silently
+aborted the whole dashboard update, so rows never arrived. Unknown-cost positions now
+report a neutral $0 unrealized (still not a fake gain), and the totals ignore blanks.
+
 ## v0.31.10 — "Dividend reinvestments + honest unknown-cost lots"
 
 Two fixes for holdings whose shares arrived through something other than a plain buy.
