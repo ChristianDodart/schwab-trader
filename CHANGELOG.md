@@ -3,6 +3,25 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.31.9 — "No false SELL signal from un-priced lots"
+
+Fixes positions that showed a SELL signal (and fired sell notifications) while
+underwater. The cause: a backfilled lot the app couldn't assign a cost to — Schwab
+sometimes reports no average price for a transferred-in holding, so the lot landed at
+$0.00. A $0 lot has a sell target of ~$0, so the position's price is always "above
+target" and the SELL mark stays on permanently.
+
+- Buy/sell signals and the dip math now consider only lots with a KNOWN cost basis.
+  A lot we couldn't price can't be judged in-profit, so it no longer drives the SELL
+  mark, the next-buy suggestion, or the % from lowest buy. Its shares still count in
+  the position size.
+
+Note: a position whose recent (cheaper) rungs are in profit while older rungs are
+underwater will still correctly signal SELL — that's the ladder taking profit on the
+top rungs by design, even when the position is net negative. This fix only removes the
+FALSE signals from lots with no real cost. A holding stuck at $0 cost (e.g. EOSER) also
+needs its real basis — import an older Transactions CSV that covers its purchase.
+
 ## v0.31.8 — "Forward splits (not just reverse)"
 
 Fixes cost basis on positions that went through a forward / "stock" split (common on

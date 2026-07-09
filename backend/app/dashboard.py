@@ -137,10 +137,19 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
     positions = len(lots)
     last = lots[-1]  # highest rung (loaded ordered by rung)
     last_amount = _f(last.shares) * _f(last.buy_price)
-    min_buy = min(buy_prices) if buy_prices else 0.0
 
-    next_buy = rules.next_buy_price(_f(last.buy_price), positions + 1, cfg, deployed_pct)
-    sell_targets = [_lot_sell_target(l, cfg) for l in lots]
+    # Signals & dip math consider only lots with a KNOWN cost basis. A backfilled lot
+    # we couldn't price (buy_price <= 0 — e.g. Schwab reported no average cost) has a
+    # sell target near $0, which would force a permanent SELL mark on the whole
+    # position no matter how underwater it is; it also can't be judged "in profit".
+    # Exclude it from the marks and the dip anchors (its shares still count elsewhere).
+    priced_lots = [l for l in lots if _f(l.buy_price) > 0]
+    priced_buys = [_f(l.buy_price) for l in priced_lots]
+    min_buy = min(priced_buys) if priced_buys else 0.0
+
+    sell_anchor = priced_lots[-1] if priced_lots else last
+    next_buy = rules.next_buy_price(_f(sell_anchor.buy_price), positions + 1, cfg, deployed_pct)
+    sell_targets = [_lot_sell_target(l, cfg) for l in priced_lots]
     log_profit, trades, realized_first = realized
     year_profit, year_trades = year_realized
 
