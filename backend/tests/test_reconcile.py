@@ -80,6 +80,18 @@ def test_empty_positions_keeps_all_fill_lots():
     assert all(l.source == "fill" for lots in out.values() for l in lots)
 
 
+def test_drop_absent_removes_sold_out_symbol():
+    # With drop_absent=True the caller vouches for a VERIFIED, non-empty snapshot, so a
+    # symbol Schwab omits is genuinely sold out → dropped instead of kept as a phantom.
+    out = reconcile_open_lots(
+        {"RCAT": [_lot("RCAT", 10, 12.0)], "QBTX": [_lot("QBTX", 5, 15.0)]},
+        {"RCAT": (10, 12.0)},   # QBTX omitted from the read → sold out
+        H, drop_absent=True,
+    )
+    assert _total(out["RCAT"]) == 10
+    assert "QBTX" not in out                               # dropped, no phantom holding
+
+
 def test_symbol_only_in_positions_is_added():
     out = reconcile_open_lots({"AAA": [_lot("AAA", 5, 5.0)]}, {"AAA": (5, 5.0), "BBB": (3, 20.0)}, H)
     assert _total(out["AAA"]) == 5

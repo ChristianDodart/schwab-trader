@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 from app.reconstruct import Fill, reconstruct
 
@@ -41,6 +41,36 @@ def test_same_day_daytrade_buy_before_sell():
     assert "Y" not in r["open_lots"]            # fully closed
     assert round(r["closed"][0].profit, 2) == 5.0
     assert r["oversold"] == []
+
+
+def test_same_day_sell_stamped_before_buy_still_closes():
+    # A pure-CSV same-day round trip can be stamped sell-then-buy (Schwab's export isn't
+    # reliably execution-ordered within a day). That day goes negative in a long-only
+    # stream, so it's canonicalized to buy-first: the pair closes cleanly instead of
+    # leaving a phantom open lot + a spurious oversell.
+    fills = [
+        Fill("L", "SELL", 210, 4.72, datetime(2025, 7, 25, 0, 0, 30)),
+        Fill("L", "BUY", 210, 4.59, datetime(2025, 7, 25, 0, 0, 31)),
+    ]
+    r = reconstruct(fills)
+    assert "L" not in r["open_lots"]                       # no phantom holding
+    assert r["oversold"] == []                             # no spurious oversell
+    assert round(r["closed"][0].profit, 2) == round((4.72 - 4.59) * 210, 2)
+
+
+def test_same_day_buy_sell_buy_keeps_real_order():
+    # A day that never goes negative must keep its real intra-day order: the sell retires
+    # the SAME-DAY buy (LIFO), leaving the LATER buy open — NOT canonicalized to buy-first
+    # (which would wrongly strand the earlier, cheaper lot). Guards the INMB regression.
+    fills = [
+        Fill("Q", "BUY", 100, 10.00, datetime(2025, 3, 1, 9, 30)),
+        Fill("Q", "SELL", 100, 10.50, datetime(2025, 3, 1, 10, 0)),
+        Fill("Q", "BUY", 100, 10.80, datetime(2025, 3, 1, 14, 0)),
+    ]
+    r = reconstruct(fills)
+    assert r["oversold"] == []
+    assert [round(l.price, 2) for l in r["open_lots"]["Q"]] == [10.80]  # the later buy stays open
+    assert round(r["closed"][0].profit, 2) == 50.0                       # sold the 10.00 lot
 
 
 def test_oversell_is_flagged_not_crashed():

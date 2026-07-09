@@ -3,6 +3,29 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.31.7 — "No more phantom holdings"
+
+Fixes two data-integrity bugs that could make an account show positions it doesn't
+actually hold — inflating the position count, deployed capital, and unrealized P/L.
+Found reconciling a heavily-traded account against Schwab.
+
+- Same-day round trips now reconstruct correctly. A Transactions CSV isn't always
+  execution-ordered within a day, so a buy and its same-day sell could arrive
+  sell-first. That left the buy stranded as a fake open lot (and flagged a false
+  "oversold"). Any day whose sequence would drive a long-only position negative is now
+  recognized as mis-ordered and corrected to buys-before-sells for that day only —
+  days with a valid order keep their real sequence untouched, so genuine same-day
+  buy/sell/buy trades still attribute to the right lots.
+- Sold-out positions are no longer kept as phantoms. Schwab's positions feed omits
+  symbols you hold none of (it never reports "0 shares"). The reconciler used to keep
+  any omitted symbol to avoid wiping a real holding on a partial read — but when the
+  read is verified complete, an omitted symbol is genuinely sold out and is now
+  dropped. (The conservative keep-on-omission behavior still applies to partial or
+  failed reads, which never reach this path.)
+
+After updating, the correction applies on the next sync (or use Rebuild from the fill
+ledger in Settings to apply it immediately).
+
 ## v0.31.6 — "% Down sanity + no dashboard flicker-storm"
 
 - The "% Down" column no longer shows a nonsensical large negative (like

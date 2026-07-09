@@ -125,7 +125,11 @@ async def _write(account_hash: str, fills, positions=None) -> dict:
         # (backfills shares whose buys are outside the fill window). oversold becomes
         # informational: the position totals are the truth we align to.
         horizon = date.today() - timedelta(days=366)
-        open_by_symbol = reconcile_open_lots(open_by_symbol, positions, horizon)
+        # positions here is a VERIFIED, non-empty snapshot: _fetch_positions_map returns
+        # None on any read failure and an empty map is coerced to None above, so reaching
+        # this line means Schwab reported the account's holdings. A symbol we reconstructed
+        # as open but Schwab doesn't report is genuinely sold out → drop it (no phantoms).
+        open_by_symbol = reconcile_open_lots(open_by_symbol, positions, horizon, drop_absent=True)
         if oversold:
             log.warning(f"{account_hash[-4:]} oversold reconciled against positions: {oversold}")
     else:

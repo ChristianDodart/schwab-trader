@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
+from itertools import groupby
 
 _EPS = 1e-9
 
@@ -58,6 +59,59 @@ def _sort_key(f: Fill):
     return (f.at, _SIDE_ORDER.get(f.side.upper(), 1))
 
 
+def _day(at) -> date:
+    return at.date() if isinstance(at, datetime) else at
+
+
+def _ordered_for_lifo(fills: list[Fill]) -> list[Fill]:
+    """Chronological order, with a repair for unreliable intra-day sequencing.
+
+    Schwab's export isn't always execution-ordered WITHIN a day, so a same-day round
+    trip can arrive sell-before-buy. Left as-is the SELL oversells — it either retires
+    an OLDER lot (wrong cost basis) or, from a flat position, flags a phantom oversell
+    and strands the covering BUY as a fake open holding. A long-only fill stream can't
+    legitimately go negative (real shorts are separate SSEL fills, already excluded), so
+    any (symbol, day) whose sequence drives inventory below zero had a bad order —
+    canonicalize just that day to SPLT -> BUY -> SELL. Days that never go negative keep
+    their real order, preserving genuine same-day buy/sell/buy LIFO attribution
+    (see test_csv_preserves_real_intraday_order). Symbols are independent; cross-symbol
+    order is irrelevant to per-symbol LIFO."""
+    ordered = sorted(fills, key=_sort_key)
+    by_sym: dict[str, list[Fill]] = {}
+    for f in ordered:
+        by_sym.setdefault(f.symbol, []).append(f)
+
+    out: list[Fill] = []
+    for _sym, fs in by_sym.items():
+        inv = 0.0
+        trusted = True  # a SPLT rescales inventory in ways we don't track here → stop repairing after one
+        for _d, grp in groupby(fs, key=lambda x: _day(x.at)):
+            g = list(grp)
+            if trusted and not any(x.side.upper() == "SPLT" for x in g):
+                sim, bad = inv, False
+                for x in g:
+                    s = x.side.upper()
+                    if s == "BUY":
+                        sim += x.shares
+                    elif s == "SELL":
+                        sim -= x.shares
+                        if sim < -_EPS:
+                            bad = True
+                if bad:  # impossible order for a long-only stream → buys before sells
+                    g = sorted(g, key=lambda x: _SIDE_ORDER.get(x.side.upper(), 1))
+                for x in g:
+                    s = x.side.upper()
+                    if s == "BUY":
+                        inv += x.shares
+                    elif s == "SELL":
+                        inv -= x.shares
+                inv = max(inv, 0.0)  # clamp so an unfixable day can't poison later days
+            else:
+                trusted = False
+            out.extend(g)
+    return out
+
+
 def reconstruct(fills: list[Fill]) -> dict:
     """Returns {open_lots: {symbol: [OpenLot...]}, closed: [ClosedTrade...],
     oversold: [(symbol, shares, sell_price, at)]}."""
@@ -65,7 +119,7 @@ def reconstruct(fills: list[Fill]) -> dict:
     closed: list[ClosedTrade] = []
     oversold: list[tuple] = []
 
-    for f in sorted(fills, key=_sort_key):
+    for f in _ordered_for_lifo(fills):
         side = f.side.upper()
         stack = stacks.setdefault(f.symbol, [])
         if side == "SPLT":
@@ -109,7 +163,8 @@ def reconstruct(fills: list[Fill]) -> dict:
 
 def reconcile_open_lots(open_by_symbol: dict[str, list[OpenLot]],
                         positions: dict[str, tuple[float, float]],
-                        horizon_at) -> dict[str, list[OpenLot]]:
+                        horizon_at,
+                        drop_absent: bool = False) -> dict[str, list[OpenLot]]:
     """Reconcile fill-reconstructed open lots against Schwab's CURRENT positions
     (the authoritative current holding). Guarantees each symbol's open-lot total
     equals Schwab's held shares — recovering shares whose BUYS fall outside the
@@ -124,9 +179,13 @@ def reconcile_open_lots(open_by_symbol: dict[str, list[OpenLot]],
       newest-first down to the held quantity.
     - EXPLICITLY held-none (symbol present in `positions` with ~0 shares): drop it.
     - ABSENT from `positions` (symbol reconstructed from fills but not reported by
-      the read): KEEP the fill lots untouched. A partial/degraded positions read
-      omits symbols it can't report, and treating omission as 'sold everything'
-      would silently delete a real holding — so we never drop a symbol by omission.
+      the read): depends on `drop_absent`. Default (False) KEEPS the fill lots
+      untouched — a partial/degraded read omits symbols it can't report, and treating
+      omission as 'sold everything' would silently delete a real holding. When True,
+      the caller is asserting `positions` is a VERIFIED, non-empty snapshot (an
+      empty/partial read is coerced to None upstream and skips reconcile entirely), so
+      an absent symbol is genuinely sold out and is DROPPED instead of left as a
+      phantom holding.
     Rungs are renumbered oldest-first afterward.
     """
     result: dict[str, list[OpenLot]] = {}
@@ -134,8 +193,15 @@ def reconcile_open_lots(open_by_symbol: dict[str, list[OpenLot]],
         lots = list(open_by_symbol.get(sym, []))
         recon = sum(l.shares for l in lots)
         if sym not in positions:
-            # Reconstructed from fills but ABSENT from the positions snapshot →
-            # never delete by omission (a partial read would wipe a real holding).
+            # Reconstructed from fills but ABSENT from the positions snapshot.
+            if drop_absent:
+                # Caller vouches for a VERIFIED, non-empty snapshot (an empty/partial
+                # read is coerced to None upstream and skips reconcile). A symbol Schwab
+                # doesn't report is therefore genuinely sold out → drop it rather than
+                # leave a phantom holding the dashboard would show.
+                continue
+            # Conservative default: never delete by omission (a partial read would
+            # otherwise wipe a real holding).
             if lots:
                 for i, lot in enumerate(lots, start=1):
                     lot.rung = i
