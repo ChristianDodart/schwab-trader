@@ -273,7 +273,16 @@ async def ws_dashboard(ws: WebSocket) -> None:
     last = None
     try:
         while True:
-            snap = await build_dashboard(await _selected())
+            # A transient build failure (e.g. a flaky Schwab call inside the day-change
+            # fetch) must NOT break the socket — otherwise the client reconnects, rebuilds,
+            # fails again, and the reconnect + re-render storms ("rapid clicking" flicker).
+            # Skip the bad tick and keep the connection alive.
+            try:
+                snap = await build_dashboard(await _selected())
+            except Exception as e:
+                log.warning(f"[dashboard] build failed, skipping tick: {e!r}")
+                await asyncio.sleep(1.0)
+                continue
             if snap != last:
                 await ws.send_json(snap)
                 last = snap

@@ -38,3 +38,6 @@ Thumbs.db
 
 # database backups (local data, never commit)
 backend/backups/
+
+# runtime logs (should never be committed)
+*.log

@@ -3,6 +3,17 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.31.6 — "% Down sanity + no dashboard flicker-storm"
+
+- The "% Down" column no longer shows a nonsensical large negative (like
+  -571%). A rung that was added at or above the previous rung isn't a dip down,
+  so it now shows a plain "—" (hover explains why) instead of a misleading
+  number. Only real dips below the prior rung get a percentage.
+- Fixed a rare case where opening a stack could make the screen appear to rapidly
+  flicker or "spam." If the live dashboard feed hit a snag building one update, it
+  used to drop the connection and immediately reconnect over and over; now a bad
+  tick is skipped quietly and the feed stays up.
+
 ## v0.31.5 — "Three papercuts"
 
 - The symbol/filter boxes on Ledger → Trades no longer reset after one keystroke.

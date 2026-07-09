@@ -159,7 +159,16 @@ export const DETAIL_COLUMN_LIST: DetailCol[] = [
   { id: "shares", label: "Shares", align: "right", render: (l) => num(l.shares) },
   { id: "buy_price", label: "Buy", align: "right", render: (l) => usd(l.buy_price) },
   { id: "amount", label: "Amount", align: "right", render: (l) => usd(l.amount) },
-  { id: "pct_down_from_prev", label: "% Down", align: "right", render: (l) => pct(l.pct_down_from_prev) },
+  { id: "pct_down_from_prev", label: "% Down", align: "right", render: (l) => {
+      // "% Down" is the dip depth vs the previous rung. A rung bought at/above the prior
+      // isn't a dip (e.g. averaging up, or an old cheap "prior" backfill lot below a
+      // recent buy) — showing a huge negative "down" reads as broken, so show "—".
+      const v = l.pct_down_from_prev;
+      if (v == null || v <= 0)
+        return <span title={v != null ? "Added at or above the previous rung — not a dip down" : undefined}
+          style={{ color: "var(--text-faint)" }}>—</span>;
+      return pct(v);
+    } },
   { id: "sell_target", label: "Sell Target", align: "right", render: (l) => usd(l.sell_target) },
   { id: "sell_mode", label: "Sell Mode", align: "left", render: (l) => l.sell_mode },
   { id: "proj_profit", label: "Proj. Profit", align: "right", render: (l) => <Colored v={usd(l.proj_profit)} n={l.proj_profit} /> },
