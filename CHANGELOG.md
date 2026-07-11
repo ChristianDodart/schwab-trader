@@ -3,6 +3,14 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.47.0 — "ƒ, explained once"
+
+- **Dropped the redundant "ⓘ" marker.** A figure now carries at most the small **ƒ** — which means
+  "a formula: the app calculated this from your fills and/or Schwab data" (everything without a ƒ
+  comes straight from Schwab).
+- **ƒ is explained once, at the top of the Ledger,** instead of repeating "calculated by the app" on
+  every hover. Hovering a figure now explains only what that specific number means — nothing else.
+
 ## v0.46.0 — "Bigger fonts + tidier hovers"
 
 - **The font-size options step up.** "Small" is now the original default size, and "Medium" and "Large"

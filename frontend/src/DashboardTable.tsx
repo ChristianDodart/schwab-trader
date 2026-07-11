@@ -19,12 +19,10 @@ function HeaderCell({
   const computed = prov == null; // undefined = app-calculated → ƒ mark on the header
   const cls = [align === "left" ? "left" : "", fold ? "foldcol" + (collapsed ? " folded" : "") : ""].filter(Boolean).join(" ");
   const mark = sort?.id === id ? (sort.dir === -1 ? " ▼" : " ▲") : "";
-  const provText = prov === "schwab"
-    ? "Provided by Schwab. "
-    : computed ? "Calculated by the app (from your fills and/or Schwab data). " : "";
-  const inner = <>{label}{computed && !simple && <CalcMark bare />}{mark}</>;
-  // One hover target for the whole header: label + ƒ share a single animated tooltip.
-  const tip = <Tip text={`${provText}Sort by ${label} — click to flip, third click resets`} focusable={false}>{inner}</Tip>;
+  const inner = <>{label}{computed && !simple && <CalcMark />}{mark}</>;
+  // One hover target for the header — explains the SORT action only (ƒ provenance is
+  // explained once by the legend, not repeated on every hover).
+  const tip = <Tip text={`Sort by ${label} — click to flip, third click resets`} focusable={false}>{inner}</Tip>;
   return (
     <th scope="col" className={cls || undefined}
       aria-sort={sort?.id === id ? (sort.dir === -1 ? "descending" : "ascending") : undefined}

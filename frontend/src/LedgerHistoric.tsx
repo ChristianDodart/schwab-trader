@@ -178,6 +178,8 @@ export function LedgerHistoric() {
       {/* ---- Printable one-pager (hidden on screen; only the .print-only block prints) ---- */}
       <PrintSummary h={h} bench={bench} div={div} />
 
+      <ProvenanceLegend />
+
       {/* ---- Right now (live, point-in-time) ---- */}
       <div style={S.panelHead}>
         <h3 className="section-title" style={{ margin: "6px 0 0" }}>Right now</h3>
@@ -202,7 +204,6 @@ export function LedgerHistoric() {
       {now.source !== "live" && (
         <p style={S.warn}>Live balances unavailable{now.note ? ` (${now.note})` : ""} — showing the last saved snapshot. Reconnect under Settings → Schwab connection.</p>
       )}
-      <ProvenanceLegend />
 
       {/* ---- Since inception (all-time performance headline) ---- */}
       {h.contributions_recorded > 0 && h.gain_vs_contributed != null && (

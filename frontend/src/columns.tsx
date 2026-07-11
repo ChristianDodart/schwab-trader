@@ -40,13 +40,11 @@ export type DetailCol = {
 // app-computed figure (never on the value itself, so it can't clash with gain/loss
 // color). Schwab-provided figures carry no mark. One primitive shared by every table
 // header and stat card so provenance reads the same everywhere.
-export function CalcMark({ title, bare }: { title?: string; bare?: boolean } = {}) {
-  // `bare` = just the glyph (no tooltip of its own) — for table headers, where the
-  // header's single Tip already explains provenance + sorting. Elsewhere (stat cards)
-  // it keeps a native title.
+export function CalcMark() {
+  // Just the glyph. What ƒ means is explained once by <ProvenanceLegend>, never on
+  // hover — a hover shows only the specific figure's meaning, not the provenance.
   return (
-    <sup style={{ color: "var(--accent-quiet)", fontSize: "0.66em", fontWeight: 700, marginLeft: 2, cursor: "help" }}
-      title={bare ? undefined : (title ?? "Calculated by the app (from your fills and/or Schwab data) — not a raw Schwab number")}>ƒ</sup>
+    <sup style={{ color: "var(--accent-quiet)", fontSize: "0.66em", fontWeight: 700, marginLeft: 2 }}>ƒ</sup>
   );
 }
 // Renders a label followed by the ƒ mark when `computed`. Convenience for stat cards.
@@ -54,12 +52,12 @@ export function Labeled({ label, computed }: { label: string; computed?: boolean
   return <>{label}{computed && <CalcMark />}</>;
 }
 
-// One-line legend for the provenance mark — place under a table or card group.
+// One-line legend for the provenance mark — the single place ƒ is explained.
 export function ProvenanceLegend() {
   return (
     <p style={{ fontSize: "var(--fs-2xs)", color: "var(--text-dim)", margin: "6px 0 0" }}>
-      <span style={{ color: "var(--accent-quiet)", fontWeight: 700 }}>ƒ</span> marks a figure the app
-      calculates (from your fills and/or Schwab data); everything else comes straight from Schwab.
+      <span style={{ color: "var(--accent-quiet)", fontWeight: 700 }}>ƒ</span> (a formula) marks a figure the
+      app calculates from your fills and/or Schwab data; everything else comes straight from Schwab.
     </p>
   );
 }

@@ -146,14 +146,12 @@ export function Card({ label, value, sub, big, accent, hint, schwab }: {
   schwab?: boolean;   // a raw Schwab balance (no ƒ mark); everything else here is app-calculated
 }) {
   const calc = !schwab;
-  // One hover target for the whole label: the ƒ (provenance) and the ⓘ (has-hint) glyphs
-  // share a single tooltip that combines both, instead of two separate popovers.
-  const tip = [calc ? "Calculated by the app (from your fills and/or Schwab data)." : "", hint ?? ""]
-    .filter(Boolean).join(" ");
-  const inner = <>{label}{calc && <CalcMark bare />}{hint && <span style={S.q}> ⓘ</span>}</>;
+  // ƒ marks an app-calculated figure (explained once by the legend up top — no ⓘ, no
+  // "calculated by the app" on hover). Hovering the label shows only what the figure means.
+  const inner = <>{label}{calc && <CalcMark />}</>;
   return (
     <div className="panel" style={S.card}>
-      <div style={S.cardLabel}>{tip ? <Tip text={tip}>{inner}</Tip> : inner}</div>
+      <div style={S.cardLabel}>{hint ? <Tip text={hint}>{inner}</Tip> : inner}</div>
       <div style={{ ...S.cardValue, fontSize: big ? "var(--fs-2xl)" : "var(--fs-xl)", color: accent ?? "var(--text)" }}>{value}</div>
       {sub && <div style={S.cardSub}>{sub}</div>}
     </div>
