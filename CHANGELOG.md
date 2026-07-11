@@ -3,6 +3,16 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.32.2 — "Single-ticker LIFO sell"
+
+- A new "Sell shares" box on each position: type how many shares to sell and the app
+  shows exactly which rungs it retires — **newest first (LIFO)** — as a row of chips
+  (rung 12 ×165, rung 11 ×91, …), plus estimated proceeds and estimated realized P/L at
+  the current price. "All" fills in the whole position. "Review sell" opens the order
+  ticket pre-filled (quantity locked, limit at the ask). The only thing you set is the
+  share count; the app resolves the LIFO rungs and makes the order obvious before you
+  place it.
+
 ## v0.32.1 — "P/L on the Orders page"
 
 - The Orders page now shows realized **P/L** per order. When a sell fills, the app

@@ -29,6 +29,14 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
   };
   const openBuy = () => suggest(`${API}/suggest/buy/${symbol}`);
   const openSell = (lotId: number) => suggest(`${API}/suggest/sell/${lotId}`);
+  // Bulk LIFO sell: selling is just a share count — Schwab reduces the position and
+  // the app's LIFO reconstruction retires the newest rungs first. No backend call; we
+  // hand the order ticket a synthetic SELL suggestion for N shares (its quantity opens
+  // locked, its limit defaults to the ask).
+  const openLifoSell = (n: number, note: string) => {
+    if (!d) return;
+    setTicket({ symbol: d.symbol, side: "SELL", order_type: "LIMIT", quantity: n, limit_price: d.price ?? 0, note });
+  };
 
   useEffect(() => {
     let alive = true;
@@ -141,6 +149,8 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
           </tbody>
         </table>
       </div>
+
+      <LifoSell d={d} busy={busy} onReview={openLifoSell} />
 
       {d.projected_ladder.length > 0 && (
         <>
@@ -444,6 +454,84 @@ function EtfLinkEditor({ symbol, underlying, onSaved }: { symbol: string; underl
     </button>
   );
 }
+
+// Which rungs a LIFO sell of `n` shares consumes — newest (highest rung) first.
+// Lots arrive oldest→newest (rung ascending), so we walk from the end.
+function lifoConsume(lots: { rung: number; shares: number; buy_price: number }[], n: number) {
+  const out: { rung: number; take: number; buy_price: number }[] = [];
+  let rem = n;
+  for (let i = lots.length - 1; i >= 0 && rem > 1e-9; i--) {
+    const take = Math.min(rem, lots[i].shares);
+    if (take > 1e-9) out.push({ rung: lots[i].rung, take, buy_price: lots[i].buy_price });
+    rem -= take;
+  }
+  return out;
+}
+const qty = (x: number) => x.toLocaleString("en-US", { maximumFractionDigits: 2 });
+
+// Sell a share count from a single ticker, LIFO. The only input is how many shares;
+// the app shows exactly which rungs get retired (newest first) so the LIFO is obvious.
+function LifoSell({ d, busy, onReview }: {
+  d: PositionDetailData; busy: boolean; onReview: (n: number, note: string) => void;
+}) {
+  const [n, setN] = useState<number>(0);
+  const total = Math.floor(d.shares);
+  const price = d.price ?? 0;
+  const consumed = lifoConsume(d.lots as unknown as { rung: number; shares: number; buy_price: number }[], n);
+  const cost = consumed.reduce((s, c) => s + c.take * c.buy_price, 0);
+  const proceeds = price > 0 ? n * price : 0;
+  const estPl = proceeds - cost;
+  const valid = n > 0 && n <= total && consumed.length > 0;
+  const note = valid
+    ? `LIFO sell of ${qty(n)} share${n === 1 ? "" : "s"} — retires the newest ${consumed.length} rung${consumed.length === 1 ? "" : "s"} first: ${consumed.map((c) => `#${c.rung}×${qty(c.take)}`).join(", ")}`
+    : "";
+  if (d.is_watch || total <= 0) return null;
+  return (
+    <div style={LS.box}>
+      <div style={LS.head}>
+        <h3 className="section-title" style={{ margin: 0 }}>Sell shares</h3>
+        <span style={LS.lifo} title="Sells consume your most recent rungs first (last-in, first-out)">
+          LIFO — newest rungs sold first
+        </span>
+      </div>
+      <div style={LS.row}>
+        <input type="number" className="field" style={{ width: 120, textAlign: "right" }} min={0} max={total}
+          value={n || ""} placeholder="shares"
+          onChange={(e) => setN(Math.max(0, Math.min(total, Math.floor(Number(e.target.value) || 0))))} />
+        <button className="btn btn-ghost btn-sm" onClick={() => setN(total)}>All {qty(total)}</button>
+        <button className="btn btn-sell" disabled={!valid || busy} style={{ marginLeft: "auto" }}
+          onClick={() => onReview(n, note)}>Review sell</button>
+      </div>
+      {valid && (
+        <div style={LS.preview}>
+          <div style={LS.chips}>
+            {consumed.map((c) => (
+              <span key={c.rung} style={LS.chip}>rung {c.rung} <b>×{qty(c.take)}</b></span>
+            ))}
+          </div>
+          <div style={LS.est}>
+            <span>Est. proceeds <b>{usd(proceeds)}</b> at {usd(price)}</span>
+            <span style={LS.computed} title="App-calculated: proceeds minus the LIFO cost basis of the retired rungs">
+              Est. realized <b style={{ color: estPl >= 0 ? "var(--pos)" : "var(--neg)" }}>{estPl >= 0 ? "+" : ""}{usd(estPl)}</b>
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const LS: Record<string, React.CSSProperties> = {
+  box: { marginTop: 14, padding: 12, background: "var(--panel-2)", borderRadius: "var(--r-md)", border: "1px solid var(--border)" },
+  head: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  lifo: { fontSize: "var(--fs-2xs)", fontWeight: 700, color: "var(--warn)", border: "1px solid var(--warn-border)", borderRadius: "var(--r-sm)", padding: "1px 7px", letterSpacing: "0.02em" },
+  row: { display: "flex", gap: 8, alignItems: "center", marginTop: 10 },
+  preview: { marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" },
+  chips: { display: "flex", gap: 6, flexWrap: "wrap" },
+  chip: { fontSize: "var(--fs-2xs)", color: "var(--text-muted)", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", padding: "2px 7px" },
+  est: { display: "flex", gap: 18, flexWrap: "wrap", marginTop: 8, fontSize: "var(--fs-sm)", color: "var(--text-muted)" },
+  computed: { borderBottom: "1px dotted var(--text-faint)" },
+};
 
 const signColor = (n: number | null | undefined) =>
   n == null ? undefined : n >= 0 ? "var(--pos)" : "var(--neg)";
