@@ -7,6 +7,7 @@ import {
   AccountStamp, ALL_TIME, Card, Panel, PeriodSelector, Row, S, moneyColor, type Period,
 } from "./LedgerUI";
 import { IconUpload, IconDownload, IconRefresh, IconClose } from "./Icon";
+import { ProvenanceLegend } from "./columns";
 import type { CashFlowRow, LedgerHistoric as Historic, MarginSummary } from "./types";
 
 import { API } from "./api";
@@ -187,20 +188,21 @@ export function LedgerHistoric() {
         </span>
       </div>
       <div style={S.cards}>
-        <Card label="Account value" value={usd(now.account_value)} big
+        <Card label="Account value" value={usd(now.account_value)} big schwab
           hint="Schwab liquidationValue — what the account is worth if fully liquidated right now (point-in-time, mark-to-market)." />
         <Card label="Invested" value={usd(now.invested_market)}
           sub={`cost ${usd(now.invested_cost)} · unreal ${usd(now.unrealized_pl)}`}
           hint="Market value of open lots (cost basis + unrealized P/L). Cost basis for shares older than the fill window is Schwab's average, not the exact entry." />
-        <Card label="Cash" value={usd(now.cash)}
+        <Card label="Cash" value={usd(now.cash)} schwab
           hint="Schwab cashBalance — settled cash. This is the conservative 'free to invest' figure (no margin)." />
-        <Card label="Buying power" value={usd(now.buying_power)}
+        <Card label="Buying power" value={usd(now.buying_power)} schwab
           sub={now.buying_power == null ? undefined : now.margin_buying_power != null ? `margin ${usd(now.margin_buying_power)}` : "incl. available margin"}
           hint="Schwab buyingPower — cash plus available margin. Fluctuates intraday with prices and Reg-T; a live snapshot, not a fixed limit." />
       </div>
       {now.source !== "live" && (
         <p style={S.warn}>Live balances unavailable{now.note ? ` (${now.note})` : ""} — showing the last saved snapshot. Reconnect under Settings → Schwab connection.</p>
       )}
+      <ProvenanceLegend />
 
       {/* ---- Since inception (all-time performance headline) ---- */}
       {h.contributions_recorded > 0 && h.gain_vs_contributed != null && (
@@ -212,7 +214,7 @@ export function LedgerHistoric() {
             <Card label="Peak capital" value={usd(h.peak_net_contributed ?? h.deposited_all_time)}
               sub={h.deposited_all_time !== (h.peak_net_contributed ?? h.deposited_all_time) ? `${usd(h.deposited_all_time)} gross deposited` : undefined}
               hint="The most of YOUR money that was ever in the account at once (running net of deposits and withdrawals, at its highest). This is the return base — cycling money out and back in doesn't inflate it." />
-            <Card label="Current value" value={usd(now.account_value)}
+            <Card label="Current value" value={usd(now.account_value)} schwab
               sub={h.withdrawn_all_time < 0 ? `+ ${usd(-h.withdrawn_all_time)} already withdrawn` : undefined}
               hint="What the account is worth right now (live liquidation value)." />
             <Card label="Total gain" value={usd(h.gain_vs_contributed)} accent={moneyColor(h.gain_vs_contributed)}

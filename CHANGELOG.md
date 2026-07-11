@@ -3,6 +3,20 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.33.1 — "Cleaner provenance mark + Ledger coverage"
+
+Replaces the dotted-underline provenance style (from v0.33.0) with a cleaner one and
+extends it to the Ledger.
+
+- App-calculated figures now carry a small superscript **ƒ** on their label (a footnote
+  convention — "this is a formula/derived figure"), instead of a dotted underline. It
+  sits on the label, never the number, so it never clashes with gain/loss color.
+- The **Ledger** is now marked too: its calculated figures (realized gains, cost basis,
+  contributions, ROI, tax, activity totals, …) show the ƒ; the raw Schwab balances
+  (account value, cash, buying power) stay plain. Same treatment on the dashboard and
+  position detail (headers and the position's stat cards), with a one-line legend under
+  each group.
+
 ## v0.33.0 — "Computed vs Schwab, at a glance"
 
 - Every table column now shows where its number comes from. Columns the app

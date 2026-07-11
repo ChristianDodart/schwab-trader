@@ -36,26 +36,27 @@ export type DetailCol = {
   render: (l: Lot) => React.ReactNode;
 };
 
-// Header cell that marks an app-computed column with a dotted underline + tooltip.
-// Schwab-passthrough and text columns render plain. Shared by the dashboard + detail.
-export function ColHeader({ label, prov, className }: { label: string; prov?: Provenance; className?: string }) {
-  const computed = prov == null;
+// The "calculated" mark: a small superscript ƒ placed after the LABEL/HEADER of an
+// app-computed figure (never on the value itself, so it can't clash with gain/loss
+// color). Schwab-provided figures carry no mark. One primitive shared by every table
+// header and stat card so provenance reads the same everywhere.
+export function CalcMark({ title }: { title?: string } = {}) {
   return (
-    <th scope="col" className={className}
-      title={computed ? "App-calculated (not a raw Schwab number)"
-        : prov === "schwab" ? "Provided by Schwab" : undefined}
-      style={computed ? { borderBottom: "1px dotted var(--text-faint)" } : undefined}>
-      {label}
-    </th>
+    <sup style={{ color: "var(--accent-quiet)", fontSize: "0.66em", fontWeight: 700, marginLeft: 2, cursor: "help" }}
+      title={title ?? "Calculated by the app (from your fills and/or Schwab data) — not a raw Schwab number"}>ƒ</sup>
   );
 }
+// Renders a label followed by the ƒ mark when `computed`. Convenience for stat cards.
+export function Labeled({ label, computed }: { label: string; computed?: boolean }) {
+  return <>{label}{computed && <CalcMark />}</>;
+}
 
-// One-line legend for the provenance marker — place under a table.
+// One-line legend for the provenance mark — place under a table or card group.
 export function ProvenanceLegend() {
   return (
     <p style={{ fontSize: "var(--fs-2xs)", color: "var(--text-dim)", margin: "6px 0 0" }}>
-      <span style={{ borderBottom: "1px dotted var(--text-faint)" }}>Dotted</span> columns are
-      app-calculated (from your fills and/or Schwab data); the rest come straight from Schwab.
+      <span style={{ color: "var(--accent-quiet)", fontWeight: 700 }}>ƒ</span> marks a figure the app
+      calculates (from your fills and/or Schwab data); everything else comes straight from Schwab.
     </p>
   );
 }

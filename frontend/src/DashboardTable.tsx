@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { usd, pct } from "./App";
-import { DASH_COLUMNS, PINNED_DASH, rowSignalChips, tickerRiskColor, RISK_LABEL, ProvenanceLegend } from "./columns";
+import { DASH_COLUMNS, PINNED_DASH, rowSignalChips, tickerRiskColor, RISK_LABEL, ProvenanceLegend, CalcMark } from "./columns";
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
 import type { SignalRule } from "./signals";
@@ -135,16 +135,15 @@ export function DashboardTable({
     setSort((s) => (s?.id !== id ? { id, dir: -1 } : s.dir === -1 ? { id, dir: 1 } : null));
   const sortMark = (id: string) => (sort?.id === id ? (sort.dir === -1 ? " ▼" : " ▲") : "");
   const Th = ({ id, label, align, prov }: { id: string; label: string; align?: string; prov?: DashCol["prov"] }) => {
-    const computed = prov == null;   // undefined = app-calculated → dotted underline
+    const computed = prov == null;   // undefined = app-calculated → ƒ mark on the header
     return (
       <th scope="col" className={align === "left" ? "left" : ""}
         aria-sort={sort?.id === id ? (sort.dir === -1 ? "descending" : "ascending") : undefined}
-        style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap",
-          ...(computed ? { borderBottom: "1px dotted var(--text-faint)" } : {}) }}
-        title={(computed ? "App-calculated (not a raw Schwab number). " : prov === "schwab" ? "Provided by Schwab. " : "")
+        style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
+        title={(prov === "schwab" ? "Provided by Schwab. " : "")
           + `Sort by ${label} (click again to flip, third click resets)`}
         onClick={() => clickSort(id)}>
-        {label}{sortMark(id)}
+        {label}{computed && <CalcMark />}{sortMark(id)}
       </th>
     );
   };

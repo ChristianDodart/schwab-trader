@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { usd } from "./App";
 import { API } from "./api";
 import { Hint } from "./Hint";
+import { CalcMark } from "./columns";
 
 // The selected account + active profile, resolved for print headers so a saved/
 // printed page identifies WHOSE account it is. Fetched once; degrades to a plain
@@ -140,13 +141,14 @@ export function PeriodSelector({ value, onChange, year }: {
 }
 
 // ---- cards / rows / panels ----
-export function Card({ label, value, sub, big, accent, hint }: {
+export function Card({ label, value, sub, big, accent, hint, schwab }: {
   label: string; value: string; sub?: string; big?: boolean; accent?: string; hint?: string;
+  schwab?: boolean;   // a raw Schwab balance (no ƒ mark); everything else here is app-calculated
 }) {
   return (
     <div className="panel" style={S.card}>
       <div style={S.cardLabel}>
-        {label}
+        {label}{!schwab && <CalcMark />}
         {hint && <Hint label={hint}><span style={S.q}> ⓘ</span></Hint>}
       </div>
       <div style={{ ...S.cardValue, fontSize: big ? "var(--fs-2xl)" : "var(--fs-xl)", color: accent ?? "var(--text)" }}>{value}</div>
