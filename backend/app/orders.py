@@ -533,8 +533,7 @@ async def suggest_buy(symbol: str, account_hash: str) -> dict:
     next_rung = filled + 1
     if filled == 0:
         return {"symbol": symbol, "error": "no existing lots; first-buy price is manual"}
-    if next_rung > cfg.max_rungs:
-        return {"symbol": symbol, "error": f"ladder full: {filled} rungs (max {cfg.max_rungs})"}
+    # No cap on ladder depth — you can add as many positions as your dips justify.
 
     # Match the dashboard/ladder: scale the trigger by account deployment when the
     # user enabled it (no-op / cached when off).
@@ -548,10 +547,10 @@ async def suggest_buy(symbol: str, account_hash: str) -> dict:
         "rung": next_rung, "limit_price": round(trigger, 2),
         "quantity": raw_qty, "sizing_dollars": dollars,
         "est_cost": round(raw_qty * trigger, 2),
-        "rationale": f"Rung {next_rung}: {dollars:.0f} ÷ {trigger:.2f} trigger",
+        "rationale": f"Position {next_rung}: {dollars:.0f} ÷ {trigger:.2f} trigger",
     }
-    if raw_qty < 1:  # one share already exceeds the rung budget — let the human size it
-        out["note"] = f"one share (~${trigger:.0f}) exceeds the ${dollars:.0f} rung budget — set quantity manually"
+    if raw_qty < 1:  # one share already exceeds the position budget — let the human size it
+        out["note"] = f"one share (~${trigger:.0f}) exceeds the ${dollars:.0f} position budget — set quantity manually"
     # Advisory only: surface available buying power so the ticket can flag an order
     # that exceeds it. NEVER a hard block — margin/settlement rules are the broker's job.
     try:

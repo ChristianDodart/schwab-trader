@@ -26,6 +26,10 @@ type Strategy = {
 };
 type Config = { account_hash: string; strategy: Strategy; strategy_is_default: boolean };
 
+// The ladder no longer has a user-set maximum (buy as deep as your dips go). We still
+// show a short worked preview of the first few positions so the drop tiers are legible.
+const PREVIEW_STEPS = 8;
+
 const gnum = (o: Record<string, unknown>, k: string, d = 0) =>
   typeof o[k] === "number" ? (o[k] as number) : d;
 
@@ -143,9 +147,9 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
 
       {/* ---------------- BUY LADDER ---------------- */}
       <Rule title="Buy ladder — how far it must fall before you add"
-        desc="Your core move: after the first buy, if the price keeps dropping you buy more at lower prices (each a “rung”), improving your average cost. Each rung needs the price to fall a set amount below the previous buy before it triggers. Deeper rungs usually demand bigger drops.">
+        desc="Your core move: after the first buy, if the price keeps dropping you buy more at lower prices (each a new “position”), improving your average cost. Each position needs the price to fall a set amount below the previous buy before it triggers. Deeper positions usually demand bigger drops. There's no cap on how many you can add — the ladder is as deep as your dips.">
         <Grid cols="1fr 1fr auto">
-          <Head>Through rung</Head><Head>Drop below previous buy</Head><span />
+          <Head>Through position</Head><Head>Drop below previous buy</Head><span />
           {st.buy_ladder.drops.map((d, i) => (
             <Row key={i}>
               <NumInput value={d.up_to_rung} min={1} onChange={(v) => updDrop(i, "up_to_rung", v)} />
@@ -154,19 +158,15 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
             </Row>
           ))}
         </Grid>
-        <button className="btn btn-secondary btn-sm" onClick={addDrop}>+ Add rung tier</button>
-        <Field label="Deepest the ladder goes (max rungs)">
-          <NumInput value={st.buy_ladder.max_rungs} min={1}
-            onChange={(v) => setStrat({ buy_ladder: { ...st.buy_ladder, max_rungs: v } })} />
-        </Field>
-        <LadderPreview drops={st.buy_ladder.drops} maxRungs={st.buy_ladder.max_rungs} />
+        <button className="btn btn-secondary btn-sm" onClick={addDrop}>+ Add position tier</button>
+        <LadderPreview drops={st.buy_ladder.drops} maxRungs={PREVIEW_STEPS} />
       </Rule>
 
       {/* ---------------- POSITION SIZING ---------------- */}
       <Rule title="Position sizing — how much to spend on each buy"
-        desc="How many dollars to deploy on the next buy, based on how many rungs you’ve already filled in that ticker. Shares = dollars ÷ price. Add tiers to spend more (or less) as a position gets deeper.">
+        desc="How many dollars to deploy on the next buy, based on how many positions you’ve already filled in that ticker. Shares = dollars ÷ price. Add tiers to spend more (or less) as a holding gets deeper.">
         <Grid cols="1fr 1fr auto">
-          <Head>Through rung</Head><Head>Dollars per buy</Head><span />
+          <Head>Through position</Head><Head>Dollars per buy</Head><span />
           {st.sizing_tiers.map((t, i) => (
             <Row key={i}>
               <NumInput value={t.up_to_rungs} min={1} onChange={(v) => updTier(i, "up_to_rungs", v)} />
@@ -236,8 +236,8 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
           <PctInput value={gnum(st.guardrails, "max_position_pct_of_portfolio", 0.05)}
             onChange={(v) => setGuard("max_position_pct_of_portfolio", v)} />
         </Field>
-        <Field label="Target rungs deep (average)"
-          hint="Roughly how many lots deep you aim to be able to support per stock.">
+        <Field label="Target positions deep (average)"
+          hint="Roughly how many positions deep you aim to be able to support per stock.">
           <NumInput value={gnum(st.guardrails, "target_lots_deep", 6)} min={1}
             onChange={(v) => setGuard("target_lots_deep", v)} />
         </Field>
@@ -280,7 +280,7 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
       {/* Signals moved here from Settings — they're the dashboard flags derived from
           these same rules, so they belong with the rules. Saves independently. */}
       <Rule title="Dashboard signals"
-        desc="The buy/sell flags shown on each dashboard row. The built-in default flags the next ladder rung and the sell target set above; add your own rules with custom colors — a ticker flags when the default OR any enabled rule matches.">
+        desc="The buy/sell flags shown on each dashboard row. The built-in default flags the next ladder position and the sell target set above; add your own rules with custom colors — a ticker flags when the default OR any enabled rule matches.">
         <SignalRulesEditor />
       </Rule>
     </div>
@@ -311,10 +311,10 @@ function LadderPreview({ drops, maxRungs }: { drops: Drop[]; maxRungs: number })
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {rows.map((r) => (
           <span key={r.rung} style={S.chip}>
-            R{r.rung} <b>{usd(r.price)}</b>{r.drop ? <span style={{ color: "var(--text-faint)" }}> (−{(r.drop * 100).toFixed(0)}%)</span> : null}
+            #{r.rung} <b>{usd(r.price)}</b>{r.drop ? <span style={{ color: "var(--text-faint)" }}> (−{(r.drop * 100).toFixed(0)}%)</span> : null}
           </span>
         ))}
-        {maxRungs > 6 && <span style={{ color: "var(--text-faint)", alignSelf: "center" }}>… through rung {maxRungs}</span>}
+        {maxRungs > 6 && <span style={{ color: "var(--text-faint)", alignSelf: "center" }}>… and deeper as it keeps dipping</span>}
       </div>
     </Example>
   );
@@ -324,7 +324,7 @@ function DeployPreview({ tiers, shallowDrop }: { tiers: DeployTier[]; shallowDro
   const sorted = [...tiers].sort((a, b) => b.min_deployed_pct - a.min_deployed_pct);
   return (
     <Example>
-      <div style={{ marginBottom: 4 }}>With these tiers, a normally <b>{(shallowDrop * 100).toFixed(0)}%</b> rung-2 dip becomes:</div>
+      <div style={{ marginBottom: 4 }}>With these tiers, a normally <b>{(shallowDrop * 100).toFixed(0)}%</b> position-2 dip becomes:</div>
       {sorted.map((t, i) => (
         <div key={i} style={{ display: "flex", justifyContent: "space-between", maxWidth: 320, padding: "1px 0" }}>
           <span style={{ color: "var(--text-muted)" }}>deployed ≥ {t.min_deployed_pct}%</span>
@@ -343,7 +343,7 @@ export function sizingSentence(tiers: SizingTier[]): string {
   const parts: string[] = [];
   let prev = 0;
   for (const t of s) {
-    const range = prev + 1 === t.up_to_rungs ? `rung ${t.up_to_rungs}` : `rungs ${prev + 1}–${t.up_to_rungs}`;
+    const range = prev + 1 === t.up_to_rungs ? `position ${t.up_to_rungs}` : `positions ${prev + 1}–${t.up_to_rungs}`;
     parts.push(`${range}: ${usd(t.dollars)} each`);
     prev = t.up_to_rungs;
   }

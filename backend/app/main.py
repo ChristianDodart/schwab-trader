@@ -126,6 +126,27 @@ async def _liveness_prober() -> None:
         await asyncio.sleep(60)
 
 
+async def run_selected_resync_scheduler() -> None:
+    """Keep the SELECTED account continuously reconciled with Schwab — this is what
+    replaced the manual 'Sync from Schwab' button. The trading account is already
+    refreshed on every fill/order poke by run_activity_resync; this catch-all also
+    covers a selected NON-trading account (e.g. a managed LLC) and backstops any
+    missed activity poke. resync_account is idempotent and per-account-locked, and its
+    fills fetch is gated by a ~weekly probe, so the steady cost is roughly one
+    positions REST call every couple of minutes."""
+    await asyncio.sleep(20)  # let startup settle before the first tick
+    while True:
+        try:
+            sel = await _selected()
+            if sel:
+                await rebuild_svc.resync_account(sel)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            log.warning(f"[selected-resync] failed: {e!r}")
+        await asyncio.sleep(120)  # ~2 min; the per-account lock serializes overlapping runs
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
@@ -146,6 +167,7 @@ async def lifespan(app: FastAPI):
     enrich_task = asyncio.create_task(_enrich_on_startup())
     alert_task = asyncio.create_task(notifications_svc.run_alert_watcher())
     resync_task = asyncio.create_task(run_activity_resync())
+    sel_resync_task = asyncio.create_task(run_selected_resync_scheduler())
     snapshot_task = asyncio.create_task(ledger_svc.run_snapshot_scheduler())
     liveness_task = asyncio.create_task(_liveness_prober())
     backup_task = asyncio.create_task(backup_svc.run_backup_scheduler())
@@ -156,8 +178,8 @@ async def lifespan(app: FastAPI):
     finally:
         # Cancel AND await so a task mid-DB-transaction (e.g. resync inside a
         # rebuild) unwinds cleanly before the loop shuts down.
-        tasks = [app.state.stream_task, enrich_task, alert_task, resync_task, snapshot_task,
-                 liveness_task, backup_task, strategy_task]
+        tasks = [app.state.stream_task, enrich_task, alert_task, resync_task, sel_resync_task,
+                 snapshot_task, liveness_task, backup_task, strategy_task]
         for t in tasks:
             t.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)

@@ -44,6 +44,25 @@
 .btn-danger:not(:disabled):hover { filter: brightness(1.08); }
 .btn-sm { padding: 3px 10px; font-size: var(--fs-xs); min-height: 26px; }
 
+/* --- hover-reveal gear: a settings gear that stays collapsed (no space) until you
+   hover its host control for ~0.5s, then slides out to the right. Pure CSS via
+   transition-delay so it's predictable. The gear's own popover isn't clipped because
+   only the trigger button collapses (overflow:hidden on it), not an ancestor. --- */
+.gear-host { display: inline-flex; align-items: center; }
+.gear-host .gear-reveal {
+  max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; pointer-events: none;
+  padding-left: 0; padding-right: 0; border-width: 0; margin-left: 0; min-height: 26px;
+  transition: max-width .16s ease, opacity .16s ease, margin-left .16s ease, padding .16s ease;
+}
+.gear-host:hover .gear-reveal,
+.gear-host:focus-within .gear-reveal,
+.gear-host .gear-reveal[aria-expanded="true"] {
+  max-width: 40px; opacity: 1; margin-left: 4px; padding-left: 9px; padding-right: 9px;
+  border-width: 1px; pointer-events: auto; transition-delay: .5s;
+}
+/* collapse immediately on leave (no delay); only the reveal waits ~0.5s */
+.gear-host:not(:hover) .gear-reveal:not([aria-expanded="true"]) { transition-delay: 0s; }
+
 /* --- nav tabs --- */
 .navtab {
   background: transparent; color: var(--text-dim); border: 1px solid transparent;

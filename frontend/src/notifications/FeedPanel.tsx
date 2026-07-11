@@ -11,7 +11,7 @@ function inferKind(n: Notification): "alert" | "trigger" | "fill" | "system" {
   if (n.alert_id != null) return "alert";
   const m = (n.message || "").toLowerCase();
   if (/\b(bought|sold|filled|fill)\b/.test(m)) return "fill";
-  if (/\b(dip|dipped|target|trigger|rung|next buy)\b/.test(m)) return "trigger";
+  if (/\b(dip|dipped|target|trigger|rung|position|next buy)\b/.test(m)) return "trigger";
   if (/\b(schwab|connection|re-?auth|reconnect|expire)\b/.test(m)) return "system";
   return "alert";
 }

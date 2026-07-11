@@ -14,7 +14,8 @@ import { KpiPicker, useKpiPrefs, visibleKpis } from "./kpis";
 import { DashboardTable } from "./DashboardTable";
 import { tickerRiskColor } from "./columns";
 import { Ledger } from "./Ledger";
-import { NotificationsBell, NotificationsProvider, NotificationsTab } from "./Notifications";
+import { NotificationsProvider, NotificationsTab } from "./Notifications";
+import { useNotifs } from "./notifications/store";
 import { Orders } from "./Orders";
 import { OrderTicket } from "./OrderTicket";
 import { PositionDetail } from "./PositionDetail";
@@ -26,7 +27,7 @@ import { useToast } from "./Toast";
 import type { AlertPrefill, BuyCandidate, Dashboard, DashboardRow, ExitCandidate, SellCandidate, Suggestion } from "./types";
 
 import { API, wsUrl } from "./api";
-import { IconRefresh, IconWarning, IconClose, IconSearch } from "./Icon";
+import { IconWarning, IconClose, IconSearch } from "./Icon";
 
 const WS_URL = wsUrl("/ws/dashboard");
 
@@ -59,7 +60,6 @@ export function App() {
   const [addSym, setAddSym] = useState("");
   const [watchTicket, setWatchTicket] = useState<Suggestion | null>(null);
   const [alertPrefill, setAlertPrefill] = useState<AlertPrefill | null>(null);
-  const [syncing, setSyncing] = useState(false);
   const dashCols = useColumnPrefs("dash.cols.v1", DEFAULT_DASH_COLS, DASH_COLUMN_LIST);
   // Simple mode: a decluttered dashboard for casual use — holdings only, four essential
   // columns, no sector bar / bulk tools / toolbar / ƒ marks. Opt-in, persisted per device.
@@ -297,17 +297,23 @@ export function App() {
     setAlertPrefill({ symbol: row.symbol, price: row.price });
     setView("notifications");   // the alert form lives on the Notifications tab now
   };
-  const syncFromSchwab = () => {
-    setSyncing(true);
-    fetch(`${API}/account/sync`, { method: "POST" })
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.ok) toast(`Synced from Schwab — ${res.open_lots ?? 0} open lots, ${res.closed ?? 0} closed`, "success");
-        else toast(res.error || res.refused || res.skipped || "Sync didn't complete", "info");
-      })
-      .catch(() => toast("Sync failed — network error"))
-      .finally(() => setSyncing(false));
-  };
+  // Auto-sync the SELECTED account behind the scenes — no button. The backend also
+  // resyncs on account-switch and on a steady ~2-min timer (main.py); this fires one
+  // more refresh when you refocus the app after being away. Silent + throttled; the WS
+  // dashboard repaints automatically when the resync changes anything.
+  useEffect(() => {
+    let last = 0;
+    const trigger = () => {
+      if (document.visibilityState === "hidden") return;
+      const now = Date.now();
+      if (now - last < 45000) return;   // at most once per 45s
+      last = now;
+      fetch(`${API}/account/sync`, { method: "POST" }).catch(() => {});
+    };
+    window.addEventListener("focus", trigger);
+    document.addEventListener("visibilitychange", trigger);
+    return () => { window.removeEventListener("focus", trigger); document.removeEventListener("visibilitychange", trigger); };
+  }, []);
 
   return (
     <NotificationsProvider>
@@ -317,7 +323,6 @@ export function App() {
           {/* Left cluster: brand + live status + KPI glance + alerts (moved from the
               right per the layout request). Nav tabs now sit on the right. */}
           <div style={S.brandZone}>
-            <h1 style={S.h1}>Schwab Trader</h1>
             <div style={S.statusZone}>
               <ConnDot connected={connected} />
               <FeedTag mode={mode} />
@@ -342,7 +347,6 @@ export function App() {
                 </div>
               );
             })()}
-            <NotificationsBell onOpen={() => guardedNav(() => setView("notifications"))} />
           </div>
 
           {/* Right cluster: the profile/account chip sits in the very top-right corner,
@@ -361,6 +365,7 @@ export function App() {
                   {t.id === "orders" && workingOrders > 0 && (
                     <span style={S.navBadge} title={`${workingOrders} working order${workingOrders === 1 ? "" : "s"}`}>{workingOrders}</span>
                   )}
+                  {t.id === "notifications" && <NotifNavBadge />}
                 </button>
               ))}
             </nav>
@@ -424,45 +429,36 @@ export function App() {
               )}
             </span>
           ) : (
-            <>
-              {/* Add ticker + Columns moved down next to the table (see the filter bar);
-                  the subbar keeps account-level actions only. */}
-              <button className="btn btn-secondary" onClick={syncFromSchwab} disabled={syncing}
-                title="Force a full refresh of THIS account now — refetch fills from Schwab, rebuild the ladder, and reconcile to Schwab's current positions. Prices and new trades already update on their own; use this after a CSV import, for a non-trading account, or whenever a number looks off.">
-                {syncing ? "Syncing…" : <><IconRefresh /> Sync from Schwab</>}
-              </button>
-              <span style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-                <button className={`btn btn-sm ${simple ? "btn-primary" : "btn-secondary"}`} aria-pressed={simple}
-                  title={simple ? "Switch back to the full advanced view" : "Simplify the dashboard — your holdings and the essentials only"}
-                  onClick={toggleSimple}>{simple ? "Simple ✓" : "Simple view"}</button>
-                {!simple && <>
-                <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                  <button className="btn btn-secondary"
-                    title="Bulk buy: the next rung on dips — or select any stock (incl. ones you don't hold) to enter"
-                    onClick={() => { setSelected(null); bulk.start("buy"); }}>
-                    Bulk Buy · {bulk.buyCount}
-                  </button>
-                  <BulkGear kind="buy" />
-                </span>
-                <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                  <button className="btn btn-secondary" disabled={bulk.sellCount === 0}
-                    title="Bulk sell: harvest the profitable last position on each holding, at the current price"
-                    onClick={() => { setSelected(null); bulk.start("sell"); }}>
-                    Bulk Sell · {bulk.sellCount}
-                  </button>
-                  <BulkGear kind="sell" />
-                </span>
-                <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                  <button className="btn btn-secondary" disabled={bulk.exitCount === 0}
-                    title="Bulk exit ('get me out'): a good-till-canceled limit sell of each full position at its last-buy price"
-                    onClick={() => { setSelected(null); bulk.start("exit"); }}>
-                    Bulk Exit · {bulk.exitCount}
-                  </button>
-                  <BulkGear kind="exit" />
-                </span>
-                </>}
+            <span style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+              <button className={`btn btn-sm ${simple ? "btn-primary" : "btn-secondary"}`} aria-pressed={simple}
+                title={simple ? "Switch back to the full advanced view" : "Simplify the dashboard — your holdings and the essentials only"}
+                onClick={toggleSimple}>{simple ? "Simple ✓" : "Simple view"}</button>
+              {!simple && <>
+              {/* Buy/Sell each carry a hover-reveal gear (hover the button ~0.5s → a small
+                  settings gear slides out to its right). Exit has no gear and no count. */}
+              <span className="gear-host">
+                <button className="btn btn-secondary"
+                  title="Bulk buy: the next position on dips — or select any stock (incl. ones you don't hold) to enter"
+                  onClick={() => { setSelected(null); bulk.start("buy"); }}>
+                  Bulk Buy · {bulk.buyCount}
+                </button>
+                <BulkGear kind="buy" revealClass="gear-reveal" />
               </span>
-            </>
+              <span className="gear-host">
+                <button className="btn btn-secondary" disabled={bulk.sellCount === 0}
+                  title="Bulk sell: harvest the profitable last position on each holding, at the current price"
+                  onClick={() => { setSelected(null); bulk.start("sell"); }}>
+                  Bulk Sell · {bulk.sellCount}
+                </button>
+                <BulkGear kind="sell" revealClass="gear-reveal" />
+              </span>
+              <button className="btn btn-secondary" disabled={bulk.exitCount === 0}
+                title="Bulk exit ('get me out'): a good-till-canceled limit sell of each full position at its last-buy price"
+                onClick={() => { setSelected(null); bulk.start("exit"); }}>
+                Bulk Exit
+              </button>
+              </>}
+            </span>
           ))}
         </div>
         )}
@@ -605,6 +601,14 @@ export function App() {
     </main>
     </NotificationsProvider>
   );
+}
+
+// Unread badge on the Notifications nav tab (replaces the old header bell). Lives inside
+// NotificationsProvider so it can read the live unread count.
+function NotifNavBadge() {
+  const { unread } = useNotifs();
+  if (!unread) return null;
+  return <span style={S.navBadge} title={`${unread} unread notification${unread === 1 ? "" : "s"}`}>{unread}</span>;
 }
 
 // Keyboard-shortcut cheat sheet (toggled with "?"). Reuses the modal overlay styling.

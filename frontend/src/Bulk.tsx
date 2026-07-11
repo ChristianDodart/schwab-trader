@@ -96,7 +96,7 @@ export function useBulk(rows: DashboardRow[] | undefined, mode: string | undefin
 
 // Gear next to each bulk button: configure the auto-select threshold. Thresholds
 // only drive the DEFAULT checkboxes — every candidate stays selectable.
-export function BulkGear({ kind }: { kind: Kind }) {
+export function BulkGear({ kind, revealClass }: { kind: Kind; revealClass?: string }) {
   const [open, setOpen] = useState(false);
   const [prefs, setPrefs] = useState<BulkPrefs | null>(null);
   const wrapRef = useRef<HTMLSpanElement>(null);
@@ -132,7 +132,7 @@ export function BulkGear({ kind }: { kind: Kind }) {
 
   return (
     <span style={{ position: "relative", display: "inline-block" }} ref={wrapRef}>
-      <button className="btn btn-secondary btn-sm" aria-label={`Configure ${kind} settings`}
+      <button className={`btn btn-secondary btn-sm${revealClass ? " " + revealClass : ""}`} aria-label={`Configure ${kind} settings`}
         aria-expanded={open} title="Configure" onClick={() => setOpen((o) => !o)}><IconSettings /></button>
       {open && (
         <div style={S.gearPop} role="dialog" aria-label={`${kind} settings`}>

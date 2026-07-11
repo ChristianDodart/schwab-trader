@@ -35,16 +35,16 @@ describe("ladderPreviewRows", () => {
 });
 
 describe("sizingSentence", () => {
-  it("collapses a single-rung tier to 'rung N'", () => {
-    expect(sizingSentence([{ up_to_rungs: 1, dollars: 500 }])).toContain("rung 1: $500");
+  it("collapses a single-position tier to 'position N'", () => {
+    expect(sizingSentence([{ up_to_rungs: 1, dollars: 500 }])).toContain("position 1: $500");
   });
   it("renders ranges + the full example", () => {
     const s = sizingSentence([
       { up_to_rungs: 2, dollars: 500 },
       { up_to_rungs: 7, dollars: 1000 },
     ]);
-    expect(s).toContain("rungs 1–2: $500");
-    expect(s).toContain("rungs 3–7: $1,000");
+    expect(s).toContain("positions 1–2: $500");
+    expect(s).toContain("positions 3–7: $1,000");
     expect(s.startsWith("Example:")).toBe(true);
   });
   it("empty tiers → empty string", () => {

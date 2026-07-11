@@ -533,13 +533,15 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
         })
         prev_price = bp
 
-    # Projected future rungs continue from the ACTUAL last fill, not an idealized
-    # rung-1 chain — so they reflect real fill drift and match the Stock Data
-    # next-buy (which is derived from the deepest filled lot).
+    # Projected future positions continue from the ACTUAL last fill, not an idealized
+    # rung-1 chain — so they reflect real fill drift and match the Stock Data next-buy
+    # (which is derived from the deepest filled lot). There's no user cap on ladder depth
+    # anymore, so we just project a short fixed horizon (the next few) — the UI reveals
+    # the next 5 on demand.
     projected = []
     if lots:
         prev_price = _f(lots[-1].buy_price)
-        for rung in range(len(lots) + 1, cfg.max_rungs + 1):
+        for rung in range(len(lots) + 1, len(lots) + 1 + 5):
             trigger = rules.next_buy_price(prev_price, rung, cfg, deployed)
             dollars = rules.sizing_dollars(rung - 1, cfg)
             projected.append({

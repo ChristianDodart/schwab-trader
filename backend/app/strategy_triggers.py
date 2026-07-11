@@ -72,7 +72,7 @@ async def run_strategy_trigger_watcher() -> None:
                     r = info[k]
                     if kind == "buy":
                         msg = (f"{symbol} dipped to its next-buy trigger "
-                               f"(${r['next_buy_price']:.2f}) — consider adding a rung.")
+                               f"(${r['next_buy_price']:.2f}) — consider adding a position.")
                     else:
                         msg = f"{symbol} reached a sell target — profit is lockable now."
                     await notifications.post_system_notification(symbol, msg, r.get("price"))

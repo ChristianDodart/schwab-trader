@@ -28,9 +28,9 @@ def check(cfg: dict) -> list[dict]:
         if dp is None:
             continue
         if dp <= 0:
-            out.append({"level": "warn", "message": f"Buy-ladder drop through rung {d.get('up_to_rung')} is {dp*100:.0f}% — a rung with no drop never triggers below the last buy."})
+            out.append({"level": "warn", "message": f"Buy-ladder drop through position {d.get('up_to_rung')} is {dp*100:.0f}% — a position with no drop never triggers below the last buy."})
         if prev_drop is not None and dp < prev_drop:
-            out.append({"level": "warn", "message": f"Buy-ladder drops get SHALLOWER at rung {d.get('up_to_rung')} ({dp*100:.0f}% < {prev_drop*100:.0f}%) — deeper rungs usually need bigger drops."})
+            out.append({"level": "warn", "message": f"Buy-ladder drops get SHALLOWER at position {d.get('up_to_rung')} ({dp*100:.0f}% < {prev_drop*100:.0f}%) — deeper positions usually need bigger drops."})
         prev_drop = dp
 
     # --- sizing tiers: through-rung should ascend; dollars usually grow with depth ---
@@ -42,20 +42,17 @@ def check(cfg: dict) -> list[dict]:
         r = _num(t.get("up_to_rungs"))
         dollars = _num(t.get("dollars"))
         if r in seen_rungs:
-            out.append({"level": "warn", "message": f"Two sizing tiers share 'through rung {r}' — one is ignored."})
+            out.append({"level": "warn", "message": f"Two sizing tiers share 'through position {r}' — one is ignored."})
         seen_rungs.add(r)
         if dollars is not None and dollars <= 0:
-            out.append({"level": "warn", "message": f"Sizing tier through rung {r} deploys ${dollars:g} — a non-positive buy size."})
+            out.append({"level": "warn", "message": f"Sizing tier through position {r} deploys ${dollars:g} — a non-positive buy size."})
         if prev_dollars is not None and dollars is not None and dollars < prev_dollars:
-            out.append({"level": "info", "message": f"Sizing SHRINKS at rung {r} (${dollars:g} < ${prev_dollars:g}) — the ladder normally adds more as it deepens."})
+            out.append({"level": "info", "message": f"Sizing SHRINKS at position {r} (${dollars:g} < ${prev_dollars:g}) — the ladder normally adds more as it deepens."})
         if dollars is not None:
             prev_dollars = dollars
 
-    # --- max_rungs vs the deepest configured tier ---
-    max_rungs = _num(ladder.get("max_rungs"))
-    deepest = max([_num(d.get("up_to_rung")) or 0 for d in drops] + [_num(t.get("up_to_rungs")) or 0 for t in tiers] + [0])
-    if max_rungs is not None and deepest and max_rungs < deepest:
-        out.append({"level": "warn", "message": f"Max rungs ({max_rungs:g}) is below your deepest configured tier (rung {deepest:g}) — those deeper tiers can never apply."})
+    # (The ladder no longer has a max-positions cap, so there's nothing to cross-check
+    # the deepest tier against — buys are unlimited.)
 
     # --- sell target ---
     sell = cfg.get("sell") or {}

@@ -3,6 +3,27 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.37.0 — "Minimalist pass"
+
+- **The Sync button is gone — it syncs itself now.** The selected account reconciles in
+  the background: on a steady ~2-minute timer, the moment you switch accounts, and when
+  you come back to the app. It covers non-trading accounts too. Nothing to press.
+- **Leaner header.** Dropped the "Schwab Trader" title and the notification bell — the
+  unread count now rides on the **Notifications** tab instead.
+- **Quieter table.** Removed the totals row, and company names stay hidden until you open
+  a ticker (the symbol alone is enough at a glance).
+- **Gears get out of the way.** The Bulk Buy / Bulk Sell settings gears stay tucked away
+  until you hover the button for about half a second, then slide out. Bulk Exit lost its
+  count and its gear (there was never a reason to skip a stock on a "get me out").
+- **Rebuilt position view.** Chart, Rules, Alerts, and Notes are now one compact row of
+  pills — nothing is expanded by default, so your positions sit right under the summary
+  instead of being pushed down the page. The projected ladder is tucked behind a
+  "Show projected (next 5)" toggle at the bottom.
+- **"Positions" everywhere.** The strategy's "rungs" are now called "positions" across
+  the whole app — same mechanics, plainer word.
+- **No position cap.** The old "max rungs" setting is gone and the ladder is unlimited —
+  if your dips justify a 17th position, the app just lets you add it.
+
 ## v0.36.3 — "Dashboard tidy-up, round 2"
 
 - **Profile / account chip moved to the top-right corner**, right above the tabs, out of

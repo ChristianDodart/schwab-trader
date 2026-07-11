@@ -17,6 +17,13 @@ from .db.models import AppSetting
 from .schwab import auth as _auth
 from .schwab.auth import get_client
 
+import logging
+
+log = logging.getLogger("schwab.accounts")
+# Strong refs to fire-and-forget background tasks so the loop can't GC them mid-run;
+# the done-callback discards each when it finishes.
+_bg_tasks: set[asyncio.Task] = set()
+
 REAUTH_ERROR = "Schwab reauthorization required"
 
 SELECTED_KEY = "selected_account_hash"   # the active account: scopes all views AND trading
@@ -123,8 +130,26 @@ async def list_accounts() -> dict:
     return {"accounts": accounts, "selected_hash": selected}
 
 
+async def _bg_resync(account_hash: str) -> None:
+    """Guarded fire-and-forget resync so a failure logs instead of surfacing as an
+    'unretrieved task exception'. resync_account is idempotent + per-account-locked."""
+    from . import rebuild as rebuild_svc  # lazy import to avoid an import cycle
+    try:
+        await rebuild_svc.resync_account(account_hash)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        log.warning(f"[select-resync] {account_hash[-4:]} failed: {e!r}")
+
+
 async def select_account(account_hash: str) -> dict:
     await set_setting(_sel_key(), account_hash)
+    # Auto-sync the newly-selected account immediately so switching accounts refreshes
+    # it now — including a non-trading account, which the activity resync loop skips.
+    # Retain a strong ref + discard on completion so the task isn't GC'd mid-flight.
+    t = asyncio.create_task(_bg_resync(account_hash))
+    _bg_tasks.add(t)
+    t.add_done_callback(_bg_tasks.discard)
     return {"selected_hash": account_hash}
 
 

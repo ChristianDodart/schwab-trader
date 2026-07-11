@@ -155,11 +155,10 @@ async def buy_plan(account_hash: str) -> dict:
             continue
         lots = by.get(sym, [])
         filled = len(lots)
-        if filled >= cfg.max_rungs:   # ladder full — no room to add
-            continue
+        # No cap on ladder depth — add as many positions as the dips justify.
         dollars = rules.sizing_dollars(filled, cfg)
         qty = int(dollars // px)      # whole-share, strategy-sized
-        if qty < 1:                   # one share exceeds the rung budget → use the single ticket
+        if qty < 1:                   # one share exceeds the position budget → use the single ticket
             continue
         is_new = filled == 0
         qualifies = False
@@ -355,9 +354,6 @@ async def bulk_buy(account_hash: str, items: list[dict], order_type: str = "LIMI
             results.append({"symbol": sym, "ok": False, "error": "duplicate symbol in this batch — refused"})
             continue
         seen_syms.add(sym)
-        if len(by.get(sym, [])) >= cfg.max_rungs:
-            results.append({"symbol": sym, "ok": False, "error": "ladder full"})
-            continue
         if shares < 1:
             results.append({"symbol": sym, "ok": False, "error": "shares must be >= 1"})
             continue

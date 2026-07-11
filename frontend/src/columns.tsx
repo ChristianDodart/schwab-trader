@@ -203,7 +203,7 @@ export const DETAIL_COLUMN_LIST: DetailCol[] = [
       // recent buy) — showing a huge negative "down" reads as broken, so show "—".
       const v = l.pct_down_from_prev;
       if (v == null || v <= 0)
-        return <span title={v != null ? "Added at or above the previous rung — not a dip down" : undefined}
+        return <span title={v != null ? "Added at or above the previous position — not a dip down" : undefined}
           style={{ color: "var(--text-faint)" }}>—</span>;
       return pct(v);
     } },

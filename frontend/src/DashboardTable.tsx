@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
-import { usd, pct } from "./App";
+import { pct } from "./App";
 import { DASH_COLUMNS, PINNED_DASH, ESSENTIAL_DASH_IDS, rowSignalChips, tickerRiskColor, RISK_LABEL, ProvenanceLegend, CalcMark } from "./columns";
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
@@ -63,22 +63,6 @@ function nestRows(rows: DashboardRow[]): DispRow[] {
   }
   return out;
 }
-
-// Column ids whose per-row values are money that's meaningful to SUM in a totals row.
-// "signed" = a P/L figure (color + sign it); "plain" = a magnitude (Invested, Value).
-// Everything else (prices, %s, per-share basis, counts) is intentionally omitted —
-// a sum there is nonsense. Keyed by the row field, which equals the column id.
-const MONEY_SUM: Record<string, "signed" | "plain"> = {
-  invested: "plain",
-  current_value: "plain",
-  unrealized: "signed",
-  day_change: "signed",
-  last_pos_profit: "signed",
-  year_profit: "signed",
-  log_profit: "signed",
-  dividends: "plain",
-  total_return: "signed",
-};
 
 // Bulk selection state (harvest / buy-the-dip). When present, the table shows a
 // checkbox column; only `candidates` are selectable, `checked` are selected.
@@ -182,25 +166,6 @@ export function DashboardTable({
     );
   };
   const displayRows = sortRows(rows, sort);
-
-  // Totals over HELD positions only (watchlist rows have no position). Shown as a
-  // footer band; only summable money columns get a value, the rest stay blank.
-  const held = rows.filter((r) => !r.is_watch);
-  const totalCell = (id: string, align: DashCol["align"], fold = false) => {
-    const cls = fold ? "foldcol" + (folded ? " folded" : "") : undefined;
-    const wrap = (content: React.ReactNode) => (fold ? <span className="foldwrap">{content}</span> : content);
-    const kind = MONEY_SUM[id];
-    if (!kind) return <td key={id} className={cls} style={{ textAlign: align }} />;
-    const vals = held.map((r) => (r as unknown as Record<string, number | null>)[id]).filter((v): v is number => v != null);
-    if (!vals.length) return <td key={id} className={cls} style={{ textAlign: align }}>{wrap("—")}</td>;
-    const sum = vals.reduce((a, b) => a + b, 0);
-    const color = kind === "signed" ? (sum >= 0 ? "var(--pos)" : "var(--neg)") : "var(--text)";
-    return (
-      <td key={id} className={cls} style={{ textAlign: align, color, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-        {wrap(<>{kind === "signed" && sum > 0 ? "+" : ""}{usd(sum)}</>)}
-      </td>
-    );
-  };
 
   return (
     <div>
@@ -324,7 +289,7 @@ export function DashboardTable({
                         </span>
                       )}
                     </span>
-                    {r.name && <div style={S.name}>{r.name}</div>}
+                    {isOpen && r.name && <div style={S.name}>{r.name}</div>}
                     {depth > 0 && parent && parent.pct_of_high != null && (
                       <div style={S.underlyingCtx} title={`Read direction from the underlying, ${parent.symbol}`}>
                         {parent.symbol} at {pct(parent.pct_of_high)} of 52wk high
@@ -353,19 +318,6 @@ export function DashboardTable({
               );
             })}
           </tbody>
-          {!bulk && held.length > 0 && (
-            <tfoot>
-              <tr style={S.totalsRow}>
-                <td className="left" style={{ fontWeight: 700 }}>
-                  Totals <span style={S.totalsSub}>· {held.length} held</span>
-                </td>
-                {pinned.map((c) => totalCell(c.id, c.align))}
-                {essDefs.map((c) => totalCell(c.id, c.align))}
-                {foldDefs.map((c) => totalCell(c.id, c.align, true))}
-                {showFoldToggle && <td className="foldtoggle" />}
-              </tr>
-            </tfoot>
-          )}
         </table>
       </div>
       {!simple && <ProvenanceLegend />}

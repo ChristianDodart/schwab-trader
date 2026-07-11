@@ -81,7 +81,10 @@ class StrategyConfig:
                        key=lambda d: d.up_to_rung)
         return cls(
             sizing_tiers=tuple(tiers),
-            max_rungs=int(ladder["max_rungs"]),
+            # Retained for wire/back-compat only — the ladder no longer has a hard cap
+            # (buys are unlimited; the projection horizon is a fixed short window). Kept
+            # in the schema so older/newer saved configs round-trip; tolerate its absence.
+            max_rungs=int(ladder.get("max_rungs", 0) or 0),
             ladder_drops=tuple(drops),
             sell=SellConfig(
                 default_mode=sell["default_mode"],

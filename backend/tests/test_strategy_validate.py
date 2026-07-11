@@ -21,12 +21,6 @@ def test_shallower_deeper_drop_warns():
     assert any(x["level"] == "warn" and "SHALLOWER" in x["message"] for x in f)
 
 
-def test_max_rungs_below_deepest_tier_warns():
-    cfg = StrategyConfig.load().to_mapping()
-    cfg["buy_ladder"]["max_rungs"] = 3  # but drops/sizing go to rung 10
-    assert any("Max rungs" in x["message"] for x in check(cfg))
-
-
 def test_deployment_multiplier_below_one_warns():
     cfg = StrategyConfig.load().to_mapping()
     cfg["deployment_scaling"] = {"enabled": True, "tiers": [{"min_deployed_pct": 90, "drop_multiplier": 0.8}]}

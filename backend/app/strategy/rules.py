@@ -62,15 +62,6 @@ def next_buy_price(prev_buy_price: float, next_rung: int, cfg: StrategyConfig,
     return prev_buy_price * (1.0 - _drop_for_rung(next_rung, cfg, deployed_pct))
 
 
-def buy_ladder(first_buy_price: float, cfg: StrategyConfig,
-               deployed_pct: float | None = None) -> list[float]:
-    """Full projected ladder of trigger prices starting from the first buy."""
-    prices = [first_buy_price]
-    for rung in range(2, cfg.max_rungs + 1):
-        prices.append(next_buy_price(prices[-1], rung, cfg, deployed_pct))
-    return prices
-
-
 def lilo_pct(current_price: float, min_buy_price: float) -> float:
     """How far current price sits above the cheapest lot (e.g. 0.12 = +12%)."""
     if min_buy_price <= 0:

@@ -26,11 +26,11 @@ Ships as a Windows desktop app (Electron shell + bundled backend) that
     concentration alert.
 - **Bulk actions** (review-then-confirm, one order at a time through the guarded
   order path):
-  - **Bulk Buy** — the next ladder rung on dips, or fresh entries you select.
+  - **Bulk Buy** — the next ladder position on dips, or fresh entries you select.
   - **Bulk Sell** — harvest each holding's profitable last position.
   - **Bulk Exit** ("get me out") — a good-till-canceled limit sell of each full
     position at its last-buy price.
-- **Position detail** — the buy ladder, projected rungs, price chart with ladder
+- **Position detail** — the buy ladder, projected positions, price chart with ladder
   and 52-week overlays, per-symbol realized/unrealized/dividend split, notes, and
   one-click price alerts.
 - **Ledger** — *Historic* (balances, realized gains, deposits, equity curve,

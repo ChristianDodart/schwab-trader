@@ -11,7 +11,7 @@ import { IconClose } from "../Icon";
 
 const CATS: { key: "alert" | "trigger" | "fill"; label: string; desc: string }[] = [
   { key: "alert", label: "Price alerts", desc: "Your set price thresholds" },
-  { key: "trigger", label: "Strategy triggers", desc: "A rung dipped in, or a lot hit its sell target" },
+  { key: "trigger", label: "Strategy triggers", desc: "A position dipped in, or a lot hit its sell target" },
   { key: "fill", label: "Order fills", desc: "A resting order executed" },
 ];
 const CHANS: { key: keyof NotifChannels; label: string }[] = [

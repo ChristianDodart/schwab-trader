@@ -15,6 +15,12 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
   const [d, setD] = useState<PositionDetailData | null>(null);
   const [ticket, setTicket] = useState<Suggestion | null>(null);
   const [busy, setBusy] = useState(false);
+  // One collapsible tool at a time (Chart / Rules / Alerts / Notes) so the ladder sits
+  // right under the stats instead of being pushed down. `showProj` reveals the projected
+  // ladder (next 5 only) on demand.
+  const [panel, setPanel] = useState<null | "chart" | "rules" | "alerts" | "notes">(null);
+  const [showProj, setShowProj] = useState(false);
+  const togglePanel = (p: "chart" | "rules" | "alerts" | "notes") => setPanel((cur) => (cur === p ? null : p));
   const cols = useColumnPrefs("detail.cols.v1", DEFAULT_DETAIL_COLS, DETAIL_COLUMN_LIST);
   const toast = useToast();
 
@@ -70,7 +76,7 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <ColumnManager prefs={cols} labelOf={(id) => DETAIL_COLUMNS[id]?.label ?? id} align="right" />
-          {!d.is_watch && <button className="btn btn-buy" disabled={busy} onClick={openBuy}>Buy next rung</button>}
+          {!d.is_watch && <button className="btn btn-buy" disabled={busy} onClick={openBuy}>Buy next position</button>}
           <button style={S.close} aria-label="Close position detail" onClick={onClose}><IconClose /></button>
         </div>
       </div>
@@ -104,23 +110,39 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
         </p>
       )}
 
-      <ChartToggle d={d} />
+      {/* Compact tool pills — one panel opens at a time so the ladder stays high up. */}
+      <div style={S.pills}>
+        <Pill on={panel === "chart"} onClick={() => togglePanel("chart")}>Chart</Pill>
+        {!d.is_watch && (
+          <Pill on={panel === "rules"} onClick={() => togglePanel("rules")} warn={!!d.rules_override}>
+            Rules{d.rules_override ? " ●" : ""}
+          </Pill>
+        )}
+        <Pill on={panel === "alerts"} onClick={() => togglePanel("alerts")}>Alerts</Pill>
+        <Pill on={panel === "notes"} onClick={() => togglePanel("notes")}>Notes</Pill>
+      </div>
 
-      <TickerRules symbol={d.symbol} current={d.rules_override ?? null}
-        onSaved={(ov) => { setD((p) => (p ? { ...p, rules_override: ov } : p)); toast(ov ? `${d.symbol} now uses its own rules.` : `${d.symbol} back on the global rules.`, "success"); }}
-        onError={(m) => toast(m, "error")} />
-
-      <AlertTemplates d={d} onSet={(msg, kind) => toast(msg, kind)} />
-
-      <PositionNote symbol={d.symbol} onSaved={(m) => toast(m, "success")} onError={(m) => toast(m, "error")} />
+      {panel === "chart" && (
+        <div style={{ marginTop: 8 }}>
+          <PriceChart symbol={d.symbol} rungs={d.projected_ladder.map((p) => p.trigger_price)}
+            avg52={d.avg_52wk} median52={d.median_52wk} />
+        </div>
+      )}
+      {panel === "rules" && !d.is_watch && (
+        <TickerRules symbol={d.symbol} current={d.rules_override ?? null}
+          onSaved={(ov) => { setD((p) => (p ? { ...p, rules_override: ov } : p)); toast(ov ? `${d.symbol} now uses its own rules.` : `${d.symbol} back on the global rules.`, "success"); }}
+          onError={(m) => toast(m, "error")} />
+      )}
+      {panel === "alerts" && <AlertTemplates d={d} onSet={(msg, kind) => toast(msg, kind)} />}
+      {panel === "notes" && <PositionNote symbol={d.symbol} onSaved={(m) => toast(m, "success")} onError={(m) => toast(m, "error")} />}
 
       {!d.is_watch && <>
-      <h3 className="section-title" style={S.h3}>Buy Ladder</h3>
+      <h3 className="section-title" style={S.h3}>Positions</h3>
       <div style={{ overflowX: "auto" }}>
         <table className="tbl">
           <thead>
             <tr>
-              <th scope="col" className="left">Rung</th>
+              <th scope="col" className="left">Position</th>
               {defs.map((c) => (
                 <th scope="col" key={c.id} className={c.align === "left" ? "left" : ""}
                   title={c.prov === "schwab" ? "Provided by Schwab" : undefined}>
@@ -159,30 +181,36 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
 
       {d.projected_ladder.length > 0 && (
         <>
-          <h3 className="section-title" style={S.h3}>Projected Ladder</h3>
-          <div style={{ overflowX: "auto" }}>
-            <table className="tbl">
-              <thead>
-                <tr>
-                  {["Rung", "Trigger Price", "Suggested $", "Suggested Shares"].map((h, i) => (
-                    <th scope="col" key={h} className={i === 0 ? "left" : ""}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {d.projected_ladder.map((p) => (
-                  <tr key={`p${p.rung}`} style={{ opacity: 0.55 }}>
-                    <td className="left">{p.rung}</td>
-                    <td style={{ textAlign: "right", color: "var(--accent-quiet)" }}>{usd(p.trigger_price)}</td>
-                    <td style={{ textAlign: "right" }}>{usd(p.suggested_dollars)}</td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                      {p.suggested_shares == null ? "—" : p.suggested_shares.toLocaleString("en-US", { maximumFractionDigits: 2 })}
-                    </td>
+          <button className="btn btn-ghost btn-sm" style={{ marginTop: 12 }} aria-expanded={showProj}
+            onClick={() => setShowProj((v) => !v)}
+            title="The next projected buy positions if the price keeps dipping — trigger price, suggested dollars, and shares">
+            {showProj ? "▴ Hide projected" : `▾ Show projected (next ${Math.min(5, d.projected_ladder.length)})`}
+          </button>
+          {showProj && (
+            <div style={{ overflowX: "auto", marginTop: 8 }}>
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    {["Position", "Trigger Price", "Suggested $", "Suggested Shares"].map((h, i) => (
+                      <th scope="col" key={h} className={i === 0 ? "left" : ""}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {d.projected_ladder.slice(0, 5).map((p) => (
+                    <tr key={`p${p.rung}`} style={{ opacity: 0.55 }}>
+                      <td className="left">{p.rung}</td>
+                      <td style={{ textAlign: "right", color: "var(--accent-quiet)" }}>{usd(p.trigger_price)}</td>
+                      <td style={{ textAlign: "right" }}>{usd(p.suggested_dollars)}</td>
+                      <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                        {p.suggested_shares == null ? "—" : p.suggested_shares.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
       </>}
@@ -269,22 +297,13 @@ function PositionNote({ symbol, onSaved, onError }: { symbol: string; onSaved: (
   );
 }
 
-function ChartToggle({ d }: { d: PositionDetailData }) {
-  const [open, setOpen] = useState(false);
+// Small toggle pill for the compact tool row (Chart / Rules / Alerts / Notes).
+function Pill({ on, onClick, warn, children }: { on: boolean; onClick: () => void; warn?: boolean; children: React.ReactNode }) {
   return (
-    <div style={{ margin: "14px 0 4px" }}>
-      <button className="btn btn-ghost btn-sm" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        {open ? "Hide chart" : "Show chart"}
-      </button>
-      {open && (
-        <PriceChart
-          symbol={d.symbol}
-          rungs={d.projected_ladder.map((p) => p.trigger_price)}
-          avg52={d.avg_52wk}
-          median52={d.median_52wk}
-        />
-      )}
-    </div>
+    <button className={`btn btn-sm ${on ? "btn-primary" : "btn-ghost"}`} aria-pressed={on} onClick={onClick}
+      style={warn && !on ? { color: "var(--warn)", borderColor: "var(--warn-border)" } : undefined}>
+      {children}
+    </button>
   );
 }
 
@@ -333,7 +352,6 @@ function TickerRules({ symbol, current, onSaved, onError }: {
   onSaved: (ov: SymbolRuleOverride | null) => void;
   onError: (msg: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<string>(current?.sell_mode ?? "");
   const [value, setValue] = useState<string>(
     current?.sell_value != null
@@ -349,7 +367,7 @@ function TickerRules({ symbol, current, onSaved, onError }: {
       body: JSON.stringify({ symbol, ...body }),
     })
       .then((r) => r.json())
-      .then((j) => { if (j?.ok) { onSaved(next); setOpen(false); } else onError(j?.error || "Couldn't save ticker rules."); })
+      .then((j) => { if (j?.ok) { onSaved(next); } else onError(j?.error || "Couldn't save ticker rules."); })
       .catch(() => onError("Couldn't save ticker rules — network error."))
       .finally(() => setBusy(false));
   };
@@ -376,16 +394,14 @@ function TickerRules({ symbol, current, onSaved, onError }: {
     : null;
 
   return (
-    <div style={{ marginTop: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+    <div style={{ marginTop: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
         <h3 className="section-title" style={{ margin: 0 }}>Ticker rules</h3>
         {current
           ? <span className="tag" style={{ color: "var(--warn)", border: "1px solid var(--warn-border)" }}>custom · {summary}</span>
           : <span style={{ color: "var(--text-dim)", fontSize: "var(--fs-xs)" }}>using the global rules</span>}
-        <button className="btn btn-ghost btn-sm" onClick={() => setOpen((o) => !o)}>{open ? "close" : current ? "edit" : "override"}</button>
       </div>
-      {open && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8, padding: 10, background: "var(--panel-2)", borderRadius: "var(--r-md)" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: 10, background: "var(--panel-2)", borderRadius: "var(--r-md)" }}>
           <span style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)" }}>Sell target</span>
           <select className="field" value={mode} onChange={(e) => setMode(e.target.value)} aria-label="Sell target mode" style={{ minWidth: 130, paddingRight: 24 }}>
             <option value="">Global</option>
@@ -418,7 +434,6 @@ function TickerRules({ symbol, current, onSaved, onError }: {
             <button className="btn btn-primary btn-sm" disabled={busy} onClick={save}>Save</button>
           </span>
         </div>
-      )}
     </div>
   );
 }
@@ -488,15 +503,15 @@ function LifoSell({ d, busy, onReview }: {
   const estPl = proceeds - cost;
   const valid = n > 0 && n <= total && consumed.length > 0;
   const note = valid
-    ? `LIFO sell of ${qty(n)} share${n === 1 ? "" : "s"} — retires the newest ${consumed.length} rung${consumed.length === 1 ? "" : "s"} first: ${consumed.map((c) => `#${c.rung}×${qty(c.take)}`).join(", ")}`
+    ? `LIFO sell of ${qty(n)} share${n === 1 ? "" : "s"} — retires the newest ${consumed.length} position${consumed.length === 1 ? "" : "s"} first: ${consumed.map((c) => `#${c.rung}×${qty(c.take)}`).join(", ")}`
     : "";
   if (d.is_watch || total <= 0) return null;
   return (
     <div style={LS.box}>
       <div style={LS.head}>
         <h3 className="section-title" style={{ margin: 0 }}>Sell shares</h3>
-        <span style={LS.lifo} title="Sells consume your most recent rungs first (last-in, first-out)">
-          LIFO — newest rungs sold first
+        <span style={LS.lifo} title="Sells consume your most recent positions first (last-in, first-out)">
+          LIFO — newest positions sold first
         </span>
       </div>
       <div style={LS.row}>
@@ -511,12 +526,12 @@ function LifoSell({ d, busy, onReview }: {
         <div style={LS.preview}>
           <div style={LS.chips}>
             {consumed.map((c) => (
-              <span key={c.rung} style={LS.chip}>rung {c.rung} <b>×{qty(c.take)}</b></span>
+              <span key={c.rung} style={LS.chip}>position {c.rung} <b>×{qty(c.take)}</b></span>
             ))}
           </div>
           <div style={LS.est}>
             <span>Est. proceeds <b>{usd(proceeds)}</b> at {usd(price)}</span>
-            <span style={LS.computed} title="App-calculated: proceeds minus the LIFO cost basis of the retired rungs">
+            <span style={LS.computed} title="App-calculated: proceeds minus the LIFO cost basis of the retired positions">
               Est. realized <b style={{ color: estPl >= 0 ? "var(--pos)" : "var(--neg)" }}>{estPl >= 0 ? "+" : ""}{usd(estPl)}</b>
             </span>
           </div>
@@ -558,6 +573,7 @@ const S: Record<string, React.CSSProperties> = {
   name: { color: "var(--text-dim)", fontSize: "var(--fs-md)" },
   close: { background: "none", border: "none", color: "var(--text-dim)", fontSize: 18, cursor: "pointer", padding: "0 4px" },
   stats: { display: "flex", gap: 28, flexWrap: "wrap", margin: "16px 0 8px" },
+  pills: { display: "flex", gap: 6, flexWrap: "wrap", margin: "12px 0 4px" },
   stat: {},
   statLabel: { fontSize: "var(--fs-2xs)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-dim)" },
   statValue: { fontSize: "var(--fs-lg)", fontWeight: 600, marginTop: 2, fontVariantNumeric: "tabular-nums" },

@@ -27,7 +27,7 @@ export function SignalRulesEditor() {
   })();
   const buyDefault = (() => {
     const d0 = strat?.ladder_drops?.[0]?.drop_pct;
-    return d0 != null ? `the next ladder rung (first dip −${(d0 * 100).toFixed(0)}%)` : "the next ladder rung";
+    return d0 != null ? `the next ladder position (first dip −${(d0 * 100).toFixed(0)}%)` : "the next ladder position";
   })();
   if (!rules) return <p style={SS.credStatus}>Loading…</p>;
   const patch = (i: number, p: Partial<SignalRule>) => setRules((rs) => rs!.map((r, j) => (j === i ? { ...r, ...p } : r)));

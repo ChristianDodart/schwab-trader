@@ -259,7 +259,7 @@ export function OrderTicket({
           <div style={S.title}>
             <span style={{ color: sideColor, fontWeight: 700 }}>{suggestion.side}</span>{" "}
             {suggestion.symbol}
-            {suggestion.rung ? <span style={S.titleSub}> · rung {suggestion.rung}</span> : null}
+            {suggestion.rung ? <span style={S.titleSub}> · position {suggestion.rung}</span> : null}
           </div>
           {suggestion.note && <p style={S.warnNote}><IconWarning /> {suggestion.note}</p>}
 
@@ -370,7 +370,7 @@ export function OrderTicket({
           )}
           {!needsLimit && suggestion.limit_price > 0 && (
             <p style={S.note}>
-              Strategy {isBuy ? "rung" : "target"} price is {usd(suggestion.limit_price)} — switch to
+              Strategy {isBuy ? "position" : "target"} price is {usd(suggestion.limit_price)} — switch to
               Limit to place the ladder order instead of a market fill.
             </p>
           )}
