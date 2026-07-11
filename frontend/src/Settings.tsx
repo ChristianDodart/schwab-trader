@@ -5,6 +5,7 @@ import { ConnectionStatus } from "./Reauth";
 import { useToast } from "./Toast";
 import { API } from "./api";
 
+import { Tip } from "./Tip";
 import { AccountSection } from "./settings/AccountSection";
 import { Appearance } from "./settings/Appearance";
 import { Backups } from "./settings/Backups";
@@ -142,7 +143,7 @@ function Section({ title, info, children }: { title: string; info?: string; chil
     <section style={S.section}>
       <h3 className="section-title" style={S.h3}>
         {title}
-        {info && <span style={S.infoIcon} title={info}>(i)</span>}
+        {info && <Tip text={info}><span style={S.infoIcon}>(i)</span></Tip>}
       </h3>
       {children}
     </section>

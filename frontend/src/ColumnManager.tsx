@@ -1,19 +1,22 @@
 import { useRef, useState } from "react";
-import type { ColumnPrefs } from "./columns";
-import { IconSettings, IconClose, IconGrip, IconArrowUp, IconArrowDown } from "./Icon";
+import type { ColumnPrefs, FoldPrefs } from "./columns";
+import { IconSettings, IconClose, IconGrip, IconArrowUp, IconArrowDown, IconChevronRight } from "./Icon";
 
 /** A "⚙ Columns" button + popover to reorder, remove, add, and reset the columns
- * for one view. Generic over any ColumnPrefs + a label lookup. */
+ * for one view. Generic over any ColumnPrefs + a label lookup. When `fold` is
+ * supplied, each column also gets a toggle to fold it behind the table's chevron. */
 export function ColumnManager({
   prefs,
   labelOf,
   align = "left",
   onReset,
+  fold,
 }: {
   prefs: ColumnPrefs;
   labelOf: (id: string) => string;
   align?: "left" | "right";
   onReset?: () => void;   // extra side-effect when Reset is pressed (e.g. re-collapse folds)
+  fold?: FoldPrefs;       // when set, each column shows a fold-behind-chevron toggle
 }) {
   const [open, setOpen] = useState(false);
   const [toAdd, setToAdd] = useState("");
@@ -50,11 +53,19 @@ export function ColumnManager({
             <button className="btn btn-ghost btn-sm" style={S.close} onClick={close} aria-label="close column manager"><IconClose /></button>
           </div>
 
+          {fold && (
+            <div style={S.hint}>
+              <IconChevronRight /> folds a column behind the table’s chevron (still there, just tucked away).
+            </div>
+          )}
           <div style={S.list}>
-            {prefs.ids.map((id, i) => (
+            {prefs.ids.map((id, i) => {
+              const isFolded = fold?.isFolded(id) ?? false;
+              return (
               <div
                 key={id}
-                style={{ ...S.item, ...(overId === id && dragId && dragId !== id ? S.itemOver : null), opacity: dragId === id ? 0.4 : 1 }}
+                style={{ ...S.item, ...(overId === id && dragId && dragId !== id ? S.itemOver : null),
+                  opacity: dragId === id ? 0.4 : isFolded ? 0.6 : 1 }}
                 draggable
                 onDragStart={(e) => { setDragId(id); e.dataTransfer.effectAllowed = "move"; }}
                 onDragOver={(e) => { e.preventDefault(); if (dragId && dragId !== id) setOverId(id); }}
@@ -64,11 +75,18 @@ export function ColumnManager({
               >
                 <span style={S.grip} title="drag to reorder"><IconGrip /></span>
                 <span style={S.itemLabel}>{labelOf(id)}</span>
+                {fold && (
+                  <button className="btn btn-ghost btn-sm" style={{ ...S.mv, ...(isFolded ? S.foldOn : null) }}
+                    aria-pressed={isFolded} onClick={() => fold.toggle(id)}
+                    title={isFolded ? "Folded behind the chevron — click to always show" : "Shown — click to fold behind the chevron"}
+                    aria-label={`${isFolded ? "unfold" : "fold"} ${labelOf(id)}`}><IconChevronRight /></button>
+                )}
                 <button className="btn btn-ghost btn-sm" style={S.mv} disabled={i === 0} onClick={() => prefs.move(id, -1)} title="move up" aria-label={`move ${labelOf(id)} up`}><IconArrowUp /></button>
                 <button className="btn btn-ghost btn-sm" style={S.mv} disabled={i === prefs.ids.length - 1} onClick={() => prefs.move(id, 1)} title="move down" aria-label={`move ${labelOf(id)} down`}><IconArrowDown /></button>
                 <button className="btn btn-ghost btn-sm" style={S.rm} onClick={() => prefs.remove(id)} title="remove" aria-label={`remove ${labelOf(id)}`}><IconClose /></button>
               </div>
-            ))}
+              );
+            })}
             {prefs.ids.length === 0 && <div style={S.empty}>No columns — add one below.</div>}
           </div>
 
@@ -89,18 +107,20 @@ export function ColumnManager({
 
 const S: Record<string, React.CSSProperties> = {
   wrap: { position: "relative", display: "inline-block" },
-  pop: { position: "absolute", top: "calc(100% + 6px)", width: 260, background: "var(--pop)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", boxShadow: "var(--shadow-pop)", zIndex: "var(--z-popover)", padding: 10 },
+  pop: { position: "absolute", top: "calc(100% + 6px)", width: 300, background: "var(--pop)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", boxShadow: "var(--shadow-pop)", zIndex: "var(--z-popover)", padding: 10 },
   head: { display: "flex", alignItems: "center", gap: 8, paddingBottom: 8, borderBottom: "1px solid var(--border-hairline)" },
   title: { fontSize: "var(--fs-sm)", fontWeight: 700, flex: 1, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-dim)" },
   reset: { color: "var(--accent-quiet)" },
   close: { color: "var(--text-faint)" },
+  hint: { display: "flex", alignItems: "center", gap: 5, fontSize: "var(--fs-2xs)", color: "var(--text-dim)", padding: "8px 2px 2px", lineHeight: 1.4 },
   list: { maxHeight: 320, overflowY: "auto", padding: "6px 0" },
-  item: { display: "flex", alignItems: "center", gap: 4, padding: "3px 2px", borderRadius: "var(--r-sm)", cursor: "grab" },
+  item: { display: "flex", alignItems: "center", gap: 3, padding: "3px 2px", borderRadius: "var(--r-sm)", cursor: "grab" },
   itemOver: { boxShadow: "inset 0 2px 0 var(--accent)", background: "var(--panel-2)" },
   grip: { color: "var(--text-faint)", fontSize: 13, cursor: "grab", userSelect: "none" },
   itemLabel: { flex: 1, fontSize: "var(--fs-sm)", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  mv: { padding: "1px 6px", lineHeight: 1.4 },
-  rm: { color: "var(--neg-strong)", borderColor: "var(--neg-border)", padding: "1px 7px" },
+  mv: { padding: "1px 5px", lineHeight: 1.4 },
+  foldOn: { color: "var(--on-accent)", background: "var(--accent-fill)", borderColor: "var(--accent-fill)" },
+  rm: { color: "var(--neg-strong)", borderColor: "var(--neg-border)", padding: "1px 6px" },
   empty: { color: "var(--text-faint)", fontSize: "var(--fs-xs)", padding: "6px 2px" },
   addRow: { display: "flex", gap: 6, paddingTop: 8, borderTop: "1px solid var(--border-hairline)" },
   select: { flex: 1, minWidth: 0 },

@@ -5,6 +5,7 @@ import { matchesRule, type SignalRule } from "./signals";
 
 import { API } from "./api";
 import { IconWarning } from "./Icon";
+import { Tip } from "./Tip";
 
 // ============================================================================
 // Customizable columns. Each view (dashboard, ticker drill-down) has its own
@@ -42,8 +43,9 @@ export type DetailCol = {
 // header and stat card so provenance reads the same everywhere.
 export function CalcMark({ title }: { title?: string } = {}) {
   return (
-    <sup style={{ color: "var(--accent-quiet)", fontSize: "0.66em", fontWeight: 700, marginLeft: 2, cursor: "help" }}
-      title={title ?? "Calculated by the app (from your fills and/or Schwab data) — not a raw Schwab number"}>ƒ</sup>
+    <Tip text={title ?? "Calculated by the app (from your fills and/or Schwab data) — not a raw Schwab number"}>
+      <sup style={{ color: "var(--accent-quiet)", fontSize: "0.66em", fontWeight: 700, marginLeft: 2, cursor: "help" }}>ƒ</sup>
+    </Tip>
   );
 }
 // Renders a label followed by the ƒ mark when `computed`. Convenience for stat cards.
@@ -71,8 +73,9 @@ const Colored = ({ v, n }: { v: string; n: number | null | undefined }) => {
   return <span style={{ color: sign(n) }}>{n > 0 ? "+" : ""}{v}</span>;
 };
 const num = (n: number | null | undefined) =>
-  n == null ? "—" : n.toLocaleString("en-US");
-const Dash = () => <span style={{ color: "var(--text-faint)" }}>—</span>;
+  n == null ? "" : n.toLocaleString("en-US");
+// Empty values render empty (no "—" placeholder).
+const Dash = () => null;
 
 // RULE 10 from the sheet: keep every stock under 5% of the portfolio. Flag any
 // held position at/over this so over-concentration is visible at a glance.
@@ -135,6 +138,18 @@ export function rowSignalChips(r: DashboardRow, rules: SignalRule[] = []): React
 // ---- dashboard columns (operate on a summary row) ----
 // Order here = the order columns are offered in the "add" dropdown.
 export const DASH_COLUMN_LIST: DashCol[] = [
+  // The two most ACTIONABLE numbers — current price + profit on the last position.
+  // Now ordinary registry columns (movable/foldable); only Ticker is mandatory. They
+  // lead the default layout, so the resting table looks exactly as before.
+  { id: "price", label: "Price", align: "left", prov: "schwab", render: (r) => (
+      r.is_watch && r.last_held != null
+        ? <span style={{ whiteSpace: "nowrap" }}><b>{usd(r.price)}</b>
+            <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-2xs)", marginLeft: 6 }}
+              title="The price you last sold this at — watching for a re-entry below it">sold {usd(r.last_held)}</span>
+          </span>
+        : <b>{usd(r.price)}</b>
+    ) },
+  { id: "last_pos_profit", label: "Last Pos P/L", align: "left", watchNA: true, render: (r) => <b><Colored v={usd(r.last_pos_profit)} n={r.last_pos_profit} /></b> },
   // Mean of the daily closes over the past year — "where the stock spends most of
   // its time." Compare against the pinned Price: below = historical discount
   // (lean buy), above = rich (lean sell). Dim vs. the price so it reads as a
@@ -171,31 +186,26 @@ export const DASH_COLUMN_LIST: DashCol[] = [
 export const DASH_COLUMNS: Record<string, DashCol> = Object.fromEntries(
   DASH_COLUMN_LIST.map((c) => [c.id, c]),
 );
-// Mandatory columns pinned right after the ticker — the two most ACTIONABLE
-// numbers (current price + profit on the last position). Not user-removable and
-// not in the customizable registry, so they can't be hidden or duplicated.
-export const PINNED_DASH: DashCol[] = [
-  { id: "price", label: "Price", align: "left", prov: "schwab", render: (r) => (
-      r.is_watch && r.last_held != null
-        ? <span style={{ whiteSpace: "nowrap" }}><b>{usd(r.price)}</b>
-            <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-2xs)", marginLeft: 6 }}
-              title="The price you last sold this at — watching for a re-entry below it">sold {usd(r.last_held)}</span>
-          </span>
-        : <b>{usd(r.price)}</b>
-    ) },
-  { id: "last_pos_profit", label: "Last Pos P/L", align: "left", watchNA: true, render: (r) => <b><Colored v={usd(r.last_pos_profit)} n={r.last_pos_profit} /></b> },
-];
-// Columns always shown (never folded): Price + Last Pos P/L (pinned) plus these two.
-export const ESSENTIAL_DASH_IDS = ["lilo_pct", "pct_of_high"];
-// Default customizable layout (ticker + PINNED_DASH [Price, Last Pos P/L] render before
-// these). The first two are essential (always shown); the rest are FOLDED by default and
-// roll out inline via the table's fold toggle. All remain customizable under Columns.
+// The only mandatory column is Ticker (rendered by the table itself, not in this
+// registry). Every column below — including Price and Last Pos P/L — is movable,
+// removable, and foldable.
+//
+// Default layout (order + which columns show). Ticker renders first; these follow.
 export const DEFAULT_DASH_COLS = [
-  "lilo_pct", "pct_of_high",                                   // essential — always shown
-  "current_value", "unrealized", "day_change", "invested",     // the rest fold in by default
+  "price", "last_pos_profit", "lilo_pct", "pct_of_high",        // shown by default
+  "current_value", "unrealized", "day_change", "invested",     // folded by default (below)
   "basis_per_share", "portfolio_pct", "avg_52wk", "median_52wk",
   "last_pos_cost", "year_profit", "avg_monthly", "year_trades",
 ];
+// Which of the default columns start FOLDED (behind the chevron). Everything after the
+// first four essentials. The user can change this per-column in the Columns manager.
+export const DEFAULT_DASH_FOLDED = [
+  "current_value", "unrealized", "day_change", "invested",
+  "basis_per_share", "portfolio_pct", "avg_52wk", "median_52wk",
+  "last_pos_cost", "year_profit", "avg_monthly", "year_trades",
+];
+// Simple view: holdings-only, a compact fixed set (no folding, no ƒ marks).
+export const SIMPLE_DASH_COLS = ["price", "unrealized", "current_value"];
 
 // ---- ticker drill-down columns (operate on a lot) ----
 export const DETAIL_COLUMN_LIST: DetailCol[] = [
@@ -256,13 +266,18 @@ export function useColumnPrefs(
   storageKey: string,
   defaultIds: string[],
   registryList: { id: string; label: string }[],
+  migrate?: (ids: string[]) => string[], // one-time fixups to a loaded layout (e.g. adopt new registry columns)
 ): ColumnPrefs {
   const valid = new Set(registryList.map((c) => c.id));
-  const sanitize = (arr: unknown): string[] | null => sanitizeColumnIds(arr, valid);
+  const load = (arr: unknown): string[] | null => {
+    const s = sanitizeColumnIds(arr, valid);
+    return s && migrate ? migrate(s) : s;
+  };
+  const sanitize = load;
 
   const [ids, setIds] = useState<string[]>(() => {
     try {
-      const local = sanitize(JSON.parse(localStorage.getItem(storageKey) || "null"));
+      const local = load(JSON.parse(localStorage.getItem(storageKey) || "null"));
       if (local) return local;
     } catch {
       /* ignore corrupt prefs */
@@ -341,4 +356,62 @@ export function useColumnPrefs(
     .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 
   return { ids, add, remove, move, reorder, reset, available };
+}
+
+// ---- fold membership: which columns hide behind the table's chevron ----
+// A separate persisted set (localStorage + DB, same pattern as useColumnPrefs), so the
+// column ORDER and its FOLD state are independent. Stale ids (a removed column) are
+// harmless — the table only folds columns that are actually shown.
+export type FoldPrefs = {
+  folded: Set<string>;
+  isFolded: (id: string) => boolean;
+  toggle: (id: string) => void;
+  reset: () => void;
+};
+
+export function useFoldPrefs(storageKey: string, defaultFolded: string[]): FoldPrefs {
+  const [ids, setIds] = useState<string[]>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(storageKey) || "null");
+      if (Array.isArray(raw)) return raw.filter((x): x is string => typeof x === "string");
+    } catch { /* ignore corrupt prefs */ }
+    return defaultFolded;
+  });
+  const idsRef = useRef(ids);
+  idsRef.current = ids;
+  const dirty = useRef(false);
+
+  const persist = (next: string[]) => {
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* storage disabled */ }
+    fetch(`${API}/prefs/${storageKey}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value: next }),
+    }).catch(() => {});
+  };
+  const update = (fn: (prev: string[]) => string[]) => {
+    const next = fn(idsRef.current);
+    dirty.current = true; idsRef.current = next; setIds(next); persist(next);
+  };
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`${API}/prefs/${storageKey}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive || dirty.current) return;
+        if (Array.isArray(d?.value)) {
+          const v = d.value.filter((x: unknown): x is string => typeof x === "string");
+          idsRef.current = v; setIds(v);
+        }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [storageKey]);
+
+  const folded = new Set(ids);
+  return {
+    folded,
+    isFolded: (id) => folded.has(id),
+    toggle: (id) => update((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id])),
+    reset: () => update(() => defaultFolded),
+  };
 }

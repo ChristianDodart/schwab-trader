@@ -104,8 +104,10 @@ async def _not_trading(account_hash: str) -> bool:
 
 
 async def sell_plan(account_hash: str) -> dict:
-    """Every PROFITABLE last position (the sellable set). `qualifies` marks those
-    whose gain% meets the auto-select threshold. Sell is marketable @ current price."""
+    """EVERY held last position, so the user can manually pick any to sell. `qualifies`
+    marks the profitable ones whose gain% meets the auto-select threshold (those are
+    pre-checked); positions at a loss are returned too, unchecked, with a note. Sell is
+    marketable @ current price."""
     if await _not_trading(account_hash):
         return {"ok": True, "mode": hub.mode, "count": 0, "candidates": [], "note": "account is not trading-enabled"}
     prefs = await get_prefs()
@@ -119,15 +121,20 @@ async def sell_plan(account_hash: str) -> dict:
             continue
         qty = int(_f(last.shares))
         bp = _f(last.buy_price)
-        if qty < 1 or (px - bp) * qty <= _EPS:   # only profitable last positions are sellable here
+        if qty < 1:
             continue
+        profit = (px - bp) * qty
         gain_pct = ((px - bp) / bp * 100) if bp > 0 else 0.0
+        profitable = profit > _EPS
         cands.append({
             "symbol": sym, "lot_id": last.id, "rung": last.rung,
             "shares": qty, "buy_price": round(bp, 2), "price": round(px, 2),
             "order_type": "LIMIT", "limit_price": round(px, 2),
-            "est_proceeds": round(qty * px, 2), "est_profit": round((px - bp) * qty, 2),
-            "gain_pct": round(gain_pct, 2), "qualifies": gain_pct >= min_gain, "note": None,
+            "est_proceeds": round(qty * px, 2), "est_profit": round(profit, 2),
+            # Profitable + meets the gain threshold → auto-qualifies (pre-checked). Every
+            # other holding is still returned so the user can select it manually.
+            "gain_pct": round(gain_pct, 2), "qualifies": profitable and gain_pct >= min_gain,
+            "note": None if profitable else "would sell at a loss",
         })
     cands.sort(key=lambda c: c["est_profit"], reverse=True)
     return {"ok": True, "mode": hub.mode, "count": sum(1 for c in cands if c["qualifies"]), "candidates": cands}

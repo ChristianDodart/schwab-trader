@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { AccountPicker } from "./AccountPicker";
 import { ProfileSwitcher } from "./ProfileSwitcher";
 import { ConnectionStatus } from "./Reauth";
+import { Tip } from "./Tip";
 import { API } from "./api";
 
 export function ProfilePanel({ acctKey, onAccountChange }: {
@@ -46,7 +47,7 @@ function Section({ title, info, children }: { title: string; info?: string; chil
     <section style={S.section}>
       <h3 className="section-title" style={S.h3}>
         {title}
-        {info && <span style={S.infoIcon} title={info}>(i)</span>}
+        {info && <Tip text={info}><span style={S.infoIcon}>(i)</span></Tip>}
       </h3>
       {children}
     </section>

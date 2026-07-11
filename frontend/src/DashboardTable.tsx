@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { pct } from "./App";
-import { DASH_COLUMNS, PINNED_DASH, ESSENTIAL_DASH_IDS, rowSignalChips, tickerRiskColor, RISK_LABEL, ProvenanceLegend, CalcMark } from "./columns";
+import { DASH_COLUMNS, rowSignalChips, tickerRiskColor, RISK_LABEL, ProvenanceLegend, CalcMark } from "./columns";
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
 import type { SignalRule } from "./signals";
@@ -154,8 +154,9 @@ export function DashboardTable({
   working,
   onShowOrders,
   simple = false,
-  folded = true,
-  onToggleFold,
+  foldedCols,
+  collapsed = true,
+  onToggleCollapse,
   tickerAdder,
 }: {
   rows: DashboardRow[];
@@ -170,39 +171,52 @@ export function DashboardTable({
   signalRules?: SignalRule[];
   working?: Record<string, number>;        // symbol → count of resting orders
   onShowOrders?: (symbol: string) => void; // open the Orders tab filtered to it
-  simple?: boolean;                        // decluttered view: only Price pinned, no ƒ marks / legend
-  folded?: boolean;                        // are the extra (foldable) columns collapsed?
-  onToggleFold?: () => void;               // flip the fold (owned by the parent so Reset can re-collapse)
+  simple?: boolean;                        // decluttered view: holdings + a fixed compact set
+  foldedCols?: Set<string>;                // which columns hide behind the chevron (membership)
+  collapsed?: boolean;                     // are the folded columns currently rolled up?
+  onToggleCollapse?: () => void;           // flip the collapse (owned by the parent so Reset can re-collapse)
   tickerAdder?: { value: string; onChange: (v: string) => void; onSubmit: () => void }; // inline add-ticker box in the Ticker header
 }) {
   const defs = cols.map((id) => DASH_COLUMNS[id]).filter(Boolean);
-  // Simple mode pins only Price (drops the always-on Last Pos P/L) for a 4-column grid.
-  const pinned = simple ? PINNED_DASH.filter((c) => c.id === "price") : PINNED_DASH;
 
-  // Column folding: the essential columns always show; the rest roll in/out inline via
-  // a chevron sitting in the header exactly where the next column would appear (right
-  // arrow to reveal, left arrow to collapse). Default folded so the resting table stays
-  // lean. Simple mode disables folding — its short column set is all essential.
-  const essIds = new Set(ESSENTIAL_DASH_IDS);
-  const essDefs = simple ? defs : defs.filter((c) => essIds.has(c.id));
-  const foldDefs = simple ? [] : defs.filter((c) => !essIds.has(c.id));
+  // Column folding: the user chooses (in the Columns manager) which columns are folded
+  // behind the chevron. Folded columns roll in/out inline via a chevron in the header.
+  // Simple mode never folds — its short set is always shown.
+  const isFolded = (id: string) => !simple && !!foldedCols?.has(id);
+  const shownDefs = defs.filter((c) => !isFolded(c.id));
+  const foldDefs = defs.filter((c) => isFolded(c.id));
   const showFoldToggle = !simple && foldDefs.length > 0;
-  const colSpan = 1 /* ticker */ + pinned.length + defs.length + (bulk ? 1 : 0) + (showFoldToggle ? 1 : 0);
-  const toggleFold = () => onToggleFold?.();
+  const colSpan = 1 /* ticker */ + defs.length + (bulk ? 1 : 0) + (showFoldToggle ? 1 : 0);
+  const toggleFold = () => onToggleCollapse?.();
   // The chevron header cell (rendered after the fold columns so it hugs the right edge:
   // when folded the fold columns are 0-width, so it lands right after the essentials).
   const FoldToggleTh = () => (
     <th className="foldtoggle" style={S.foldToggleTh}>
-      <button className="btn btn-ghost btn-sm" style={S.foldToggleBtn} aria-expanded={!folded}
-        aria-label={folded ? `Show ${foldDefs.length} more column${foldDefs.length === 1 ? "" : "s"}` : "Hide the extra columns"}
-        title={folded ? `Show ${foldDefs.length} more column${foldDefs.length === 1 ? "" : "s"}` : "Hide the extra columns"}
+      <button className="btn btn-ghost btn-sm" style={S.foldToggleBtn} aria-expanded={!collapsed}
+        aria-label={collapsed ? `Show ${foldDefs.length} more column${foldDefs.length === 1 ? "" : "s"}` : "Hide the extra columns"}
+        title={collapsed ? `Show ${foldDefs.length} more column${foldDefs.length === 1 ? "" : "s"}` : "Hide the extra columns"}
         onClick={toggleFold}>
-        {folded ? <IconChevronRight size={16} /> : <IconChevronLeft size={16} />}
+        {collapsed ? <IconChevronRight size={16} /> : <IconChevronLeft size={16} />}
       </button>
     </th>
   );
-  const cellFor = (c: DashCol, r: DashboardRow) =>
-    c.watchNA && r.is_watch ? <span style={{ color: "var(--text-faint)" }}>—</span> : c.render(r);
+  // Empty (no "—") for a watch row's position-only columns. On the "% of 52wk High"
+  // column, an ETF child also shows its underlying's % as a small faint aside.
+  const cellFor = (c: DashCol, r: DashboardRow, parent?: DashboardRow | null) => {
+    if (c.watchNA && r.is_watch) return null;
+    const base = c.render(r);
+    if (c.id === "pct_of_high" && parent && parent.pct_of_high != null) {
+      return (
+        <>{base}
+          <span style={S.underlyingChip}
+            title={`Read direction from the underlying — ${parent.symbol} is at ${pct(parent.pct_of_high)} of its 52-week high`}>
+            {parent.symbol} {Math.round(parent.pct_of_high * 100)}%
+          </span>
+        </>
+      );
+    }
+    return base;
+  };
 
   // Click-to-sort: asc → desc → back to the default order. Persisted per browser.
   const [sort, setSort] = useState<SortState>(readSort);
@@ -217,7 +231,7 @@ export function DashboardTable({
   const sortMark = (id: string) => (sort?.id === id ? (sort.dir === -1 ? " ▼" : " ▲") : "");
   const Th = ({ id, label, align, prov, fold }: { id: string; label: string; align?: string; prov?: DashCol["prov"]; fold?: boolean }) => {
     const computed = prov == null;   // undefined = app-calculated → ƒ mark on the header
-    const cls = [align === "left" ? "left" : "", fold ? "foldcol" + (folded ? " folded" : "") : ""].filter(Boolean).join(" ");
+    const cls = [align === "left" ? "left" : "", fold ? "foldcol" + (collapsed ? " folded" : "") : ""].filter(Boolean).join(" ");
     const inner = <>{label}{computed && !simple && <CalcMark />}{sortMark(id)}</>;
     return (
       <th scope="col" className={cls || undefined}
@@ -270,8 +284,7 @@ export function DashboardTable({
               ) : (
                 <Th id="symbol" label="Ticker" align="left" prov="text" />
               )}
-              {pinned.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
-              {essDefs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
+              {shownDefs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
               {foldDefs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} fold />)}
               {showFoldToggle && <FoldToggleTh />}
             </tr>
@@ -329,12 +342,6 @@ export function DashboardTable({
                     <span style={S.tickerLine}>
                       {depth > 0 && <span style={S.childArrow} aria-hidden="true"><IconChildArrow size={13} /></span>}
                       <span style={{ fontWeight: 700, color: tickerRiskColor(r.risk) }} title={r.risk ? RISK_LABEL[r.risk] : undefined}>{r.symbol}</span>
-                      {depth > 0 && parent && parent.pct_of_high != null && (
-                        <span style={S.underlyingChip}
-                          title={`Read direction from the underlying — ${parent.symbol} is at ${pct(parent.pct_of_high)} of its 52-week high`}>
-                          {parent.symbol} {Math.round(parent.pct_of_high * 100)}%
-                        </span>
-                      )}
                       {r.has_note && <NoteDot preview={r.note_preview} />}
                       {r.has_rules && <span style={S.rulesDot} title="Uses its own ticker rules (sell target / dip depth) — open to see or edit them" aria-label="custom rules">◆</span>}
                       {(working?.[r.symbol] ?? 0) > 0 && (
@@ -381,15 +388,12 @@ export function DashboardTable({
                     </span>
                     {isOpen && r.name && <div style={S.name}>{r.name}</div>}
                   </td>
-                  {pinned.map((c) => (
-                    <td key={c.id} style={{ textAlign: c.align }}>{cellFor(c, r)}</td>
-                  ))}
-                  {essDefs.map((c) => (
-                    <td key={c.id} style={{ textAlign: c.align }}>{cellFor(c, r)}</td>
+                  {shownDefs.map((c) => (
+                    <td key={c.id} style={{ textAlign: c.align }}>{cellFor(c, r, parent)}</td>
                   ))}
                   {foldDefs.map((c) => (
-                    <td key={c.id} className={"foldcol" + (folded ? " folded" : "")} style={{ textAlign: c.align }}>
-                      <span className="foldwrap">{cellFor(c, r)}</span>
+                    <td key={c.id} className={"foldcol" + (collapsed ? " folded" : "")} style={{ textAlign: c.align }}>
+                      <span className="foldwrap">{cellFor(c, r, parent)}</span>
                     </td>
                   ))}
                   {showFoldToggle && <td className="foldtoggle" />}

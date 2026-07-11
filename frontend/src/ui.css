@@ -93,6 +93,35 @@
 }
 .gear-host:not(:hover) .gear-reveal:not([aria-expanded="true"]) { transition-delay: 0s; }
 
+/* --- custom tooltip (Tip.tsx): an on-theme description bubble that fades in above
+   its trigger after a 0.5s dwell (same delay as the gear reveal) and hides instantly.
+   Pure-CSS timing, so reduced-motion turns it into an instant show/hide. --- */
+.tip-host { position: relative; display: inline-flex; outline: none; }
+.tip-bubble {
+  position: absolute; bottom: calc(100% + 8px); left: 50%;
+  transform: translateX(-50%) translateY(4px); z-index: var(--z-popover);
+  width: max-content; max-width: 260px; white-space: normal; text-align: left;
+  background: var(--pop); color: var(--text-muted);
+  border: 1px solid var(--border-strong); border-radius: var(--r-md);
+  box-shadow: var(--elev-2), inset 0 1px 0 var(--surface-hi);
+  padding: 8px 10px; font-size: var(--fs-xs); font-weight: var(--fw-normal);
+  line-height: 1.45; letter-spacing: 0; text-transform: none;
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity var(--dur-base) var(--ease-out),
+              transform var(--dur-base) var(--ease-out),
+              visibility var(--dur-base);
+}
+.tip-bubble::after { /* downward arrow */
+  content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: var(--border-strong);
+}
+.tip-host:hover .tip-bubble,
+.tip-host:focus-visible .tip-bubble {
+  opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0);
+  transition-delay: 0.5s;
+}
+.tip-host:not(:hover) .tip-bubble { transition-delay: 0s; }
+
 /* --- nav tabs --- */
 .navtab {
   background: transparent; color: var(--text-dim); border: 1px solid transparent;

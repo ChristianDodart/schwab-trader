@@ -3,6 +3,21 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.43.0 — "Columns, your way"
+
+- **The Columns manager now controls folding.** Each column has a chevron toggle — fold it behind
+  the table's chevron, or keep it always shown. Mix and match however you like; your choice is saved.
+- **Every column is movable now, including Price and Last Pos P/L.** The only column you can't move or
+  remove is the Ticker. Your default layout is unchanged — Price and Last Pos P/L still lead.
+- **Simple is now a view pill** next to All, To-Do, and Top 10 — one click to switch, and it sticks.
+- **Bulk Sell is always available.** Profitable positions are still pre-checked, but you can open it any
+  time and manually pick any holding to sell — even one that isn't in profit yet.
+- **A leveraged ETF's underlying % of 52-week high** now shows as a small aside on the "% of 52wk High"
+  column (like Price's "sold $x"), instead of a chip beside the ticker.
+- **Empty values are simply empty** — the "—" placeholder is gone.
+- **Nicer hover descriptions.** The little "(i)" and "ƒ" descriptions now fade in as a soft, on-theme
+  bubble after a brief pause, instead of the abrupt system tooltip.
+
 ## v0.42.0 — "Demo mode"
 
 - **A "Demo" button in the header** (next to the market-hours badge) brings the dashboard to

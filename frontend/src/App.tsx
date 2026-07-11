@@ -9,7 +9,7 @@ import { matchesRule, type SignalRule } from "./signals";
 import { BulkGear, BulkReviewModal, useBulk } from "./Bulk";
 import { ColumnManager } from "./ColumnManager";
 import { ConfirmDialog } from "./Modal";
-import { DASH_COLUMNS, DASH_COLUMN_LIST, DEFAULT_DASH_COLS, useColumnPrefs } from "./columns";
+import { DASH_COLUMNS, DASH_COLUMN_LIST, DEFAULT_DASH_COLS, DEFAULT_DASH_FOLDED, SIMPLE_DASH_COLS, useColumnPrefs, useFoldPrefs } from "./columns";
 import { KpiPicker, useKpiPrefs, visibleKpis } from "./kpis";
 import { CountUp } from "./anim";
 import { useDemoFeed } from "./demo";
@@ -53,7 +53,16 @@ export function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [symQuery, setSymQuery] = useState("");        // Ctrl+F find-bar filter (by ticker)
   const [findOpen, setFindOpen] = useState(false);     // browser-style find bar (hidden until Ctrl+F)
-  const [dashSub, setDashSub] = useState<"all" | "todo" | "top">("all");
+  // Dashboard view pill: All / To-Do / Top 10 / Simple. Persisted so it sticks.
+  type DashSub = "all" | "todo" | "top" | "simple";
+  const [dashSub, setDashSubRaw] = useState<DashSub>(() => {
+    try { const v = localStorage.getItem("dash.sub.v1"); return (v === "todo" || v === "top" || v === "simple") ? v : "all"; }
+    catch { return "all"; }
+  });
+  const setDashSub = (v: DashSub) => {
+    setDashSubRaw(v);
+    try { localStorage.setItem("dash.sub.v1", v); } catch { /* private mode */ }
+  };
   const symInputRef = useRef<HTMLInputElement>(null);
   const gPending = useRef(false); // "g" prefix for vim-style tab jumps (g then d/s/l/o/r)
   const [cashInfo, setCashInfo] = useState<{ cash: number | null; buying_power: number | null; margin_buying_power: number | null } | null>(null);
@@ -62,18 +71,19 @@ export function App() {
   const [addSym, setAddSym] = useState("");
   const [watchTicket, setWatchTicket] = useState<Suggestion | null>(null);
   const [alertPrefill, setAlertPrefill] = useState<AlertPrefill | null>(null);
-  const dashCols = useColumnPrefs("dash.cols.v1", DEFAULT_DASH_COLS, DASH_COLUMN_LIST);
-  // Simple mode: a decluttered dashboard for casual use — holdings only, four essential
-  // columns, no sector bar / bulk tools / toolbar / ƒ marks. Opt-in, persisted per device.
-  const [simple, setSimple] = useState<boolean>(() => {
-    try { return localStorage.getItem("dash.simple.v1") === "1"; } catch { return false; }
-  });
-  const toggleSimple = () => setSimple((s) => {
-    const n = !s;
-    try { localStorage.setItem("dash.simple.v1", n ? "1" : "0"); } catch { /* private mode */ }
-    return n;
-  });
-  // Column-fold state lives here (not in DashboardTable) so a Columns → Reset can also
+  // Migrate pre-v0.43 layouts: Price + Last Pos P/L used to be pinned (not in the saved
+  // list). If a saved layout has neither, they're a legacy layout — prepend them so those
+  // columns don't vanish. New layouts (which include at least one) are left untouched.
+  const dashCols = useColumnPrefs(
+    "dash.cols.v1", DEFAULT_DASH_COLS, DASH_COLUMN_LIST,
+    (ids) => (ids.includes("price") || ids.includes("last_pos_profit")) ? ids : ["price", "last_pos_profit", ...ids],
+  );
+  // Which columns are folded behind the chevron (membership, persisted + editable in
+  // the Columns manager) — independent of column order.
+  const dashFold = useFoldPrefs("dash.fold.cols.v1", DEFAULT_DASH_FOLDED);
+  // Simple mode is now the "Simple" dashboard pill (holdings only, a compact fixed set).
+  const simple = dashSub === "simple";
+  // Column-collapse state lives here (not in DashboardTable) so a Columns → Reset can also
   // re-collapse the extra columns — otherwise Reset can leave the chevron scrolled off
   // the right edge of a wide, expanded table.
   const [dashFolded, setDashFolded] = useState<boolean>(() => {
@@ -110,7 +120,7 @@ export function App() {
   // Simple mode shows real holdings only (no watchlist rows) and a fixed essentials
   // column set. Ticker + Price are always rendered; these are the extra columns.
   const holdingsRows = (shown?.rows ?? []).filter((r) => !r.is_watch);
-  const SIMPLE_COLS = ["unrealized", "current_value"];
+  const SIMPLE_COLS = SIMPLE_DASH_COLS;
 
   // One-time "you just updated" toast: compare the running version to the last one we saw.
   // Only fires when it actually changed (not on a fresh install), then records the new one.
@@ -439,9 +449,6 @@ export function App() {
             </span>
           ) : (
             <span style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-              <button className={`btn btn-sm ${simple ? "btn-primary" : "btn-secondary"}`} aria-pressed={simple}
-                title={simple ? "Switch back to the full advanced view" : "Simplify the dashboard — your holdings and the essentials only"}
-                onClick={toggleSimple}>{simple ? "Simple ✓" : "Simple view"}</button>
               {!simple && <>
               {/* Buy/Sell each carry a hover-reveal gear (hover the button ~0.5s → a small
                   settings gear slides out to its right). Exit has no gear and no count. */}
@@ -454,8 +461,10 @@ export function App() {
                 <BulkGear kind="buy" revealClass="gear-reveal" />
               </span>
               <span className="gear-host">
-                <button className="btn btn-secondary" disabled={bulk.sellCount === 0}
-                  title="Bulk sell: harvest the profitable last position on each holding, at the current price"
+                {/* Always pressable — enter sell selection and pick any holding to sell,
+                    even ones that aren't yet profitable. The count is the profitable set. */}
+                <button className="btn btn-secondary"
+                  title="Bulk sell: profitable last positions are pre-checked — or manually select any holding to sell at the current price"
                   onClick={() => { setSelected(null); bulk.start("sell"); }}>
                   Bulk Sell · {bulk.sellCount}
                 </button>
@@ -509,16 +518,14 @@ export function App() {
                     Settings → Schwab connection.
                   </p>
                 )}
-                {!simple && (
-                  <div style={S.dashSubtabs} role="tablist" aria-label="Dashboard views">
-                    {([["all", "All"], ["todo", "To-Do"], ["top", "Top 10"]] as const).map(([k, label]) => (
-                      <button key={k} role="tab" aria-selected={dashSub === k} className="btn btn-sm"
-                        style={dashSub === k ? S.subActive : S.subIdle} onClick={() => setDashSub(k)}>
-                        {label}{k === "todo" && todoRows.length ? ` · ${todoRows.length}` : ""}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <div style={S.dashSubtabs} role="tablist" aria-label="Dashboard views">
+                  {([["all", "All"], ["todo", "To-Do"], ["top", "Top 10"], ["simple", "Simple"]] as const).map(([k, label]) => (
+                    <button key={k} role="tab" aria-selected={dashSub === k} className="btn btn-sm"
+                      style={dashSub === k ? S.subActive : S.subIdle} onClick={() => setDashSub(k)}>
+                      {label}{k === "todo" && todoRows.length ? ` · ${todoRows.length}` : ""}
+                    </button>
+                  ))}
+                </div>
                 {dashSub === "top" && !simple ? (
                   <Top10 rows={shown?.rows ?? data.rows} onSelect={(sym) => setSelected(sym === selected ? null : sym)} />
                 ) : (
@@ -534,7 +541,7 @@ export function App() {
                           {/* align right so the popover opens leftward (never off-screen);
                               Reset also re-collapses the extra columns so the chevron stays visible. */}
                           <ColumnManager prefs={dashCols} labelOf={(id) => DASH_COLUMNS[id]?.label ?? id}
-                            align="right" onReset={() => setFold(true)} />
+                            align="right" fold={dashFold} onReset={() => { setFold(true); dashFold.reset(); }} />
                         </span>
                       </div>
                     )}
@@ -550,8 +557,9 @@ export function App() {
                         rows={simple ? holdingsRows : (dashSub === "todo" ? todoRows : dashRows)}
                         cols={simple ? SIMPLE_COLS : dashCols.ids}
                         simple={simple}
-                        folded={dashFolded}
-                        onToggleFold={toggleDashFold}
+                        foldedCols={dashFold.folded}
+                        collapsed={dashFolded}
+                        onToggleCollapse={toggleDashFold}
                         tickerAdder={!simple && dashSub === "all" && !bulk.kind
                           ? { value: addSym, onChange: setAddSym, onSubmit: addTicker }
                           : undefined}
