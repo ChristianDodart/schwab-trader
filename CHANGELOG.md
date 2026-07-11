@@ -3,6 +3,21 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.51.0 — "The ledger, pinned"
+
+- **Trade fees and margin interest now sync live from Schwab.** They used to arrive only when you
+  imported a Transactions CSV, so the cash cross-check drifted by exactly the fees of every trade
+  since the last import. Now one hourly pull keeps deposits, dividends, fees, and margin interest
+  current automatically — the identity stays pinned continuously, not just at import time.
+- **A verification verdict on the Ledger itself.** The Historic tab now opens with a reconciliation
+  strip: green "Verified against Schwab" when every position matches share-for-share and the cash
+  identity closes, or a specific list of what differs (with the full report still under
+  Settings → Data health & import). No more wondering whether the numbers are right.
+- **The manual "pull from Schwab" buttons now sync everything** (transfers, dividends, fees,
+  interest) in a single call instead of one slice each.
+- CSV re-imports remain exact no-ops — both sources compute identical numbers from the same Schwab
+  records, verified by tests either direction (pull-then-import and import-then-pull).
+
 ## v0.50.0 — "The cursor behaves"
 
 - **The text "I-beam" cursor now appears only where you actually type** — search boxes, amount fields,

@@ -20,6 +20,15 @@ type Benchmark = {
 };
 type DivRow = { day: string; amount: number; symbol: string | null; type?: string; schwab_txn_id?: string | null };
 type Dividends = { rows: DivRow[]; summary: { total: number; ytd: number | null; year: number | null; count: number } };
+type HealthReport = {
+  ok: boolean;
+  positions_checked: boolean;
+  positions_total: number | null;
+  position_diffs: { symbol: string }[];
+  basis_diffs: { symbol: string; count_matches: boolean }[];
+  cash_check: { residual: number; residual_pct_of_flow: number; expected_cash: number } | null;
+  fill_ledger?: { total: number };
+};
 
 const pillBtn = (active: boolean): React.CSSProperties => ({
   background: active ? "var(--accent-fill)" : "transparent",
@@ -179,6 +188,8 @@ export function LedgerHistoric() {
       <PrintSummary h={h} bench={bench} div={div} />
 
       <ProvenanceLegend />
+
+      <ReconciliationCard />
 
       {/* ---- Right now (live, point-in-time) ---- */}
       <div style={S.panelHead}>
@@ -430,6 +441,87 @@ export function LedgerHistoric() {
 // "If it were all SPY": what the same dated deposits would be worth in the benchmark,
 // with the value tinted by whether the active strategy is ahead of (green) or behind
 // (red) simply holding the index.
+// Reconciliation verdict — the "is this accurate?" answer, right where the numbers
+// live. Runs the same checks as Settings → Data health (share counts vs Schwab, cost
+// basis, the global cash identity) and reduces them to one strip: green when
+// everything closes, amber with specifics when it doesn't, quiet when Schwab is
+// unreachable. Fetched once per Ledger visit.
+function ReconciliationCard() {
+  const [h, setH] = useState<HealthReport | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  const check = useCallback(() => {
+    setH(null); setFailed(false);
+    fetch(`${API}/data/health`)
+      .then((r) => r.json())
+      .then((j) => (j?.ok ? setH(j) : setFailed(true)))
+      .catch(() => setFailed(true));
+  }, []);
+  useEffect(() => { check(); }, [check]);
+
+  if (failed) return null;                     // no report, no noise — Data health still exists
+  if (!h) {
+    return <div style={RC.strip}><span style={RC.quietDot} /><span style={RC.quietText}>Verifying against Schwab…</span></div>;
+  }
+  if (!h.positions_checked) {
+    return (
+      <div style={RC.strip}>
+        <span style={RC.quietDot} />
+        <span style={RC.quietText}>Couldn't verify against Schwab right now — showing the stored ledger.</span>
+      </div>
+    );
+  }
+
+  const posDiffs = h.position_diffs?.length ?? 0;
+  const basisGaps = (h.basis_diffs ?? []).filter((b) => !b.count_matches);
+  const cc = h.cash_check;
+  // Same materiality rule as the health report's recommendation: a residual matters
+  // past $100 or 1% of expected cash, whichever is larger.
+  const residualBad = !!cc && Math.abs(cc.residual) > Math.max(100, 0.01 * Math.abs(cc.expected_cash || 0));
+  const good = posDiffs === 0 && basisGaps.length === 0 && !residualBad;
+
+  const issues: string[] = [];
+  if (posDiffs) issues.push(`${posDiffs} position${posDiffs === 1 ? "" : "s"} differ from Schwab`);
+  if (basisGaps.length) issues.push(`cost basis differs on ${basisGaps.map((b) => b.symbol).join(", ")}`);
+  if (residualBad && cc) issues.push(`cash identity off by ${usd(Math.abs(cc.residual))}`);
+
+  return (
+    <div style={{ ...RC.strip, ...(good ? RC.stripGood : RC.stripWarn) }}>
+      <span style={{ ...RC.dot, background: good ? "var(--pos)" : "var(--warn)" }} />
+      {good ? (
+        <span style={RC.text}>
+          <b style={{ color: "var(--text)" }}>Verified against Schwab</b>
+          {h.positions_total != null && <> — all {h.positions_total} position{h.positions_total === 1 ? "" : "s"} match share-for-share</>}
+          {cc && <> · cash identity closes within {usd(Math.abs(cc.residual))} ({cc.residual_pct_of_flow}% of traded dollars)</>}
+        </span>
+      ) : (
+        <span style={RC.text}>
+          <b style={{ color: "var(--text)" }}>Needs attention</b> — {issues.join(" · ")}.
+          {" "}Details under Settings → Data health &amp; import.
+        </span>
+      )}
+      <button className="btn btn-ghost btn-sm" onClick={check} title="Re-run the verification against Schwab" style={{ marginLeft: "auto", flexShrink: 0 }}>
+        <IconRefresh size={13} />
+      </button>
+    </div>
+  );
+}
+
+const RC: Record<string, React.CSSProperties> = {
+  strip: {
+    display: "flex", alignItems: "center", gap: 9,
+    padding: "8px 12px", margin: "0 0 14px",
+    background: "var(--panel)", border: "1px solid var(--border)",
+    borderRadius: "var(--r-md)", fontSize: "var(--fs-xs)",
+  },
+  stripGood: { borderColor: "color-mix(in srgb, var(--pos) 35%, var(--border))" },
+  stripWarn: { borderColor: "var(--warn-border)", background: "var(--warn-bg)" },
+  dot: { width: 8, height: 8, borderRadius: "var(--r-pill)", flexShrink: 0 },
+  quietDot: { width: 8, height: 8, borderRadius: "var(--r-pill)", flexShrink: 0, background: "var(--text-faint)" },
+  quietText: { color: "var(--text-dim)" },
+  text: { color: "var(--text-muted)", lineHeight: 1.45 },
+};
+
 function BenchmarkCard({ b }: { b: Benchmark }) {
   const yours = b.your_value ?? 0;
   const idx = b.benchmark_value ?? 0;

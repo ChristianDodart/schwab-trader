@@ -221,7 +221,8 @@ async def data_health() -> dict:
                                "income": round(income, 2),
                                "other_cash": round(other_cash, 2),
                                "margin_debt": round(float(ms.get("debt") or 0.0), 2)},
-                "caveats": "remaining blind spots: activity newer than the last import "
+                "caveats": "fees, interest, dividends, and transfers auto-sync from Schwab "
+                           "(hourly); remaining blind spots: history older than any import "
                            "and same-day settlement timing",
             }
     except Exception as e:
@@ -261,5 +262,6 @@ async def data_health() -> dict:
         "basis_diffs": basis_diffs,
         "cash_check": cash_check,
         "positions_checked": positions is not None,
+        "positions_total": len(positions) if positions is not None else None,
         "recommendations": recs,
     }

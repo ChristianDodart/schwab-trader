@@ -69,6 +69,7 @@ from .income import (
     list_cashflows,
     refresh_cashflows_from_schwab,
     refresh_dividends,
+    sync_activity,
 )
 from .settings_store import (
     _ETF_LINKS_KEY,

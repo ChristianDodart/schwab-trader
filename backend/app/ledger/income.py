@@ -9,6 +9,7 @@ from datetime import date
 
 from sqlalchemy import select
 
+from .. import activity as activity_mod
 from ..db import SessionLocal, dialect_insert as pg_insert
 from ..db.models import AppSetting, CashFlow
 from ._shared import _f, _parse_csv_date, _parse_date, _parse_money, _today
@@ -113,55 +114,52 @@ async def import_other_cash_csv(account_hash: str, csv_text: str) -> dict:
         fresh.append({"day": d.isoformat(), "amount": round(amt, 2), "type": action.upper()[:32]})
 
     existing = (await get_other_cash(account_hash))["rows"]
-    # TRADE FEES rows are per-day AGGREGATES, so a newer export with more trades on a
-    # boundary day changes the day's sum — REPLACE the file's coverage rather than
-    # dedup (the file is authoritative for its range, same rule as fills). `added`
-    # reports only the NET difference so a same-file re-import reads as a no-op.
-    removed_fees: Counter = Counter()
-    if day_min and day_max:
-        lo, hi = day_min.isoformat(), day_max.isoformat()
-        kept_existing = []
-        for r in existing:
-            if r.get("type") == "TRADE FEES" and lo <= str(r.get("day")) <= hi:
-                removed_fees[(r.get("day"), r.get("amount"))] += 1
-            else:
-                kept_existing.append(r)
-        existing = kept_existing
+    # TRADE FEES rows are per-day AGGREGATES (a newer export with more trades on a
+    # boundary day changes the day's sum) and MARGIN INTEREST is also live-pulled from
+    # the API with possibly different day stamps — so for BOTH types the file REPLACES
+    # its coverage rather than deduping row-by-row (authoritative for its range, same
+    # rule as fills; see activity.REPLACE_TYPES). `added` reports only the NET
+    # difference so a same-file re-import reads as a no-op.
     fee_rows = [{"day": day, "amount": round(-total, 2), "type": "TRADE FEES"}
                 for day, total in sorted(fee_by_day.items())]
-    new_fee_count = 0
-    _rf = Counter(removed_fees)
-    for r in fee_rows:
-        if _rf.get((r["day"], r["amount"]), 0) > 0:
-            _rf[(r["day"], r["amount"])] -= 1
-        else:
-            new_fee_count += 1
+    replace_fresh = fee_rows + [r for r in fresh if r["type"] in activity_mod.REPLACE_TYPES]
+    other_fresh = [r for r in fresh if r["type"] not in activity_mod.REPLACE_TYPES]
+    net_replaced = 0
+    removed_any = False
+    if day_min and day_max:
+        n_before = len(existing)
+        existing, net_replaced = activity_mod.merge_window_rows(
+            existing, replace_fresh, day_min.isoformat(), day_max.isoformat())
+        removed_any = len(existing) - len(replace_fresh) != n_before
 
     seen = Counter((r.get("day"), r.get("amount"), r.get("type")) for r in existing)
     added = []
-    for r in fresh:
+    for r in other_fresh:
         k = (r["day"], r["amount"], r["type"])
         if seen.get(k, 0) > 0:
             seen[k] -= 1
             continue
         added.append(r)
-    if added or fee_rows or removed_fees:
-        merged = existing + added + fee_rows
-        # Cap the blob (a JSON app_setting row, loaded whole on every cash check).
-        # 10k rows ≈ 25 years of daily fees+misc; beyond that trim the OLDEST days —
-        # ancient rows matter least to a cash identity dominated by recent activity.
-        if len(merged) > _OTHER_CASH_MAX_ROWS:
-            merged.sort(key=lambda r: str(r.get("day") or ""))
-            merged = merged[len(merged) - _OTHER_CASH_MAX_ROWS:]
-        payload = _json.dumps(merged)
-        async with SessionLocal() as s:
-            await s.execute(
-                pg_insert(AppSetting).values(key=_OTHER_CASH_KEY + account_hash, value=payload)
-                .on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": payload})
-            )
-            await s.commit()
-    return {"ok": True, "added": len(added) + new_fee_count, "parsed": len(fresh),
+    if added or replace_fresh or removed_any:
+        await _save_other_cash(account_hash, existing + added)
+    return {"ok": True, "added": len(added) + net_replaced, "parsed": len(fresh),
             "fees_captured": round(sum(fee_by_day.values()), 2)}
+
+
+async def _save_other_cash(account_hash: str, merged: list[dict]) -> None:
+    """Persist the other-cash JSON blob, capped. 10k rows ≈ 25 years of daily
+    fees+misc; beyond that trim the OLDEST days — ancient rows matter least to a
+    cash identity dominated by recent activity."""
+    if len(merged) > _OTHER_CASH_MAX_ROWS:
+        merged.sort(key=lambda r: str(r.get("day") or ""))
+        merged = merged[len(merged) - _OTHER_CASH_MAX_ROWS:]
+    payload = _json.dumps(merged)
+    async with SessionLocal() as s:
+        await s.execute(
+            pg_insert(AppSetting).values(key=_OTHER_CASH_KEY + account_hash, value=payload)
+            .on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": payload})
+        )
+        await s.commit()
 
 
 async def import_dividends_csv(account_hash: str, csv_text: str) -> dict:
@@ -217,13 +215,14 @@ async def import_dividends_csv(account_hash: str, csv_text: str) -> dict:
     return {"ok": True, "added": added, "parsed": len(fresh), "total": dividends_mod.summarize(merged)["total"]}
 
 
-async def refresh_dividends(account_hash: str) -> dict:
-    """Pull the trailing-60-day dividend window from Schwab and merge it into the stored
-    log (idempotent). Returns {ok, added, total} or {ok: False, error} — never wipes the
-    log on a failed/blocked pull."""
+async def refresh_dividends(account_hash: str, rows: list[dict] | None = None) -> dict:
+    """Merge the trailing-60-day dividend window into the stored log (idempotent).
+    Fetches from Schwab unless ``rows`` is provided (sync_activity passes pre-parsed
+    rows so one transactions call feeds every consumer). Returns {ok, added, total} or
+    {ok: False, error} — never wipes the log on a failed/blocked pull."""
     from .. import accounts as accounts_svc
 
-    fresh = await accounts_svc.fetch_dividends(account_hash)
+    fresh = rows if rows is not None else await accounts_svc.fetch_dividends(account_hash)
     if fresh is None:
         return {"ok": False, "error": "Couldn't reach Schwab for transactions (or not connected)."}
     existing = (await get_dividends(account_hash))["rows"]
@@ -293,13 +292,16 @@ async def delete_cashflow(account_hash: str, cf_id: int) -> dict:
     return {"ok": True}
 
 
-async def refresh_cashflows_from_schwab(account_hash: str) -> dict:
-    """Pull the trailing 60 days of transfers from Schwab and insert any not already
-    logged (deduped by schwab_txn_id → idempotent). None from Schwab = leave the log
-    untouched (never wipe on a transient error)."""
+async def refresh_cashflows_from_schwab(account_hash: str,
+                                         transfers: list[dict] | None = None) -> dict:
+    """Insert any trailing-60-day transfers not already logged (deduped by
+    schwab_txn_id → idempotent). Fetches from Schwab unless ``transfers`` is provided
+    (sync_activity passes pre-parsed rows). None from Schwab = leave the log untouched
+    (never wipe on a transient error)."""
     from .. import accounts as accounts_svc
 
-    transfers = await accounts_svc.fetch_transfers(account_hash)
+    if transfers is None:
+        transfers = await accounts_svc.fetch_transfers(account_hash)
     if transfers is None:
         return {"ok": False, "error": "Schwab transactions unavailable", "added": 0, "window_days": 60}
     added = 0
@@ -332,6 +334,69 @@ async def refresh_cashflows_from_schwab(account_hash: str) -> dict:
                 added += 1
         await s.commit()
     return {"ok": True, "added": added, "window_days": 60}
+
+
+# ===================== consolidated activity sync =====================
+
+_ACTIVITY_SYNC_KEY = "activity_sync_at:"   # + account_hash → ISO time of last good sync
+_ACTIVITY_SYNC_TTL_S = 3600                # opportunistic syncs at most hourly
+
+
+async def sync_activity(account_hash: str, force: bool = False) -> dict:
+    """ONE Schwab transactions fetch feeding every consumer: transfers → deposit log,
+    dividends → income log, trade fees + margin interest → other-cash log. This is what
+    keeps the cash identity pinned CONTINUOUSLY instead of only at CSV-import time —
+    fees and interest used to arrive solely via CSV, so the identity drifted between
+    imports by exactly the fees of every trade since.
+
+    Throttled (hourly) unless ``force`` — the Ledger calls it opportunistically on
+    load, the manual refresh buttons force it. Failure leaves every log untouched."""
+    from datetime import datetime, timedelta, timezone
+
+    from .. import accounts as accounts_svc
+    from .. import dividends as dividends_mod
+
+    if not force:
+        stamp = await accounts_svc.get_setting(_ACTIVITY_SYNC_KEY + account_hash)
+        if stamp:
+            try:
+                age = datetime.now(timezone.utc) - datetime.fromisoformat(stamp)
+                if age < timedelta(seconds=_ACTIVITY_SYNC_TTL_S):
+                    return {"ok": True, "throttled": True, "synced_at": stamp}
+            except ValueError:
+                pass
+
+    raw = await accounts_svc.fetch_transactions_raw(account_hash)
+    if raw is None:
+        return {"ok": False, "error": "Couldn't reach Schwab for transactions (or not connected)."}
+
+    transfers = await refresh_cashflows_from_schwab(
+        account_hash, transfers=accounts_svc.parse_transfers(raw))
+    divs = await refresh_dividends(account_hash, rows=dividends_mod.parse_dividends(raw))
+
+    # Fees + margin interest: the feed is authoritative for its trailing window, so
+    # REPLACE those row types across it (see activity.REPLACE_TYPES). The window is
+    # widened to any day the parse actually produced, so an Eastern-shifted boundary
+    # row can never land outside its own replacement range and duplicate a CSV row.
+    fresh = activity_mod.parse_trade_fees(raw) + activity_mod.parse_margin_interest(raw)
+    today = _today()
+    lo, hi = (today - timedelta(days=60)).isoformat(), today.isoformat()
+    for r in fresh:
+        lo, hi = min(lo, r["day"]), max(hi, r["day"])
+    existing = (await get_other_cash(account_hash))["rows"]
+    n_before = len(existing)
+    merged, net_new = activity_mod.merge_window_rows(existing, fresh, lo, hi)
+    if net_new or len(merged) != n_before:
+        await _save_other_cash(account_hash, merged)
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await accounts_svc.set_setting(_ACTIVITY_SYNC_KEY + account_hash, now_iso)
+    return {"ok": True, "synced_at": now_iso,
+            "transfers_added": transfers.get("added", 0),
+            "dividends_added": divs.get("added", 0),
+            "dividends_total": divs.get("total"),
+            "fees_interest_changed": net_new,
+            "window_days": 60}
 
 
 # ----- CSV import (Schwab "Transactions" export) -----

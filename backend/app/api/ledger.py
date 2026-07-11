@@ -2,12 +2,16 @@
 positions rollup, and the daily balance snapshot pair."""
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Response
 from pydantic import BaseModel
 
 from .. import accounts as accounts_svc
 from .. import ledger as ledger_svc
 from ..main import CsvImportBody, _csv_response, _selected
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -41,8 +45,17 @@ async def ledger_tax() -> dict:
 async def ledger_historic(start: str | None = None, end: str | None = None) -> dict:
     """FACT tab: live balances + realized/contributions/series scoped to [start,end]
     (both omitted = all-time)."""
+    acct = await _selected()
+    # Opportunistic (hourly-throttled) activity sync so deposits, dividends, trade
+    # fees, and margin interest stay current WITHOUT a manual pull — this is what
+    # keeps the cash identity pinned between CSV imports. Best-effort: a failure
+    # (offline, no token) must never block the ledger itself.
+    try:
+        await ledger_svc.sync_activity(acct)
+    except Exception as e:
+        log.warning(f"[ledger] opportunistic activity sync failed: {e!r}")
     return await ledger_svc.build_historic(
-        await _selected(), ledger_svc._parse_date(start), ledger_svc._parse_date(end)
+        acct, ledger_svc._parse_date(start), ledger_svc._parse_date(end)
     )
 
 
@@ -122,8 +135,12 @@ async def ledger_dividends() -> dict:
 
 @router.post("/api/ledger/dividends/refresh")
 async def ledger_dividends_refresh() -> dict:
-    """Pull the trailing-60-day dividend window from Schwab and merge it in (idempotent)."""
-    return await ledger_svc.refresh_dividends(await _selected())
+    """Force a full activity sync (one Schwab call: dividends + transfers + fees +
+    margin interest) and report the dividend part in the shape the button expects."""
+    r = await ledger_svc.sync_activity(await _selected(), force=True)
+    if not r.get("ok"):
+        return r
+    return {"ok": True, "added": r.get("dividends_added", 0), "total": r.get("dividends_total")}
 
 
 @router.get("/api/ledger/dividends.csv")
@@ -177,8 +194,13 @@ async def ledger_delete_cashflow(cf_id: int) -> dict:
 
 @router.post("/api/ledger/cashflows/refresh")
 async def ledger_refresh_cashflows() -> dict:
-    """Pull the trailing 60 days of transfers from Schwab (idempotent upsert)."""
-    return await ledger_svc.refresh_cashflows_from_schwab(await _selected())
+    """Force a full activity sync (one Schwab call: transfers + dividends + fees +
+    margin interest) and report the transfer part in the shape the button expects."""
+    r = await ledger_svc.sync_activity(await _selected(), force=True)
+    if not r.get("ok"):
+        return {"ok": False, "error": r.get("error", "Schwab transactions unavailable"),
+                "added": 0, "window_days": 60}
+    return {"ok": True, "added": r.get("transfers_added", 0), "window_days": 60}
 
 
 @router.post("/api/ledger/cashflows/import")
