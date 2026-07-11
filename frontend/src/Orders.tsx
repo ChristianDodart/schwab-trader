@@ -103,8 +103,7 @@ export function Orders({ initialFilter }: { initialFilter?: string } = {}) {
             <thead>
               <tr>{["Entered", "Symbol", "Side", "Qty", "Filled", "Type", "Price", "P/L", "Status", ""].map((h, i) => (
                 <th scope="col" key={h || "act"} className={i <= 1 ? "left" : ""}
-                  title={h === "P/L" ? "Realized profit on a filled sell — calculated by the app (LIFO), not provided by Schwab" : undefined}
-                  style={h === "P/L" ? { borderBottom: "1px dotted var(--text-faint)" } : undefined}>{h}</th>
+                  title={h === "P/L" ? "Realized profit on a filled sell — calculated by the app (LIFO), not provided by Schwab" : undefined}>{h}</th>
               ))}</tr>
             </thead>
             <tbody>
@@ -121,7 +120,7 @@ export function Orders({ initialFilter }: { initialFilter?: string } = {}) {
                     <td style={{ textAlign: "right" }}>{o.filled}</td>
                     <td style={{ textAlign: "right" }}>{o.type}</td>
                     <td style={{ textAlign: "right" }}>{o.price ? usd(o.price) : "—"}</td>
-                    <td style={{ textAlign: "right", borderBottom: "1px dotted var(--border)" }}
+                    <td style={{ textAlign: "right" }}
                       title={o.realized_pl != null ? "App-calculated realized profit (LIFO)" : undefined}>
                       {o.realized_pl != null
                         ? <b style={{ color: o.realized_pl >= 0 ? "var(--pos)" : "var(--neg)" }}>

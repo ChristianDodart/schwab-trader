@@ -109,7 +109,8 @@ export function LiveStatusPill() {
     + (s.latency_ms ? ` · ${s.latency_ms}ms` : "") + " — click to re-check";
   return (
     <button className="pill" title={tip} onClick={() => load(true)} disabled={checking}
-      style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: "1px solid var(--border)" }}>
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent",
+        border: "1px solid var(--border)", color: "var(--text-muted)", fontFamily: "inherit" }}>
       <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
       {checking ? "Checking…" : label}
     </button>

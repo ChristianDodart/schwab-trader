@@ -3,6 +3,21 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.39.1 — "Dashboard sort + tidy-ups"
+
+- **Dashboard sorts by Last Pos P/L by default.** Biggest winners at the top, descending;
+  then the losers (biggest loss first); watchlist tickers sit at the very bottom. (Click
+  any column header to sort by it instead; a third click returns to this default.)
+- **Watchlist rows lost the eye.** Since a watched ticker already has no P/L number and a
+  remove button, the eye was redundant — gone. The "sold $x" price stays next to the live
+  price.
+- **Remove (×) buttons line up.** The × on every watchlist row now sits at the same spot,
+  so they form a clean column.
+- **"Live" is readable again** — it was rendering in a near-black system color; now it uses
+  the normal muted text color.
+- **Removed the leftover dotted underlines** on the Orders "P/L" column (and the position
+  detail's realized figure) — a holdover from the old app-calculated marker.
+
 ## v0.39.0 — "Cleaner watch rows + more finish"
 
 - **Watchlist rows read cleaner.** The wordy "WATCH · LAST $x" tag is now a quiet little

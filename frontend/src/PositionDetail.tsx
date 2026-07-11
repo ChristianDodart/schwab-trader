@@ -550,7 +550,7 @@ const LS: Record<string, React.CSSProperties> = {
   chips: { display: "flex", gap: 6, flexWrap: "wrap" },
   chip: { fontSize: "var(--fs-2xs)", color: "var(--text-muted)", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--r-sm)", padding: "2px 7px" },
   est: { display: "flex", gap: 18, flexWrap: "wrap", marginTop: 8, fontSize: "var(--fs-sm)", color: "var(--text-muted)" },
-  computed: { borderBottom: "1px dotted var(--text-faint)" },
+  computed: { cursor: "help" },
 };
 
 const signColor = (n: number | null | undefined) =>

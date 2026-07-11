@@ -4,7 +4,7 @@ import { DASH_COLUMNS, PINNED_DASH, ESSENTIAL_DASH_IDS, rowSignalChips, tickerRi
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
 import type { SignalRule } from "./signals";
-import { IconChildArrow, IconBell, IconClose, IconChevronRight, IconChevronLeft, IconEye } from "./Icon";
+import { IconChildArrow, IconBell, IconClose, IconChevronRight, IconChevronLeft } from "./Icon";
 
 // Column sorting: click a header to sort by it (asc/desc toggle, third click clears
 // back to the default order). Persisted per browser. Applied BEFORE nesting, so ETF
@@ -35,6 +35,22 @@ function sortRows(rows: DashboardRow[], sort: SortState): DashboardRow[] {
     }
     return ((va as number) - (vb as number)) * sort.dir;
   });
+}
+
+// Default order (no explicit column sort): rank by Last Pos P/L — profits first
+// (biggest gain at the top, descending), then losses (biggest loss first, descending
+// in magnitude), then flat/no-P/L, and finally watchlist rows at the very bottom.
+function defaultCompare(a: DashboardRow, b: DashboardRow): number {
+  const wa = a.is_watch ? 1 : 0, wb = b.is_watch ? 1 : 0;
+  if (wa !== wb) return wa - wb;              // watch rows sink to the bottom
+  if (a.is_watch) return 0;                    // both watch → keep incoming order
+  const pa = a.last_pos_profit ?? 0, pb = b.last_pos_profit ?? 0;
+  const ga = pa > 0 ? 0 : pa < 0 ? 1 : 2;      // 0 profit · 1 loss · 2 flat
+  const gb = pb > 0 ? 0 : pb < 0 ? 1 : 2;
+  if (ga !== gb) return ga - gb;
+  if (ga === 0) return pb - pa;                // profits: highest first
+  if (ga === 1) return pa - pb;                // losses: biggest loss first, then up
+  return 0;
 }
 
 // ETF grouping: order the rows so each linked leveraged ETF sits directly under its
@@ -165,7 +181,7 @@ export function DashboardTable({
       </th>
     );
   };
-  const displayRows = sortRows(rows, sort);
+  const displayRows = sort ? sortRows(rows, sort) : [...rows].sort(defaultCompare);
 
   return (
     <div>
@@ -262,12 +278,6 @@ export function DashboardTable({
                         </button>
                       )}
                       {rowSignalChips(r, signalRules)}
-                      {r.is_watch && (
-                        <span style={S.watchEye} aria-label="On your watchlist"
-                          title={r.last_held != null ? `On your watchlist — last sold at $${r.last_held.toFixed(2)}` : "On your watchlist"}>
-                          <IconEye size={13} />
-                        </span>
-                      )}
                       {!bulk && (
                         <button
                           className="hover-reveal"
@@ -280,13 +290,15 @@ export function DashboardTable({
                         </button>
                       )}
                       {!bulk && r.is_watch && (
-                        <span style={{ whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
+                        // marginLeft:auto pushes these to the RIGHT edge of the ticker cell,
+                        // so the remove-X lines up vertically across every watch row.
+                        <span style={{ whiteSpace: "nowrap", marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4 }}
+                          onClick={(e) => e.stopPropagation()}>
                           {/* Buy only once the watch row is drilled in — so its blue Buy
                               never sits inline next to held rows and reads like a signal. */}
                           {isOpen && <button className="btn btn-buy btn-sm" onClick={() => onBuyWatch(r)}>Buy</button>}
                           <button
                             className="btn btn-ghost btn-sm"
-                            style={{ marginLeft: 4 }}
                             title="Remove from watchlist"
                             aria-label={`Remove ${r.symbol} from watchlist`}
                             onClick={() => onRemoveTicker(r.symbol)}
@@ -364,9 +376,6 @@ const S: Record<string, React.CSSProperties> = {
   drawer: { padding: 0, whiteSpace: "normal", background: "var(--panel-2)", boxShadow: "inset 3px 0 0 var(--accent)" },
   tickerLine: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" },
   name: { fontSize: "var(--fs-2xs)", color: "var(--text-dim)", marginTop: 2 },
-  // Watchlist: a quiet eye glyph (replaces the old "WATCH · LAST $X" text). The
-  // last-sold price moves to the Price cell where it can be compared to the live price.
-  watchEye: { display: "inline-flex", alignItems: "center", color: "var(--text-faint)", cursor: "help" },
   childArrow: { color: "var(--text-faint)", fontSize: "var(--fs-sm)", marginRight: -2 },
   // ETF underlying context: a compact chip (parent + its % of 52wk high) inline in the
   // ticker cell, replacing the old full-sentence line under the row.
