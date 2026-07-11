@@ -3,6 +3,16 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.50.0 — "The cursor behaves"
+
+- **The text "I-beam" cursor now appears only where you actually type** — search boxes, amount fields,
+  notes. Hovering ordinary text (tickers, dollar figures, labels) shows the normal arrow instead, so the
+  app stops looking like a web page and starts feeling like an app. Text is still selectable.
+- **Clickable things show the hand pointer** — buttons, tabs, links, the theme dropdown — even the ones
+  the browser used to leave as a plain arrow.
+- **Unavailable buttons show the "no" cursor,** and a button that's placing an order shows the "working"
+  cursor while the request is in flight.
+
 ## v0.49.0 — "A theme dropdown + vivid colors"
 
 - **The theme picker is now a compact dropdown** instead of a long grid — the Settings page no

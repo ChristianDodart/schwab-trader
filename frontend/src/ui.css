@@ -39,7 +39,7 @@
               transform var(--dur-fast) var(--ease-out);
 }
 .btn:active { transform: translateY(1px); }
-.btn:disabled { opacity: 0.45; cursor: default; box-shadow: none !important; transform: none !important; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none !important; transform: none !important; }
 
 .btn-primary { background: var(--btn-sheen), var(--accent-fill); color: var(--on-accent); box-shadow: var(--elev-1), inset 0 1px 0 var(--surface-hi-strong); }
 .btn-primary:not(:disabled):hover { background: var(--btn-sheen), var(--accent-fill-hover); box-shadow: var(--elev-2), inset 0 1px 0 var(--surface-hi-strong); transform: translateY(-1px); }
@@ -67,6 +67,9 @@
 /* calm pending state for an in-flight order: a slow light sweep across the button
    (no spinner anxiety). Reduced-motion leaves a faint static sheen + the label. */
 .btn-pending { position: relative; overflow: hidden; }
+/* Placing an order → the "working" cursor. .btn.btn-pending outweighs the base
+   button:not(:disabled) pointer rule, so this wins while the request is in flight. */
+.btn.btn-pending { cursor: progress; }
 .btn-pending::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,0.20) 50%, transparent 80%);

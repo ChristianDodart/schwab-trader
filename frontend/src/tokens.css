@@ -651,6 +651,42 @@ body {
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 ::selection { background: var(--selection-bg); }
 
+/* ---------------------------------------------------------------------------
+   CURSOR POLICY — app-like, not document-like. A web page defaults to the text
+   "I-beam" over anything selectable; in an app that reads as "you can type here"
+   where you can't. So: the arrow is the baseline, the I-beam appears ONLY on real
+   text-entry fields, clickable controls get the pointer, and unavailable ones the
+   "no" cursor. (Text stays selectable — only the pointer shape changes.)
+   --------------------------------------------------------------------------- */
+body { cursor: default; }
+
+/* The I-beam belongs only where you actually type. */
+input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+textarea,
+[contenteditable="true"],
+[contenteditable=""] { cursor: text; }
+
+/* Interactive controls get the pointer. Native <button> defaults to the arrow,
+   which reads as non-interactive — fix that app-wide. */
+button:not(:disabled),
+a[href],
+label[for],
+select:not(:disabled),
+summary,
+input[type="button"], input[type="submit"], input[type="reset"],
+input[type="checkbox"]:not(:disabled), input[type="radio"]:not(:disabled),
+input[type="range"], input[type="color"], input[type="file"],
+[role="button"]:not([aria-disabled="true"]),
+[role="tab"]:not([aria-disabled="true"]),
+[role="option"]:not([aria-disabled="true"]),
+[role="switch"]:not([aria-disabled="true"]),
+[role="menuitem"]:not([aria-disabled="true"]),
+[role="menuitemradio"]:not([aria-disabled="true"]) { cursor: pointer; }
+
+/* Unavailable controls. */
+button:disabled, input:disabled, textarea:disabled, select:disabled,
+[aria-disabled="true"] { cursor: not-allowed; }
+
 * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 *::-webkit-scrollbar { width: 11px; height: 11px; }
 *::-webkit-scrollbar-thumb {
