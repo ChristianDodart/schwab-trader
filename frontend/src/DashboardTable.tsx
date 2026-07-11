@@ -43,7 +43,7 @@ function sortRows(rows: DashboardRow[], sort: SortState): DashboardRow[] {
 function defaultCompare(a: DashboardRow, b: DashboardRow): number {
   const wa = a.is_watch ? 1 : 0, wb = b.is_watch ? 1 : 0;
   if (wa !== wb) return wa - wb;              // watch rows sink to the bottom
-  if (a.is_watch) return 0;                    // both watch → keep incoming order
+  if (a.is_watch) return a.symbol.localeCompare(b.symbol);  // watch group: alphabetical
   const pa = a.last_pos_profit ?? 0, pb = b.last_pos_profit ?? 0;
   const ga = pa > 0 ? 0 : pa < 0 ? 1 : 2;      // 0 profit · 1 loss · 2 flat
   const gb = pb > 0 ? 0 : pb < 0 ? 1 : 2;
@@ -182,6 +182,13 @@ export function DashboardTable({
     );
   };
   const displayRows = sort ? sortRows(rows, sort) : [...rows].sort(defaultCompare);
+  // Bulk mode stays flat (nesting would muddle selection); otherwise nest ETFs.
+  const dispRows = bulk
+    ? displayRows.map((r) => ({ row: r, depth: 0, parent: null, childCount: 0 } as DispRow))
+    : nestRows(displayRows);
+  // In the default (unsorted) view, watch rows are grouped at the bottom — mark where
+  // that group starts so a subtle "Watchlist" divider can separate it from holdings.
+  const firstWatchIdx = (!bulk && !sort) ? dispRows.findIndex((d) => d.row.is_watch && d.depth === 0) : -1;
 
   return (
     <div>
@@ -215,8 +222,7 @@ export function DashboardTable({
             </tr>
           </thead>
           <tbody>
-            {/* Bulk mode stays flat (nesting would muddle selection); otherwise nest ETFs. */}
-            {(bulk ? displayRows.map((r) => ({ row: r, depth: 0, parent: null, childCount: 0 } as DispRow)) : nestRows(displayRows)).map(({ row: r, depth, parent }) => {
+            {dispRows.map(({ row: r, depth, parent }, rowIdx) => {
               const isCand = bulk?.candidates.has(r.symbol) ?? false;
               const isChecked = bulk?.checked.has(r.symbol) ?? false;
               const clickable = bulk ? isCand : true; // watch rows now open a (watch-mode) detail too
@@ -233,6 +239,11 @@ export function DashboardTable({
               ].filter(Boolean).join(" ");
               return (
                 <Fragment key={r.symbol}>
+                {rowIdx === firstWatchIdx && firstWatchIdx > 0 && (
+                  <tr aria-hidden="true">
+                    <td colSpan={colSpan} style={S.watchDivider}>Watchlist</td>
+                  </tr>
+                )}
                 <tr
                   className={rowCls}
                   tabIndex={clickable ? 0 : undefined}
@@ -376,6 +387,10 @@ const S: Record<string, React.CSSProperties> = {
   drawer: { padding: 0, whiteSpace: "normal", background: "var(--panel-2)", boxShadow: "inset 3px 0 0 var(--accent)" },
   tickerLine: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" },
   name: { fontSize: "var(--fs-2xs)", color: "var(--text-dim)", marginTop: 2 },
+  // Subtle section header between held positions and the watchlist group.
+  watchDivider: { padding: "16px 12px 5px", fontSize: "var(--fs-2xs)", textTransform: "uppercase",
+    letterSpacing: "0.07em", color: "var(--text-dim)", fontWeight: 600,
+    borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border-hairline)" },
   childArrow: { color: "var(--text-faint)", fontSize: "var(--fs-sm)", marginRight: -2 },
   // ETF underlying context: a compact chip (parent + its % of 52wk high) inline in the
   // ticker cell, replacing the old full-sentence line under the row.

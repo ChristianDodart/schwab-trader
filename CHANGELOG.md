@@ -3,6 +3,13 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.39.2 — "Watchlist grouping"
+
+- **A clear "Watchlist" divider** now separates your held positions from the tickers you're
+  only watching, so it's obvious where holdings end and the watchlist begins.
+- **The watchlist sorts alphabetically** (instead of the order tickers happened to be
+  added), so it stays predictable.
+
 ## v0.39.1 — "Dashboard sort + tidy-ups"
 
 - **Dashboard sorts by Last Pos P/L by default.** Biggest winners at the top, descending;
