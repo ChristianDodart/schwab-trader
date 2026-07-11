@@ -1,11 +1,39 @@
 import { Fragment, useEffect, useState } from "react";
-import { pct } from "./App";
 import { DASH_COLUMNS, rowSignalChips, tickerRiskColor, RISK_LABEL, ProvenanceLegend, CalcMark } from "./columns";
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
 import type { SignalRule } from "./signals";
 import { useFillFlash } from "./anim";
+import { Tip } from "./Tip";
 import { IconChildArrow, IconBell, IconClose, IconChevronRight, IconChevronLeft } from "./Icon";
+
+// A sortable column header with a single hover tooltip (provenance + sort hint) that
+// portals out of the table's scroll box. Top-level + stable so its tooltip state isn't
+// reset by the table's 2s data refreshes.
+function HeaderCell({
+  id, label, align, prov, fold, collapsed, simple, sort, onSort,
+}: {
+  id: string; label: string; align?: string; prov?: DashCol["prov"]; fold?: boolean;
+  collapsed: boolean; simple: boolean; sort: SortState; onSort: (id: string) => void;
+}) {
+  const computed = prov == null; // undefined = app-calculated → ƒ mark on the header
+  const cls = [align === "left" ? "left" : "", fold ? "foldcol" + (collapsed ? " folded" : "") : ""].filter(Boolean).join(" ");
+  const mark = sort?.id === id ? (sort.dir === -1 ? " ▼" : " ▲") : "";
+  const provText = prov === "schwab"
+    ? "Provided by Schwab. "
+    : computed ? "Calculated by the app (from your fills and/or Schwab data). " : "";
+  const inner = <>{label}{computed && !simple && <CalcMark bare />}{mark}</>;
+  // One hover target for the whole header: label + ƒ share a single animated tooltip.
+  const tip = <Tip text={`${provText}Sort by ${label} — click to flip, third click resets`} focusable={false}>{inner}</Tip>;
+  return (
+    <th scope="col" className={cls || undefined}
+      aria-sort={sort?.id === id ? (sort.dir === -1 ? "descending" : "ascending") : undefined}
+      style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
+      onClick={() => onSort(id)}>
+      {fold ? <span className="foldwrap">{tip}</span> : tip}
+    </th>
+  );
+}
 
 // Column sorting: click a header to sort by it (asc/desc toggle, third click clears
 // back to the default order). Persisted per browser. Applied BEFORE nesting, so ETF
@@ -200,23 +228,8 @@ export function DashboardTable({
       </button>
     </th>
   );
-  // Empty (no "—") for a watch row's position-only columns. On the "% of 52wk High"
-  // column, an ETF child also shows its underlying's % as a small faint aside.
-  const cellFor = (c: DashCol, r: DashboardRow, parent?: DashboardRow | null) => {
-    if (c.watchNA && r.is_watch) return null;
-    const base = c.render(r);
-    if (c.id === "pct_of_high" && parent && parent.pct_of_high != null) {
-      return (
-        <>{base}
-          <span style={S.underlyingChip}
-            title={`Read direction from the underlying — ${parent.symbol} is at ${pct(parent.pct_of_high)} of its 52-week high`}>
-            {parent.symbol} {Math.round(parent.pct_of_high * 100)}%
-          </span>
-        </>
-      );
-    }
-    return base;
-  };
+  // Empty (no "—") for a watch row's position-only columns.
+  const cellFor = (c: DashCol, r: DashboardRow) => (c.watchNA && r.is_watch ? null : c.render(r));
 
   // Click-to-sort: asc → desc → back to the default order. Persisted per browser.
   const [sort, setSort] = useState<SortState>(readSort);
@@ -228,22 +241,9 @@ export function DashboardTable({
   }, [sort]);
   const clickSort = (id: string) =>
     setSort((s) => (s?.id !== id ? { id, dir: -1 } : s.dir === -1 ? { id, dir: 1 } : null));
-  const sortMark = (id: string) => (sort?.id === id ? (sort.dir === -1 ? " ▼" : " ▲") : "");
-  const Th = ({ id, label, align, prov, fold }: { id: string; label: string; align?: string; prov?: DashCol["prov"]; fold?: boolean }) => {
-    const computed = prov == null;   // undefined = app-calculated → ƒ mark on the header
-    const cls = [align === "left" ? "left" : "", fold ? "foldcol" + (collapsed ? " folded" : "") : ""].filter(Boolean).join(" ");
-    const inner = <>{label}{computed && !simple && <CalcMark />}{sortMark(id)}</>;
-    return (
-      <th scope="col" className={cls || undefined}
-        aria-sort={sort?.id === id ? (sort.dir === -1 ? "descending" : "ascending") : undefined}
-        style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
-        title={(prov === "schwab" ? "Provided by Schwab. " : "")
-          + `Sort by ${label} (click again to flip, third click resets)`}
-        onClick={() => clickSort(id)}>
-        {fold ? <span className="foldwrap">{inner}</span> : inner}
-      </th>
-    );
-  };
+  // Shared header props — HeaderCell is a stable top-level component (so its tooltip
+  // state survives the 2s data refreshes; an in-render component would remount each tick).
+  const hProps = { collapsed, simple, sort, onSort: clickSort };
   // Flash a row when its POSITION changes (a fill) — not on the 2s price ticks.
   const fillDir = useFillFlash(rows);
   const displayRows = sort ? sortRows(rows, sort) : defaultOrder(rows);
@@ -282,15 +282,15 @@ export function DashboardTable({
                     onClick={(e) => e.stopPropagation()} />
                 </th>
               ) : (
-                <Th id="symbol" label="Ticker" align="left" prov="text" />
+                <HeaderCell id="symbol" label="Ticker" align="left" prov="text" {...hProps} />
               )}
-              {shownDefs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
-              {foldDefs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} fold />)}
+              {shownDefs.map((c) => <HeaderCell key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} {...hProps} />)}
+              {foldDefs.map((c) => <HeaderCell key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} fold {...hProps} />)}
               {showFoldToggle && <FoldToggleTh />}
             </tr>
           </thead>
           <tbody>
-            {dispRows.map(({ row: r, depth, parent }, rowIdx) => {
+            {dispRows.map(({ row: r, depth }, rowIdx) => {
               const isCand = bulk?.candidates.has(r.symbol) ?? false;
               const isChecked = bulk?.checked.has(r.symbol) ?? false;
               const clickable = bulk ? isCand : true; // watch rows now open a (watch-mode) detail too
@@ -389,11 +389,11 @@ export function DashboardTable({
                     {isOpen && r.name && <div style={S.name}>{r.name}</div>}
                   </td>
                   {shownDefs.map((c) => (
-                    <td key={c.id} style={{ textAlign: c.align }}>{cellFor(c, r, parent)}</td>
+                    <td key={c.id} style={{ textAlign: c.align }}>{cellFor(c, r)}</td>
                   ))}
                   {foldDefs.map((c) => (
                     <td key={c.id} className={"foldcol" + (collapsed ? " folded" : "")} style={{ textAlign: c.align }}>
-                      <span className="foldwrap">{cellFor(c, r, parent)}</span>
+                      <span className="foldwrap">{cellFor(c, r)}</span>
                     </td>
                   ))}
                   {showFoldToggle && <td className="foldtoggle" />}
@@ -452,16 +452,11 @@ const S: Record<string, React.CSSProperties> = {
   tickerLine: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" },
   name: { fontSize: "var(--fs-2xs)", color: "var(--text-dim)", marginTop: 2 },
   // Subtle section header between held positions and the watchlist group.
-  // A clear section break between holdings and the watchlist below it.
-  watchDivider: { padding: "20px 12px 8px", fontSize: "var(--fs-xs)", textTransform: "uppercase",
-    letterSpacing: "0.09em", color: "var(--text-muted)", fontWeight: 700,
-    borderTop: "2px solid var(--border-strong)",
-    background: "color-mix(in srgb, var(--panel-2) 55%, transparent)" },
+  // Separate the watchlist from holdings with a noticeable gap (extra top space on the
+  // label cell) rather than a highlight band.
+  watchDivider: { padding: "34px 12px 6px", fontSize: "var(--fs-2xs)", textTransform: "uppercase",
+    letterSpacing: "0.07em", color: "var(--text-dim)", fontWeight: 600 },
   childArrow: { color: "var(--text-faint)", fontSize: "var(--fs-sm)", marginRight: -2 },
-  // ETF underlying context: the parent's % of 52wk high as a plain faint aside on the
-  // "% of 52wk High" cell — same quiet treatment as Price's "sold $x", not a pill.
-  underlyingChip: { fontSize: "var(--fs-2xs)", color: "var(--text-faint)", marginLeft: 6,
-    whiteSpace: "nowrap", cursor: "help", fontVariantNumeric: "tabular-nums" },
   noteDot: { color: "var(--accent-quiet)", fontSize: 8, cursor: "help", lineHeight: 1 },
   rulesDot: { color: "var(--warn)", fontSize: 8, cursor: "help", lineHeight: 1 },
   // Bare resting-order count — a compact amber badge (hover explains, click opens Orders).

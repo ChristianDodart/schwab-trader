@@ -3,6 +3,19 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.45.0 — "Readability + polish"
+
+- **Three app-wide font sizes** — Small / Medium / Large, in Settings → Appearance. Scales the
+  whole app's text so it's easier to read; saved on this install and applied before the window even
+  paints.
+- **Nicer data tooltips.** Hovering a column header (or an "(i)" / "ƒ" mark) now shows one on-theme
+  bubble that fades in — a single hover target for the whole header (the label and the little ƒ share
+  it), instead of two separate boxes — and it no longer gets clipped at the edge of the table.
+- **Less ETF clutter** — a leveraged ETF's row no longer shows its underlying's 52-week %, so those
+  rows read like every other row.
+- **The Watchlist sits a bit lower** — a little extra space above it separates it from your holdings,
+  instead of the highlight band.
+
 ## v0.44.0 — "Dashboard polish"
 
 - **The ETF underlying's % of 52-week high** is now a quiet faint aside on the "% of 52wk High"

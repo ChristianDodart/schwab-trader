@@ -91,9 +91,13 @@
 
   /* ===== THEME-INDEPENDENT from here down — never overridden by a theme ===== */
 
-  /* --- TYPE SCALE --- */
-  --fs-2xs: 11px; --fs-xs: 12px; --fs-sm: 13px; --fs-md: 14px;
-  --fs-lg: 17px; --fs-xl: 20px; --fs-2xl: 26px;
+  /* --- TYPE SCALE (multiplied by --fs-scale so a font-size setting lifts the whole
+     app at once; --fs-scale is set by [data-fontsize] below, default 1). --- */
+  --fs-scale: 1;
+  --fs-2xs: calc(11px * var(--fs-scale)); --fs-xs: calc(12px * var(--fs-scale));
+  --fs-sm: calc(13px * var(--fs-scale)); --fs-md: calc(14px * var(--fs-scale));
+  --fs-lg: calc(17px * var(--fs-scale)); --fs-xl: calc(20px * var(--fs-scale));
+  --fs-2xl: calc(26px * var(--fs-scale));
   --fw-normal: 400; --fw-medium: 500; --fw-semibold: 600; --fw-bold: 700;
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
@@ -299,6 +303,13 @@
   --bg-glow: rgba(102,170,255,0.05); --selection-bg: rgba(102,170,255,0.34);
   --shadow-strong: rgba(0,0,0,0.80); --shadow-color: rgba(0,0,0,0.66); --shadow-color-soft: rgba(0,0,0,0.44);
 }
+
+/* ---------------------------------------------------------------------------
+   APP-WIDE FONT SIZE — a separate `data-fontsize` attribute on <html> that just
+   scales the type. Independent of (and composes with) the theme. Medium = default.
+   --------------------------------------------------------------------------- */
+:root[data-fontsize="small"] { --fs-scale: 0.9; }
+:root[data-fontsize="large"] { --fs-scale: 1.15; }
 
 /* ============================================================================
    GLOBAL BASE  (reads only semantic tokens, so it themes automatically)

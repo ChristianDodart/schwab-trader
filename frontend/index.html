@@ -18,6 +18,8 @@
             id = dark ? "midnight" : "institutional";
           }
           document.documentElement.setAttribute("data-theme", id);
+          var fs = localStorage.getItem("ui.fontsize.v1");
+          if (fs === "small" || fs === "large") document.documentElement.setAttribute("data-fontsize", fs);
         } catch (e) {
           document.documentElement.setAttribute("data-theme", "midnight");
         }

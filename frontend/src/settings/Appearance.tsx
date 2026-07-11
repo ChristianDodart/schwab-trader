@@ -5,7 +5,8 @@
 import { useEffect, useState } from "react";
 import {
   THEMES, storedChoice, setThemeChoice, resolveTheme,
-  type ThemeChoice, type ThemeMeta,
+  storedFontSize, setFontSize,
+  type ThemeChoice, type ThemeMeta, type FontSize,
 } from "../theme";
 
 function useThemeChoice(): ThemeChoice {
@@ -18,15 +19,46 @@ function useThemeChoice(): ThemeChoice {
   return choice;
 }
 
+function useFontSize(): FontSize {
+  const [fs, setFs] = useState<FontSize>(() => storedFontSize());
+  useEffect(() => {
+    const sync = () => setFs(storedFontSize());
+    window.addEventListener("fontsizechange", sync);
+    return () => window.removeEventListener("fontsizechange", sync);
+  }, []);
+  return fs;
+}
+
+const FONT_SIZES: Array<{ id: FontSize; label: string; px: number }> = [
+  { id: "small", label: "Small", px: 12 },
+  { id: "medium", label: "Medium", px: 14 },
+  { id: "large", label: "Large", px: 18 },
+];
+
 const labelOf = (id: string) => THEMES.find((t) => t.id === id)?.label ?? id;
 
 export function Appearance() {
   const choice = useThemeChoice();
   const applied = resolveTheme(choice); // concrete id currently on <html>
   const followSystem = choice === "system";
+  const fontSize = useFontSize();
 
   return (
     <div>
+      <div style={S.fsRow}>
+        <span style={S.fsLabel}>Font size</span>
+        <div style={S.fsSeg} role="group" aria-label="App font size">
+          {FONT_SIZES.map((f) => (
+            <button key={f.id} type="button" aria-pressed={fontSize === f.id}
+              onClick={() => setFontSize(f.id)}
+              title={`${f.label} — scales the whole app`}
+              style={{ ...S.fsBtn, ...(fontSize === f.id ? S.fsBtnOn : null), fontSize: f.px }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <button
         type="button"
         onClick={() => setThemeChoice("system")}
@@ -92,6 +124,12 @@ function ThemeCard({
 }
 
 const S: Record<string, React.CSSProperties> = {
+  fsRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 },
+  fsLabel: { fontSize: "var(--fs-sm)", fontWeight: 600, color: "var(--text)" },
+  fsSeg: { display: "inline-flex", gap: 3, background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--r-pill)", padding: 3 },
+  fsBtn: { border: "none", background: "transparent", color: "var(--text-muted)", fontWeight: 600, fontFamily: "inherit",
+    borderRadius: "var(--r-pill)", padding: "3px 14px", cursor: "pointer", lineHeight: 1.3, minWidth: 64 },
+  fsBtnOn: { background: "var(--accent-fill)", color: "var(--on-accent)" },
   systemRow: {
     width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
     gap: 12, textAlign: "left", cursor: "pointer",

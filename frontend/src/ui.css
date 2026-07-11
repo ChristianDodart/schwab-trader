@@ -98,34 +98,24 @@
 .kpi-box { transition: background var(--dur-fast) var(--ease-out); }
 .kpi-box:hover { background: color-mix(in srgb, var(--panel-2) 60%, transparent); }
 
-/* --- custom tooltip (Tip.tsx): an on-theme description bubble that fades in above
-   its trigger after a 0.5s dwell (same delay as the gear reveal) and hides instantly.
-   Pure-CSS timing, so reduced-motion turns it into an instant show/hide. --- */
-.tip-host { position: relative; display: inline-flex; outline: none; }
-.tip-bubble {
-  position: absolute; bottom: calc(100% + 8px); left: 50%;
-  transform: translateX(-50%) translateY(4px); z-index: var(--z-popover);
-  width: max-content; max-width: 260px; white-space: normal; text-align: left;
+/* --- custom tooltip (Tip.tsx): the bubble is portaled to <body> and positioned via
+   JS (position:fixed), so it's never clipped by an ancestor's overflow (the table's
+   scroll box). Appears after a 0.5s dwell (JS timer) and fades/rises in. --- */
+.tip-host { display: inline; outline: none; } /* inline (not flex) keeps the ƒ superscript raised */
+.tip-host:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.tip-anchor { position: fixed; z-index: var(--z-toast); pointer-events: none; }
+.tip-pop {
+  position: relative; max-width: 260px; white-space: normal; text-align: left;
   background: var(--pop); color: var(--text-muted);
   border: 1px solid var(--border-strong); border-radius: var(--r-md);
   box-shadow: var(--elev-2), inset 0 1px 0 var(--surface-hi);
   padding: 8px 10px; font-size: var(--fs-xs); font-weight: var(--fw-normal);
   line-height: 1.45; letter-spacing: 0; text-transform: none;
-  opacity: 0; visibility: hidden; pointer-events: none;
-  transition: opacity var(--dur-base) var(--ease-out),
-              transform var(--dur-base) var(--ease-out),
-              visibility var(--dur-base);
+  animation: tip-rise var(--dur-base) var(--ease-out);
 }
-.tip-bubble::after { /* downward arrow */
-  content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-  border: 5px solid transparent; border-top-color: var(--border-strong);
-}
-.tip-host:hover .tip-bubble,
-.tip-host:focus-visible .tip-bubble {
-  opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0);
-  transition-delay: 0.5s;
-}
-.tip-host:not(:hover) .tip-bubble { transition-delay: 0s; }
+.tip-pop::after { content: ""; position: absolute; left: 50%; transform: translateX(-50%); border: 5px solid transparent; }
+.tip-above::after { top: 100%; border-top-color: var(--border-strong); }   /* arrow points down to trigger */
+.tip-below::after { bottom: 100%; border-bottom-color: var(--border-strong); } /* arrow points up to trigger */
 
 /* --- nav tabs --- */
 .navtab {

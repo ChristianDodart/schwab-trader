@@ -40,13 +40,13 @@ export type DetailCol = {
 // app-computed figure (never on the value itself, so it can't clash with gain/loss
 // color). Schwab-provided figures carry no mark. One primitive shared by every table
 // header and stat card so provenance reads the same everywhere.
-export function CalcMark({ title }: { title?: string } = {}) {
-  // Native title here (not the custom Tip): these live in scrollable table headers
-  // where an absolutely-positioned bubble gets clipped and double-stacks with the
-  // header's own sort tooltip. The custom Tip is used for the (i) info descriptions.
+export function CalcMark({ title, bare }: { title?: string; bare?: boolean } = {}) {
+  // `bare` = just the glyph (no tooltip of its own) — for table headers, where the
+  // header's single Tip already explains provenance + sorting. Elsewhere (stat cards)
+  // it keeps a native title.
   return (
     <sup style={{ color: "var(--accent-quiet)", fontSize: "0.66em", fontWeight: 700, marginLeft: 2, cursor: "help" }}
-      title={title ?? "Calculated by the app (from your fills and/or Schwab data) — not a raw Schwab number"}>ƒ</sup>
+      title={bare ? undefined : (title ?? "Calculated by the app (from your fills and/or Schwab data) — not a raw Schwab number")}>ƒ</sup>
   );
 }
 // Renders a label followed by the ƒ mark when `computed`. Convenience for stat cards.

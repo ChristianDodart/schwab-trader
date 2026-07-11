@@ -6,11 +6,12 @@ import "./ui.css";
 import { App } from "./App";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { ToastProvider } from "./Toast";
-import { applyTheme, initThemeRuntime, storedChoice } from "./theme";
+import { applyFontSize, applyTheme, initThemeRuntime, storedChoice, storedFontSize } from "./theme";
 
-// The <head> boot script already set data-theme before first paint (no FOUC).
-// Re-assert from the stored choice (idempotent) and keep "Follow system" live.
+// The <head> boot script already set data-theme + data-fontsize before first paint
+// (no FOUC). Re-assert from the stored prefs (idempotent) and keep "Follow system" live.
 applyTheme(storedChoice());
+applyFontSize(storedFontSize());
 initThemeRuntime();
 
 createRoot(document.getElementById("root")!).render(

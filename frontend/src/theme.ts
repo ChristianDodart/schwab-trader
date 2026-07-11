@@ -117,6 +117,32 @@ export function setThemeChoice(choice: ThemeChoice): void {
   applyTheme(choice, { animate: true });
 }
 
+// ============================================================================
+// App-wide font size — a separate `data-fontsize` attribute (independent of theme).
+// ============================================================================
+export type FontSize = "small" | "medium" | "large";
+const FS_KEY = "ui.fontsize.v1";
+
+export function storedFontSize(): FontSize {
+  try {
+    const v = localStorage.getItem(FS_KEY);
+    if (v === "small" || v === "large" || v === "medium") return v;
+  } catch { /* private mode */ }
+  return "medium";
+}
+
+export function applyFontSize(size: FontSize): void {
+  const root = document.documentElement;
+  if (size === "medium") root.removeAttribute("data-fontsize"); // default scale = 1
+  else root.setAttribute("data-fontsize", size);
+}
+
+export function setFontSize(size: FontSize): void {
+  try { localStorage.setItem(FS_KEY, size); } catch { /* private mode */ }
+  applyFontSize(size);
+  try { window.dispatchEvent(new CustomEvent("fontsizechange", { detail: { size } })); } catch { /* no window */ }
+}
+
 /** Keep "Follow system" live: re-apply when the OS scheme flips (only while following). */
 export function initThemeRuntime(): void {
   try {

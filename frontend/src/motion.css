@@ -44,6 +44,11 @@
   from { background-position: 200% 0; }
   to   { background-position: -200% 0; }
 }
+/* Tooltip (Tip.tsx) fade + rise in. */
+@keyframes tip-rise {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
 
 /* ============================================================================
    Theme swap.  Chromium keeps a *transitioned* property stale when only its
