@@ -15,14 +15,21 @@
 export type ThemeId =
   | "midnight" | "terminal" | "catppuccin" | "nord" | "gruvbox"
   | "tokyonight" | "rosepine" | "solarized-dark" | "solarized-light"
-  | "institutional" | "high-contrast";
+  | "institutional" | "high-contrast"
+  // v0.48 additions
+  | "dracula" | "one-dark" | "monokai" | "everforest-dark" | "kanagawa"
+  | "github-dark" | "ayu-mirage"
+  | "github-light" | "one-light" | "rosepine-dawn" | "everforest-light"
+  | "high-contrast-light";
 
 export type ThemeChoice = ThemeId | "system";
+
+export type ThemeGroup = "Dark" | "Light" | "High Contrast";
 
 export interface ThemeMeta {
   id: ThemeId;
   label: string;
-  group: "Dark" | "Light";
+  group: ThemeGroup;
   blurb: string;
   // preview swatches (mirror tokens.css)
   bg: string; surface: string; accent: string; pos: string; neg: string;
@@ -32,7 +39,11 @@ export interface ThemeMeta {
 export const DARK_DEFAULT: ThemeId = "midnight";
 export const LIGHT_DEFAULT: ThemeId = "institutional";
 
+/** Display order of the groups in the picker. */
+export const THEME_GROUPS: ThemeGroup[] = ["Dark", "Light", "High Contrast"];
+
 export const THEMES: ThemeMeta[] = [
+  // ---- Dark ----
   { id: "midnight",        label: "Midnight",         group: "Dark",  blurb: "The signature deep-blue desk.",     bg: "#131317", surface: "#1a1a20", accent: "#4f97ec", pos: "#57cca8", neg: "#f0997b" },
   { id: "terminal",        label: "Terminal",         group: "Dark",  blurb: "Near-black, phosphor green.",        bg: "#0a0d0a", surface: "#0f140f", accent: "#3fd671", pos: "#46d67a", neg: "#f0975a" },
   { id: "catppuccin",      label: "Catppuccin Mocha", group: "Dark",  blurb: "Muted mauve on soft dark.",          bg: "#1e1e2e", surface: "#24243a", accent: "#cba6f7", pos: "#a6e3a1", neg: "#fab387" },
@@ -41,9 +52,23 @@ export const THEMES: ThemeMeta[] = [
   { id: "tokyonight",      label: "Tokyo Night",      group: "Dark",  blurb: "Deep indigo, neon blue.",            bg: "#1a1b26", surface: "#1f2335", accent: "#7aa2f7", pos: "#9ece6a", neg: "#ff9e64" },
   { id: "rosepine",        label: "Rosé Pine",        group: "Dark",  blurb: "Rose & pine, low fatigue.",          bg: "#191724", surface: "#1f1d2e", accent: "#c4a7e7", pos: "#9ccfd8", neg: "#ebbcba" },
   { id: "solarized-dark",  label: "Solarized Dark",   group: "Dark",  blurb: "The precision classic, dark.",       bg: "#002b36", surface: "#073642", accent: "#268bd2", pos: "#93c020", neg: "#eb7a3f" },
+  { id: "dracula",         label: "Dracula",          group: "Dark",  blurb: "The cult classic, mauve & cyan.",    bg: "#282a36", surface: "#2d3040", accent: "#bd93f9", pos: "#50fa7b", neg: "#ffa06c" },
+  { id: "one-dark",        label: "One Dark",         group: "Dark",  blurb: "Atom's editor dark, everywhere.",    bg: "#282c34", surface: "#2f333d", accent: "#61afef", pos: "#98c379", neg: "#e5a06a" },
+  { id: "monokai",         label: "Monokai Pro",      group: "Dark",  blurb: "Warm, vivid, unmistakable.",         bg: "#2d2a2e", surface: "#353136", accent: "#78dce8", pos: "#a9dc76", neg: "#fc9867" },
+  { id: "everforest-dark", label: "Everforest",       group: "Dark",  blurb: "Soft forest green, low strain.",     bg: "#2d353b", surface: "#343f44", accent: "#7fbbb3", pos: "#a7c080", neg: "#e69875" },
+  { id: "kanagawa",        label: "Kanagawa",         group: "Dark",  blurb: "Muted Japanese ink & wave.",         bg: "#1f1f28", surface: "#2a2a37", accent: "#7e9cd8", pos: "#98bb6c", neg: "#ffa066" },
+  { id: "github-dark",     label: "GitHub Dark",      group: "Dark",  blurb: "Clean, familiar, developer dark.",   bg: "#0d1117", surface: "#161b22", accent: "#58a6ff", pos: "#3fb950", neg: "#f0883e" },
+  { id: "ayu-mirage",      label: "Ayu Mirage",       group: "Dark",  blurb: "Muted slate, warm amber accent.",    bg: "#1f2430", surface: "#232834", accent: "#73d0ff", pos: "#a6cc70", neg: "#f29e74" },
+  // ---- Light ----
   { id: "solarized-light", label: "Solarized Light",  group: "Light", blurb: "The precision classic, light.",      bg: "#fdf6e3", surface: "#fbf3da", accent: "#1c7fc4", pos: "#4f6a00", neg: "#b34817" },
   { id: "institutional",   label: "Institutional",    group: "Light", blurb: "Daylight brokerage, navy accent.",   bg: "#f3f6fa", surface: "#ffffff", accent: "#1f4e8c", pos: "#0d7a52", neg: "#bd5518" },
-  { id: "high-contrast",   label: "High Contrast",    group: "Dark",  blurb: "Accessibility-first, maximal.",      bg: "#000000", surface: "#0b0b0f", accent: "#66aaff", pos: "#4fe39a", neg: "#ffab5e" },
+  { id: "github-light",    label: "GitHub Light",     group: "Light", blurb: "Crisp daylight, blue accent.",       bg: "#f6f8fa", surface: "#ffffff", accent: "#0969da", pos: "#1a7f37", neg: "#bc4c00" },
+  { id: "one-light",       label: "One Light",        group: "Light", blurb: "Atom's editor light, calm.",         bg: "#fafafa", surface: "#ffffff", accent: "#4078f2", pos: "#2f7a2e", neg: "#b8541c" },
+  { id: "rosepine-dawn",   label: "Rosé Pine Dawn",   group: "Light", blurb: "Soft rose on warm paper.",           bg: "#faf4ed", surface: "#fffaf3", accent: "#907aa9", pos: "#396e78", neg: "#a3475e" },
+  { id: "everforest-light",label: "Everforest Light", group: "Light", blurb: "Warm paper-green, low strain.",      bg: "#fdf6e3", surface: "#fffbef", accent: "#3a94c5", pos: "#636f00", neg: "#bd5410" },
+  // ---- High Contrast ----
+  { id: "high-contrast",       label: "High Contrast",       group: "High Contrast", blurb: "Accessibility-first on black.",  bg: "#000000", surface: "#0b0b0f", accent: "#66aaff", pos: "#4fe39a", neg: "#ffab5e" },
+  { id: "high-contrast-light", label: "High Contrast Light", group: "High Contrast", blurb: "Accessibility-first on white.",  bg: "#ffffff", surface: "#ffffff", accent: "#0b5cc7", pos: "#036b3f", neg: "#9a3b00" },
 ];
 
 const LS_KEY = "ui.theme.v1";

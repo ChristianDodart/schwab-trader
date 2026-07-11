@@ -305,6 +305,222 @@
 }
 
 /* ---------------------------------------------------------------------------
+   DRACULA — the classic dark, mauve + cyan.
+   --------------------------------------------------------------------------- */
+:root[data-theme="dracula"] {
+  --bg: #282a36; --panel: #2d3040; --panel-2: #3b3e52; --pop: #313345; --panel-header: #2d3040;
+  --surface-hi: rgba(255,255,255,0.05); --surface-hi-strong: rgba(255,255,255,0.09);
+  --border-hairline: #323446; --border: #414459; --border-strong: #565a78; --neg-border: #5a3245;
+  --text: #f8f8f2; --text-muted: #d6d7e0; --text-dim: #a6abc8; --text-faint: #8b90b0;
+  --accent: #bd93f9; --accent-hover: #cba9fb; --accent-quiet: #8be9fd;
+  --accent-fill: var(--accent); --accent-fill-hover: var(--accent-hover);
+  --pos: #50fa7b; --pos-strong: #26a94f; --neg: #ffa06c; --neg-strong: #ff5c8a; --warn: #f1fa8c; --danger: #ff5555;
+  --pos-bg: rgba(80,250,123,0.12); --neg-bg: rgba(255,160,108,0.13); --danger-bg: rgba(255,85,85,0.15);
+  --warn-bg: #34331c; --warn-border: #5f5c2f; --info-bg: rgba(139,233,253,0.12); --accent-bg: rgba(189,147,249,0.15);
+  --on-accent: #21222c; --on-bright: #21222c; --danger-text: #ffb3b3;
+  --bg-glow: rgba(189,147,249,0.06); --selection-bg: rgba(189,147,249,0.30);
+  --shadow-strong: rgba(0,0,0,0.55); --shadow-color: rgba(0,0,0,0.42); --shadow-color-soft: rgba(0,0,0,0.28);
+}
+
+/* ---------------------------------------------------------------------------
+   ONE DARK — Atom's ubiquitous editor dark.
+   --------------------------------------------------------------------------- */
+:root[data-theme="one-dark"] {
+  --bg: #282c34; --panel: #2f333d; --panel-2: #3a3f4b; --pop: #31353f; --panel-header: #2f333d;
+  --surface-hi: rgba(255,255,255,0.045); --surface-hi-strong: rgba(255,255,255,0.08);
+  --border-hairline: #31353f; --border: #3d4350; --border-strong: #4c5361; --neg-border: #5a3238;
+  --text: #d7dae0; --text-muted: #abb2bf; --text-dim: #8b929f; --text-faint: #79808d;
+  --accent: #61afef; --accent-hover: #74baf0; --accent-quiet: #56b6c2;
+  --accent-fill: #2568b8; --accent-fill-hover: #2f7fd0;
+  --pos: #98c379; --pos-strong: #6a9c46; --neg: #e5a06a; --neg-strong: #e06c75; --warn: #e5c07b; --danger: #e06c75;
+  --pos-bg: rgba(152,195,121,0.13); --neg-bg: rgba(229,160,106,0.13); --danger-bg: rgba(224,108,117,0.15);
+  --warn-bg: #33301c; --warn-border: #5e5730; --info-bg: rgba(97,175,239,0.13); --accent-bg: rgba(97,175,239,0.15);
+  --on-accent: #ffffff; --on-bright: #1e222a; --danger-text: #f0a5ab;
+  --bg-glow: rgba(97,175,239,0.06); --selection-bg: rgba(97,175,239,0.26);
+  --shadow-strong: rgba(0,0,0,0.52); --shadow-color: rgba(0,0,0,0.40); --shadow-color-soft: rgba(0,0,0,0.26);
+}
+
+/* ---------------------------------------------------------------------------
+   MONOKAI PRO — warm classic, cyan/green/pink.
+   --------------------------------------------------------------------------- */
+:root[data-theme="monokai"] {
+  --bg: #2d2a2e; --panel: #353136; --panel-2: #423e44; --pop: #383439; --panel-header: #353136;
+  --surface-hi: rgba(255,255,255,0.05); --surface-hi-strong: rgba(255,255,255,0.09);
+  --border-hairline: #3a363b; --border: #48434a; --border-strong: #5b555d; --neg-border: #5a3240;
+  --text: #fcfcfa; --text-muted: #e2e0db; --text-dim: #aca6ae; --text-faint: #908a92;
+  --accent: #78dce8; --accent-hover: #8fe3ed; --accent-quiet: #ab9df2;
+  --accent-fill: var(--accent); --accent-fill-hover: var(--accent-hover);
+  --pos: #a9dc76; --pos-strong: #6cae3f; --neg: #fc9867; --neg-strong: #ff6188; --warn: #ffd866; --danger: #ff6188;
+  --pos-bg: rgba(169,220,118,0.13); --neg-bg: rgba(252,152,103,0.13); --danger-bg: rgba(255,97,136,0.15);
+  --warn-bg: #35311b; --warn-border: #61592d; --info-bg: rgba(120,220,232,0.12); --accent-bg: rgba(120,220,232,0.15);
+  --on-accent: #2d2a2e; --on-bright: #2d2a2e; --danger-text: #ffb3c4;
+  --bg-glow: rgba(120,220,232,0.05); --selection-bg: rgba(120,220,232,0.24);
+  --shadow-strong: rgba(0,0,0,0.55); --shadow-color: rgba(0,0,0,0.42); --shadow-color-soft: rgba(0,0,0,0.28);
+}
+
+/* ---------------------------------------------------------------------------
+   EVERFOREST — warm green forest, easy on the eyes (dark).
+   --------------------------------------------------------------------------- */
+:root[data-theme="everforest-dark"] {
+  --bg: #2d353b; --panel: #343f44; --panel-2: #414b50; --pop: #384349; --panel-header: #343f44;
+  --surface-hi: rgba(255,255,255,0.04); --surface-hi-strong: rgba(255,255,255,0.075);
+  --border-hairline: #374146; --border: #445055; --border-strong: #56666b; --neg-border: #543a34;
+  --text: #d3c6aa; --text-muted: #c3b795; --text-dim: #a6a284; --text-faint: #8d9585;
+  --accent: #7fbbb3; --accent-hover: #90c7bf; --accent-quiet: #a7c080;
+  --accent-fill: var(--accent); --accent-fill-hover: var(--accent-hover);
+  --pos: #a7c080; --pos-strong: #6f8f56; --neg: #e69875; --neg-strong: #e67e80; --warn: #dbbc7f; --danger: #e67e80;
+  --pos-bg: rgba(167,192,128,0.14); --neg-bg: rgba(230,152,117,0.14); --danger-bg: rgba(230,126,128,0.16);
+  --warn-bg: #383420; --warn-border: #625b34; --info-bg: rgba(127,187,179,0.13); --accent-bg: rgba(127,187,179,0.15);
+  --on-accent: #2d353b; --on-bright: #2d353b; --danger-text: #f0aeb0;
+  --bg-glow: rgba(127,187,179,0.05); --selection-bg: rgba(127,187,179,0.22);
+  --shadow-strong: rgba(0,0,0,0.46); --shadow-color: rgba(0,0,0,0.34); --shadow-color-soft: rgba(0,0,0,0.22);
+}
+
+/* ---------------------------------------------------------------------------
+   KANAGAWA — muted Japanese ink-painting palette.
+   --------------------------------------------------------------------------- */
+:root[data-theme="kanagawa"] {
+  --bg: #1f1f28; --panel: #2a2a37; --panel-2: #363646; --pop: #2d2d3d; --panel-header: #2a2a37;
+  --surface-hi: rgba(255,255,255,0.045); --surface-hi-strong: rgba(255,255,255,0.08);
+  --border-hairline: #2c2c3c; --border: #3a3a4c; --border-strong: #4a4a60; --neg-border: #543440;
+  --text: #dcd7ba; --text-muted: #c8c093; --text-dim: #a8a284; --text-faint: #8e8b72;
+  --accent: #7e9cd8; --accent-hover: #8ea9de; --accent-quiet: #7fb4ca;
+  --accent-fill: #4c6dad; --accent-fill-hover: #5c7dbd;
+  --pos: #98bb6c; --pos-strong: #6a8a48; --neg: #ffa066; --neg-strong: #e46876; --warn: #e6c384; --danger: #e46876;
+  --pos-bg: rgba(152,187,108,0.13); --neg-bg: rgba(255,160,102,0.13); --danger-bg: rgba(228,104,118,0.15);
+  --warn-bg: #34301c; --warn-border: #5f5730; --info-bg: rgba(126,156,216,0.13); --accent-bg: rgba(126,156,216,0.16);
+  --on-accent: #ffffff; --on-bright: #1f1f28; --danger-text: #f2a3ab;
+  --bg-glow: rgba(126,156,216,0.06); --selection-bg: rgba(126,156,216,0.26);
+  --shadow-strong: rgba(0,0,0,0.58); --shadow-color: rgba(0,0,0,0.44); --shadow-color-soft: rgba(0,0,0,0.30);
+}
+
+/* ---------------------------------------------------------------------------
+   GITHUB DARK — clean, familiar.
+   --------------------------------------------------------------------------- */
+:root[data-theme="github-dark"] {
+  --bg: #0d1117; --panel: #161b22; --panel-2: #21262d; --pop: #1c2128; --panel-header: #161b22;
+  --surface-hi: rgba(255,255,255,0.045); --surface-hi-strong: rgba(255,255,255,0.08);
+  --border-hairline: #21262d; --border: #30363d; --border-strong: #444c56; --neg-border: #5a2e2c;
+  --text: #e6edf3; --text-muted: #c9d1d9; --text-dim: #8b949e; --text-faint: #6e7681;
+  --accent: #58a6ff; --accent-hover: #6cb0ff; --accent-quiet: #79c0ff;
+  --accent-fill: #1f6feb; --accent-fill-hover: #2f7ce0;
+  --pos: #3fb950; --pos-strong: #238636; --neg: #f0883e; --neg-strong: #f85149; --warn: #d29922; --danger: #f85149;
+  --pos-bg: rgba(63,185,80,0.13); --neg-bg: rgba(240,136,62,0.13); --danger-bg: rgba(248,81,73,0.15);
+  --warn-bg: #2e2a10; --warn-border: #574e1f; --info-bg: rgba(88,166,255,0.13); --accent-bg: rgba(88,166,255,0.15);
+  --on-accent: #ffffff; --on-bright: #0d1117; --danger-text: #ff9a90;
+  --bg-glow: rgba(88,166,255,0.06); --selection-bg: rgba(88,166,255,0.28);
+  --shadow-strong: rgba(0,0,0,0.62); --shadow-color: rgba(0,0,0,0.48); --shadow-color-soft: rgba(0,0,0,0.30);
+}
+
+/* ---------------------------------------------------------------------------
+   AYU MIRAGE — muted slate with an amber accent (dark).
+   --------------------------------------------------------------------------- */
+:root[data-theme="ayu-mirage"] {
+  --bg: #1f2430; --panel: #232834; --panel-2: #2c3240; --pop: #272d3a; --panel-header: #232834;
+  --surface-hi: rgba(255,255,255,0.045); --surface-hi-strong: rgba(255,255,255,0.08);
+  --border-hairline: #262c39; --border: #333a48; --border-strong: #454d5c; --neg-border: #5a3a30;
+  --text: #cbccc6; --text-muted: #b0b3ab; --text-dim: #8f97a1; --text-faint: #74808f;
+  --accent: #73d0ff; --accent-hover: #8ad8ff; --accent-quiet: #ffcc66;
+  --accent-fill: var(--accent); --accent-fill-hover: var(--accent-hover);
+  --pos: #a6cc70; --pos-strong: #6f9640; --neg: #f29e74; --neg-strong: #f28779; --warn: #ffcc66; --danger: #f28779;
+  --pos-bg: rgba(166,204,112,0.13); --neg-bg: rgba(242,158,116,0.13); --danger-bg: rgba(242,135,121,0.15);
+  --warn-bg: #33301b; --warn-border: #5e572f; --info-bg: rgba(115,208,255,0.12); --accent-bg: rgba(115,208,255,0.14);
+  --on-accent: #1f2430; --on-bright: #1f2430; --danger-text: #f7b3a3;
+  --bg-glow: rgba(115,208,255,0.05); --selection-bg: rgba(115,208,255,0.24);
+  --shadow-strong: rgba(0,0,0,0.56); --shadow-color: rgba(0,0,0,0.44); --shadow-color-soft: rgba(0,0,0,0.28);
+}
+
+/* ---------------------------------------------------------------------------
+   GITHUB LIGHT — clean daylight, blue accent.
+   --------------------------------------------------------------------------- */
+:root[data-theme="github-light"] {
+  --bg: #f6f8fa; --panel: #ffffff; --panel-2: #eaeef2; --pop: #ffffff; --panel-header: #f6f8fa;
+  --surface-hi: rgba(255,255,255,0.8); --surface-hi-strong: rgba(255,255,255,1);
+  --border-hairline: #eaeef2; --border: #d0d7de; --border-strong: #afb8c1; --neg-border: #e0a2a8;
+  --text: #1f2328; --text-muted: #424a53; --text-dim: #656d76; --text-faint: #808b98;
+  --accent: #0969da; --accent-hover: #0860c9; --accent-quiet: #0969da;
+  --accent-fill: #0969da; --accent-fill-hover: #0860c9;
+  --pos: #1a7f37; --pos-strong: #116329; --neg: #bc4c00; --neg-strong: #cf222e; --warn: #9a6700; --danger: #cf222e;
+  --pos-bg: rgba(26,127,55,0.10); --neg-bg: rgba(188,76,0,0.10); --danger-bg: rgba(207,34,46,0.10);
+  --warn-bg: #fbf7d6; --warn-border: #e6d78f; --info-bg: rgba(9,105,218,0.10); --accent-bg: rgba(9,105,218,0.10);
+  --on-accent: #ffffff; --on-bright: #ffffff; --danger-text: #a40e26;
+  --bg-glow: rgba(9,105,218,0.04); --selection-bg: rgba(9,105,218,0.16);
+  --shadow-strong: rgba(31,35,40,0.18); --shadow-color: rgba(31,35,40,0.12); --shadow-color-soft: rgba(31,35,40,0.06);
+}
+
+/* ---------------------------------------------------------------------------
+   ONE LIGHT — Atom's light editor theme.
+   --------------------------------------------------------------------------- */
+:root[data-theme="one-light"] {
+  --bg: #fafafa; --panel: #ffffff; --panel-2: #ececed; --pop: #ffffff; --panel-header: #f2f2f2;
+  --surface-hi: rgba(255,255,255,0.8); --surface-hi-strong: rgba(255,255,255,1);
+  --border-hairline: #ececed; --border: #d4d4d6; --border-strong: #b7b8bd; --neg-border: #e0aca8;
+  --text: #383a42; --text-muted: #4f5560; --text-dim: #696c77; --text-faint: #8a8c94;
+  --accent: #4078f2; --accent-hover: #3067e0; --accent-quiet: #0172a3;
+  --accent-fill: #3067e0; --accent-fill-hover: #2857cc;
+  --pos: #2f7a2e; --pos-strong: #276626; --neg: #b8541c; --neg-strong: #d1322d; --warn: #8a5d00; --danger: #d1322d;
+  --pos-bg: rgba(63,140,62,0.11); --neg-bg: rgba(184,84,28,0.11); --danger-bg: rgba(209,50,45,0.11);
+  --warn-bg: #f7efd2; --warn-border: #e2ce8e; --info-bg: rgba(64,120,242,0.10); --accent-bg: rgba(64,120,242,0.10);
+  --on-accent: #ffffff; --on-bright: #ffffff; --danger-text: #a3251f;
+  --bg-glow: rgba(64,120,242,0.04); --selection-bg: rgba(64,120,242,0.16);
+  --shadow-strong: rgba(56,58,66,0.18); --shadow-color: rgba(56,58,66,0.12); --shadow-color-soft: rgba(56,58,66,0.06);
+}
+
+/* ---------------------------------------------------------------------------
+   ROSÉ PINE DAWN — the soft light rose (light pair of Rosé Pine).
+   --------------------------------------------------------------------------- */
+:root[data-theme="rosepine-dawn"] {
+  --bg: #faf4ed; --panel: #fffaf3; --panel-2: #f2e9e1; --pop: #fffaf3; --panel-header: #f2e9e1;
+  --surface-hi: rgba(255,255,255,0.7); --surface-hi-strong: rgba(255,255,255,0.95);
+  --border-hairline: #f2e9e1; --border: #dfd8d0; --border-strong: #c9beb4; --neg-border: #d6a1aa;
+  --text: #575279; --text-muted: #6e6a86; --text-dim: #7d7691; --text-faint: #8f8ba0;
+  --accent: #907aa9; --accent-hover: #9d88b5; --accent-quiet: #286983;
+  --accent-fill: #6d5890; --accent-fill-hover: #7d669e;
+  --pos: #396e78; --pos-strong: #286983; --neg: #a3475e; --neg-strong: #a3324c; --warn: #97690f; --danger: #a3324c;
+  --pos-bg: rgba(57,110,120,0.12); --neg-bg: rgba(180,99,122,0.12); --danger-bg: rgba(163,50,76,0.12);
+  --warn-bg: #f3e6c8; --warn-border: #dcc088; --info-bg: rgba(40,105,131,0.10); --accent-bg: rgba(144,122,169,0.13);
+  --on-accent: #ffffff; --on-bright: #ffffff; --danger-text: #8a2740;
+  --bg-glow: rgba(144,122,169,0.05); --selection-bg: rgba(144,122,169,0.16);
+  --shadow-strong: rgba(87,82,121,0.16); --shadow-color: rgba(87,82,121,0.10); --shadow-color-soft: rgba(87,82,121,0.06);
+}
+
+/* ---------------------------------------------------------------------------
+   EVERFOREST LIGHT — warm paper-green (light pair of Everforest).
+   --------------------------------------------------------------------------- */
+:root[data-theme="everforest-light"] {
+  --bg: #fdf6e3; --panel: #fffbef; --panel-2: #f4f0d9; --pop: #fffbef; --panel-header: #f4f0d9;
+  --surface-hi: rgba(255,255,255,0.7); --surface-hi-strong: rgba(255,255,255,0.95);
+  --border-hairline: #f0ecd8; --border: #ddd8c0; --border-strong: #c4bda2; --neg-border: #dcaf94;
+  --text: #4d5960; --text-muted: #5c6a72; --text-dim: #758079; --text-faint: #8a9488;
+  --accent: #3a94c5; --accent-hover: #2d86b8; --accent-quiet: #2a7d5c;
+  --accent-fill: #2c7ba8; --accent-fill-hover: #256b93;
+  --pos: #636f00; --pos-strong: #5e6b00; --neg: #bd5410; --neg-strong: #e04a45; --warn: #8a5e00; --danger: #e04a45;
+  --pos-bg: rgba(111,125,0,0.12); --neg-bg: rgba(213,105,26,0.12); --danger-bg: rgba(224,74,69,0.12);
+  --warn-bg: #f3ebc8; --warn-border: #dcc888; --info-bg: rgba(58,148,197,0.10); --accent-bg: rgba(58,148,197,0.10);
+  --on-accent: #ffffff; --on-bright: #ffffff; --danger-text: #a3271f;
+  --bg-glow: rgba(58,148,197,0.04); --selection-bg: rgba(58,148,197,0.15);
+  --shadow-strong: rgba(64,72,60,0.16); --shadow-color: rgba(64,72,60,0.10); --shadow-color-soft: rgba(64,72,60,0.06);
+}
+
+/* ---------------------------------------------------------------------------
+   HIGH CONTRAST LIGHT — accessibility-first on white.
+   --------------------------------------------------------------------------- */
+:root[data-theme="high-contrast-light"] {
+  --bg: #ffffff; --panel: #ffffff; --panel-2: #eef1f5; --pop: #ffffff; --panel-header: #f4f6f9;
+  --surface-hi: rgba(255,255,255,0.9); --surface-hi-strong: rgba(255,255,255,1);
+  --border-hairline: #d0d7de; --border: #9aa4b0; --border-strong: #6b7683; --neg-border: #b03030;
+  --text: #000000; --text-muted: #16202c; --text-dim: #38424e; --text-faint: #4d5763;
+  --accent: #0b5cc7; --accent-hover: #0a52b3; --accent-quiet: #0b5cc7;
+  --accent-fill: #0b5cc7; --accent-fill-hover: #0a52b3;
+  --pos: #036b3f; --pos-strong: #025c36; --neg: #9a3b00; --neg-strong: #b81414; --warn: #7a5200; --danger: #b81414;
+  --pos-bg: rgba(3,107,63,0.12); --neg-bg: rgba(154,59,0,0.12); --danger-bg: rgba(184,20,20,0.12);
+  --warn-bg: #f5eccb; --warn-border: #cbb057; --info-bg: rgba(11,92,199,0.12); --accent-bg: rgba(11,92,199,0.12);
+  --on-accent: #ffffff; --on-bright: #ffffff; --danger-text: #8a0f0f;
+  --bg-glow: rgba(11,92,199,0.03); --selection-bg: rgba(11,92,199,0.20);
+  --shadow-strong: rgba(0,0,0,0.28); --shadow-color: rgba(0,0,0,0.18); --shadow-color-soft: rgba(0,0,0,0.10);
+}
+
+/* ---------------------------------------------------------------------------
    APP-WIDE FONT SIZE — a separate `data-fontsize` attribute on <html> that just
    scales the type. Independent of (and composes with) the theme. Medium = default.
    --------------------------------------------------------------------------- */

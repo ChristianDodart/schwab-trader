@@ -3,6 +3,16 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.48.0 — "Twice the themes, grouped"
+
+- **12 new themes**, all meeting WCAG AA contrast for text and profit/loss — 23 in total.
+  New dark themes: **Dracula, One Dark, Monokai Pro, Everforest, Kanagawa, GitHub Dark, Ayu Mirage**.
+  New light themes: **GitHub Light, One Light, Rosé Pine Dawn, Everforest Light**.
+  Plus a new **High Contrast Light** for maximum-legibility on white.
+- **The theme picker is now grouped** into Dark, Light, and High Contrast, each with a labeled
+  header and a count, so it's easy to scan to the look you want.
+- As always, themes swap color only — layout, spacing, and motion are identical across every one.
+
 ## v0.47.0 — "ƒ, explained once"
 
 - **Dropped the redundant "ⓘ" marker.** A figure now carries at most the small **ƒ** — which means

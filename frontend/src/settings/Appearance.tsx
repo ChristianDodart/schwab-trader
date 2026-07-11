@@ -4,7 +4,7 @@
 // light/dark setting; an explicit pick always wins.
 import { useEffect, useState } from "react";
 import {
-  THEMES, storedChoice, setThemeChoice, resolveTheme,
+  THEMES, THEME_GROUPS, storedChoice, setThemeChoice, resolveTheme,
   storedFontSize, setFontSize,
   type ThemeChoice, type ThemeMeta, type FontSize,
 } from "../theme";
@@ -75,17 +75,29 @@ export function Appearance() {
         {followSystem && <span style={S.check} aria-hidden>✓</span>}
       </button>
 
-      <div style={S.grid}>
-        {THEMES.map((t) => (
-          <ThemeCard
-            key={t.id}
-            theme={t}
-            selected={!followSystem && choice === t.id}
-            live={followSystem && applied === t.id}
-            onPick={() => setThemeChoice(t.id)}
-          />
-        ))}
-      </div>
+      {THEME_GROUPS.map((group) => {
+        const items = THEMES.filter((t) => t.group === group);
+        if (items.length === 0) return null;
+        return (
+          <section key={group} style={S.section}>
+            <div style={S.sectionHead}>
+              <span style={S.sectionTitle}>{group}</span>
+              <span style={S.sectionCount}>{items.length}</span>
+            </div>
+            <div style={S.grid}>
+              {items.map((t) => (
+                <ThemeCard
+                  key={t.id}
+                  theme={t}
+                  selected={!followSystem && choice === t.id}
+                  live={followSystem && applied === t.id}
+                  onPick={() => setThemeChoice(t.id)}
+                />
+              ))}
+            </div>
+          </section>
+        );
+      })}
 
       <p style={S.footnote}>
         Themes swap color only — layout, spacing, and motion are identical across every one.
@@ -117,7 +129,6 @@ function ThemeCard({
         <span style={S.cardTitle}>{theme.label}</span>
         {selected && <span style={S.cardCheck} aria-hidden>✓</span>}
         {live && <span style={S.liveTag}>live</span>}
-        <span style={S.groupTag}>{theme.group}</span>
       </div>
     </button>
   );
@@ -141,6 +152,17 @@ const S: Record<string, React.CSSProperties> = {
   systemTitle: { fontSize: "var(--fs-sm)", fontWeight: 600 },
   systemSub: { fontSize: "var(--fs-xs)", color: "var(--text-dim)", marginTop: 2 },
   check: { color: "var(--accent)", fontWeight: 700, fontSize: "var(--fs-md)" },
+
+  section: { marginBottom: 18 },
+  sectionHead: { display: "flex", alignItems: "center", gap: 8, margin: "0 2px 8px" },
+  sectionTitle: {
+    fontSize: "var(--fs-2xs)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+    color: "var(--text-dim)",
+  },
+  sectionCount: {
+    fontSize: 10, fontWeight: 700, color: "var(--text-faint)",
+    background: "var(--panel-2)", borderRadius: "var(--r-pill)", padding: "1px 7px",
+  },
 
   grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(148px, 1fr))", gap: 10 },
 
@@ -170,7 +192,5 @@ const S: Record<string, React.CSSProperties> = {
     color: "var(--accent-quiet)", border: "1px solid var(--border-strong)",
     borderRadius: "var(--r-sm)", padding: "0 4px",
   },
-  groupTag: { fontSize: 10, color: "var(--text-faint)", marginLeft: "auto" },
-
   footnote: { fontSize: "var(--fs-xs)", color: "var(--text-dim)", marginTop: 14, lineHeight: 1.5 },
 };
