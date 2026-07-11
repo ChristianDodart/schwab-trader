@@ -50,21 +50,11 @@ export function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [symQuery, setSymQuery] = useState("");        // Ctrl+F find-bar filter (by ticker)
   const [findOpen, setFindOpen] = useState(false);     // browser-style find bar (hidden until Ctrl+F)
-  const [sectorFilter, setSectorFilter] = useState<string | null>(null); // click a sector chip
   const [dashSub, setDashSub] = useState<"all" | "todo" | "top">("all");
   const symInputRef = useRef<HTMLInputElement>(null);
   const gPending = useRef(false); // "g" prefix for vim-style tab jumps (g then d/s/l/o/r)
   const [cashInfo, setCashInfo] = useState<{ cash: number | null; buying_power: number | null; margin_buying_power: number | null } | null>(null);
   const [signalRules, setSignalRules] = useState<SignalRule[]>([]);
-  const [paused, setPaused] = useState(false); // freeze live dashboard updates
-  const [pausedSince, setPausedSince] = useState<string>("");
-  const pausedRef = useRef(false);
-  useEffect(() => { pausedRef.current = paused; }, [paused]);
-  const togglePause = () => setPaused((v) => {
-    const next = !v;
-    if (next) setPausedSince(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
-    return next;
-  });
   const [acctKey, setAcctKey] = useState("");
   const [addSym, setAddSym] = useState("");
   const [watchTicket, setWatchTicket] = useState<Suggestion | null>(null);
@@ -93,11 +83,9 @@ export function App() {
   // Prices are stale only when we're MEANT to be live (not demo) but Schwab isn't
   // answering — then dim the table + explain, so a frozen quote isn't mistaken for a real move.
   const pricesStale = data?.mode !== "demo" && live === false;
-  // Dashboard table rows after the "/" ticker filter and any clicked sector filter.
-  // SectorStrip + bulk keep using the FULL row set (whole-portfolio views).
+  // Dashboard table rows after the Ctrl+F ticker filter. Bulk keeps the FULL row set.
   const dashRows = (data?.rows ?? []).filter((r) =>
-    (!symQuery || r.symbol.toUpperCase().includes(symQuery)) &&
-    (!sectorFilter || (r.sector || "Untagged") === sectorFilter));
+    !symQuery || r.symbol.toUpperCase().includes(symQuery));
   // To-Do: held positions meeting a BUY or SELL signal (built-in mark OR a custom rule).
   const todoRows = (data?.rows ?? []).filter((r) =>
     !r.is_watch && (r.buy_mark || r.sell_mark || signalRules.some((rule) => matchesRule(rule, r))));
@@ -246,7 +234,7 @@ export function App() {
       // Guard the socket: a single malformed frame must never wedge the UI or
       // replace good data with garbage. Keep the last-good dashboard on any error.
       ws.onmessage = (ev) => {
-        if (disposed || pausedRef.current) return; // paused → keep the frozen snapshot
+        if (disposed) return;
         try {
           const parsed = JSON.parse(ev.data);
           if (parsed && Array.isArray(parsed.rows)) setData(parsed as Dashboard);
@@ -481,7 +469,10 @@ export function App() {
         ) : view === "notifications" ? (
           <NotificationsTab prefill={alertPrefill} onPrefillConsumed={() => setAlertPrefill(null)} />
         ) : view === "screen" ? (
-          <Screener />
+          <>
+            {data && <SectorStrip rows={data.rows} />}
+            <Screener />
+          </>
         ) : view === "ledger" ? (
           <>
             {data && <SectorStrip rows={data.rows} />}
@@ -514,44 +505,27 @@ export function App() {
                 ) : (
                   <>
                     {!simple && dashSub === "all" && (
-                      <>
-                        <SectorStrip rows={data.rows}
-                          activeSector={sectorFilter}
-                          onSectorClick={(name) => setSectorFilter((cur) => (cur === name ? null : name))} />
-                        <div style={S.filterBar}>
-                          {(symQuery || sectorFilter) && (
-                            <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-xs)" }}>
-                              showing {dashRows.length} of {data.rows.length}
-                              {symQuery && <> · <b style={{ color: "var(--text-muted)" }}>“{symQuery}”</b></>}
-                            </span>
-                          )}
-                          {sectorFilter && (
-                            <span style={S.activeFilter}>
-                              Sector: <b>{sectorFilter}</b>
-                              <button aria-label="Clear sector filter" style={S.filterX} onClick={() => setSectorFilter(null)}><IconClose /></button>
-                            </span>
-                          )}
-                          <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                            <span style={S.addWrap}>
-                              <input
-                                className="field"
-                                style={{ width: 110, height: 30 }}
-                                placeholder="Add ticker"
-                                aria-label="Add ticker symbol"
-                                value={addSym}
-                                onChange={(e) => setAddSym(e.target.value.toUpperCase())}
-                                onKeyDown={(e) => e.key === "Enter" && addTicker()}
-                              />
-                              <button className="btn btn-secondary btn-sm" onClick={addTicker}>Add</button>
-                            </span>
-                            <ColumnManager prefs={dashCols} labelOf={(id) => DASH_COLUMNS[id]?.label ?? id} />
-                            {paused && <span style={S.pausedChip}>paused · frozen at {pausedSince}</span>}
-                            <button className="btn btn-ghost btn-sm" aria-pressed={paused}
-                              title={paused ? "Resume live updates" : "Freeze the table so a quote can't shift under you"}
-                              onClick={togglePause}>{paused ? "Resume" : "Pause updates"}</button>
+                      <div style={S.filterBar}>
+                        <span style={S.addWrap}>
+                          <input
+                            className="field"
+                            style={{ width: 130, height: 30 }}
+                            placeholder="Add ticker — Enter"
+                            aria-label="Add ticker symbol — press Enter to add"
+                            value={addSym}
+                            onChange={(e) => setAddSym(e.target.value.toUpperCase())}
+                            onKeyDown={(e) => e.key === "Enter" && addTicker()}
+                          />
+                        </span>
+                        {symQuery && (
+                          <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-xs)" }}>
+                            showing {dashRows.length} of {data.rows.length} · <b style={{ color: "var(--text-muted)" }}>“{symQuery}”</b>
                           </span>
-                        </div>
-                      </>
+                        )}
+                        <span style={{ marginLeft: "auto" }}>
+                          <ColumnManager prefs={dashCols} labelOf={(id) => DASH_COLUMNS[id]?.label ?? id} />
+                        </span>
+                      </div>
                     )}
                     {!simple && dashSub === "todo" && (
                       <p style={S.note}>
@@ -807,13 +781,15 @@ const S: Record<string, React.CSSProperties> = {
   demoTag: { color: "var(--warn)", border: "1px solid var(--warn-border)", fontWeight: 700, letterSpacing: "0.05em" },
   demoBtn: { flexShrink: 0 },
   staleNote: { color: "var(--warn)", fontSize: "var(--fs-sm)", margin: "0 0 10px", lineHeight: 1.45 },
-  filterBar: { display: "flex", alignItems: "center", gap: 8, margin: "0 0 10px", flexWrap: "wrap" },
-  activeFilter: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: "var(--fs-xs)", color: "var(--text-muted)", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--r-pill)", padding: "2px 10px" },
-  filterX: { background: "transparent", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "var(--fs-xs)", padding: 0 },
-  pausedChip: { fontSize: "var(--fs-2xs)", color: "var(--warn)", border: "1px solid var(--warn-border)", borderRadius: "var(--r-pill)", padding: "1px 9px", textTransform: "uppercase", letterSpacing: "0.04em" },
-  dashSubtabs: { display: "inline-flex", gap: 4, margin: "0 0 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--r-pill)", padding: 3 },
-  subActive: { border: "none", background: "var(--accent)", color: "#0b0e13", fontWeight: 700, borderRadius: "var(--r-pill)" },
-  subIdle: { border: "none", background: "transparent", color: "var(--text-muted)", borderRadius: "var(--r-pill)" },
+  filterBar: { display: "flex", alignItems: "center", gap: 10, margin: "0 0 10px", flexWrap: "wrap" },
+  // Segmented control (All / To-Do / Top 10): a comfortable pill group with a raised
+  // active chip, roomy hit targets, and breathing room above the table.
+  dashSubtabs: { display: "inline-flex", gap: 3, margin: "4px 0 16px", background: "var(--panel-2)",
+    border: "1px solid var(--border)", borderRadius: "var(--r-pill)", padding: 4 },
+  subActive: { border: "none", background: "var(--accent)", color: "#fff", fontWeight: 700,
+    borderRadius: "var(--r-pill)", padding: "6px 18px", minHeight: 32 },
+  subIdle: { border: "none", background: "transparent", color: "var(--text-muted)", fontWeight: 600,
+    borderRadius: "var(--r-pill)", padding: "6px 18px", minHeight: 32 },
   top10grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 },
   kbd: { fontFamily: "monospace", fontSize: "var(--fs-xs)", background: "var(--panel-2)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-sm)", padding: "1px 8px", color: "var(--text)", minWidth: 22, textAlign: "center" },
 };

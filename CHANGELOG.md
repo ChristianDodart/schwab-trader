@@ -3,6 +3,21 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.36.2 — "Dashboard tidy-up"
+
+- **Sector exposure moved to the Screen tab.** The concentration bar now lives on Screen
+  (and stays on the Ledger), clearing the top of the dashboard.
+- **Cleaner All / To-Do / Top 10 switch.** The little pill bar got roomier hit targets and
+  proper spacing so it no longer feels squished.
+- **Add ticker sits on the left, and the Add button is gone** — just type a symbol and
+  press Enter. Less clutter, one obvious way to do it.
+- **Pause updates removed.** It wasn't earning its keep.
+- **The "more columns" control is now a chevron in the table.** A right arrow ▸ appears
+  right where the next column would go — click it to roll the extra columns open, click
+  the left arrow ◂ to roll them back in.
+- Dropped the "Click a ticker to open its buy ladder" hint (clicking a ticker still opens
+  its ladder — the line was just noise).
+
 ## v0.36.1 — "Ctrl+F to find a ticker"
 
 - **Find a ticker the way you find anything else.** The always-visible "Jump to ticker"

@@ -4,7 +4,7 @@ import { DASH_COLUMNS, PINNED_DASH, ESSENTIAL_DASH_IDS, rowSignalChips, tickerRi
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
 import type { SignalRule } from "./signals";
-import { IconChildArrow, IconBell, IconClose } from "./Icon";
+import { IconChildArrow, IconBell, IconClose, IconChevronRight, IconChevronLeft } from "./Icon";
 
 // Column sorting: click a header to sort by it (asc/desc toggle, third click clears
 // back to the default order). Persisted per browser. Applied BEFORE nesting, so ETF
@@ -123,14 +123,16 @@ export function DashboardTable({
   const defs = cols.map((id) => DASH_COLUMNS[id]).filter(Boolean);
   // Simple mode pins only Price (drops the always-on Last Pos P/L) for a 4-column grid.
   const pinned = simple ? PINNED_DASH.filter((c) => c.id === "price") : PINNED_DASH;
-  const colSpan = 1 /* ticker */ + pinned.length + defs.length + (bulk ? 1 : 0);
 
   // Column folding: the essential columns always show; the rest roll in/out inline via
-  // a toggle (default folded, so the resting table stays lean for less technical users).
-  // Simple mode disables folding — its short column set is all essential.
+  // a chevron sitting in the header exactly where the next column would appear (right
+  // arrow to reveal, left arrow to collapse). Default folded so the resting table stays
+  // lean. Simple mode disables folding — its short column set is all essential.
   const essIds = new Set(ESSENTIAL_DASH_IDS);
   const essDefs = simple ? defs : defs.filter((c) => essIds.has(c.id));
   const foldDefs = simple ? [] : defs.filter((c) => !essIds.has(c.id));
+  const showFoldToggle = !simple && foldDefs.length > 0;
+  const colSpan = 1 /* ticker */ + pinned.length + defs.length + (bulk ? 1 : 0) + (showFoldToggle ? 1 : 0);
   const [folded, setFolded] = useState<boolean>(() => {
     try { return localStorage.getItem("dash.fold.v1") !== "0"; } catch { return true; }
   });
@@ -139,6 +141,18 @@ export function DashboardTable({
     try { localStorage.setItem("dash.fold.v1", n ? "1" : "0"); } catch { /* private mode */ }
     return n;
   });
+  // The chevron header cell (rendered after the fold columns so it hugs the right edge:
+  // when folded the fold columns are 0-width, so it lands right after the essentials).
+  const FoldToggleTh = () => (
+    <th className="foldtoggle" style={S.foldToggleTh}>
+      <button className="btn btn-ghost btn-sm" style={S.foldToggleBtn} aria-expanded={!folded}
+        aria-label={folded ? `Show ${foldDefs.length} more column${foldDefs.length === 1 ? "" : "s"}` : "Hide the extra columns"}
+        title={folded ? `Show ${foldDefs.length} more column${foldDefs.length === 1 ? "" : "s"}` : "Hide the extra columns"}
+        onClick={toggleFold}>
+        {folded ? <IconChevronRight size={16} /> : <IconChevronLeft size={16} />}
+      </button>
+    </th>
+  );
   const cellFor = (c: DashCol, r: DashboardRow) =>
     c.watchNA && r.is_watch ? <span style={{ color: "var(--text-faint)" }}>—</span> : c.render(r);
 
@@ -191,16 +205,6 @@ export function DashboardTable({
 
   return (
     <div>
-      <div style={S.hintRow}>
-        {!bulk ? <p style={S.hint}>Click a ticker to open its buy ladder.</p> : <span />}
-        {!simple && foldDefs.length > 0 && (
-          <button className="btn btn-ghost btn-sm" style={S.foldBtn} aria-expanded={!folded}
-            title={folded ? "Roll out the rest of the columns" : "Roll the extra columns back in"}
-            onClick={toggleFold}>
-            {folded ? `+ ${foldDefs.length} more column${foldDefs.length === 1 ? "" : "s"}` : "− fewer columns"}
-          </button>
-        )}
-      </div>
       <div style={{ overflowX: "auto" }}>
         <table className="tbl">
           <thead>
@@ -215,6 +219,7 @@ export function DashboardTable({
               {pinned.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
               {essDefs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
               {foldDefs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} fold />)}
+              {showFoldToggle && <FoldToggleTh />}
             </tr>
           </thead>
           <tbody>
@@ -326,6 +331,7 @@ export function DashboardTable({
                       <span className="foldwrap">{cellFor(c, r)}</span>
                     </td>
                   ))}
+                  {showFoldToggle && <td className="foldtoggle" />}
                 </tr>
                 {isOpen && renderDetail && (
                   <tr>
@@ -345,6 +351,7 @@ export function DashboardTable({
                 {pinned.map((c) => totalCell(c.id, c.align))}
                 {essDefs.map((c) => totalCell(c.id, c.align))}
                 {foldDefs.map((c) => totalCell(c.id, c.align, true))}
+                {showFoldToggle && <td className="foldtoggle" />}
               </tr>
             </tfoot>
           )}
@@ -372,9 +379,9 @@ function NoteDot({ preview }: { preview?: string | null }) {
 }
 
 const S: Record<string, React.CSSProperties> = {
-  hint: { color: "var(--text-dim)", fontSize: "var(--fs-xs)", margin: 0 },
-  hintRow: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, margin: "0 0 10px", minHeight: 26 },
-  foldBtn: { flexShrink: 0 },
+  // Fold chevron column: narrow, centered, and non-sortable (a plain handle, not a header).
+  foldToggleTh: { width: 34, padding: "4px 4px", textAlign: "center", cursor: "default" },
+  foldToggleBtn: { padding: "2px 6px", minHeight: 24, color: "var(--text-dim)" },
   noteTip: { position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 30, width: 260,
     background: "var(--pop)", color: "var(--text)", border: "1px solid var(--border)",
     borderRadius: "var(--r-md)", boxShadow: "var(--shadow-pop)", padding: "8px 10px",
