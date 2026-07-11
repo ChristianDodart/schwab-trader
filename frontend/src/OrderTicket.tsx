@@ -42,6 +42,12 @@ export function OrderTicket({
   const [session, setSession] = useState("NORMAL");
   const [marketSession, setMarketSession] = useState<string | null>(null); // pre|regular|post|closed|unknown
   const [livePrice, setLivePrice] = useState<number | null>(suggestion.limit_price || null);
+  const [mkt, setMkt] = useState<{ bid?: number; ask?: number }>({}); // live bid/ask for the limit default
+  const priceTouched = useRef(false);   // user edited the limit → stop auto-defaulting it
+  const priceDefaulted = useRef(false); // the bid/ask default has been applied once
+  // Safety: a SELL's share count is LOCKED by default (a fat-finger sells the wrong size);
+  // click Edit to change it. A BUY is always editable.
+  const [qtyLocked, setQtyLocked] = useState(suggestion.side !== "BUY");
   const defaultsApplied = useRef(false);
   const userTouched = useRef(false); // user changed type/session/duration before defaults loaded
   const [acct, setAcct] = useState<Acct | null>(null);
@@ -114,7 +120,17 @@ export function OrderTicket({
         .then((r) => r.json())
         .then((d) => {
           const q = d.quotes?.[suggestion.symbol];
-          if (alive && q && typeof q.last === "number") setLivePrice(q.last);
+          if (!alive || !q) return;
+          if (typeof q.last === "number") setLivePrice(q.last);
+          const bid = typeof q.bid === "number" && q.bid > 0 ? q.bid : undefined;
+          const ask = typeof q.ask === "number" && q.ask > 0 ? q.ask : undefined;
+          setMkt({ bid, ask });
+          // Default the limit to the resting side of the spread: SELL → ask (the high),
+          // BUY → bid (the low). Applied once, and never after the user edits the price.
+          if (!priceDefaulted.current && !priceTouched.current) {
+            const side = suggestion.side === "BUY" ? bid : ask;
+            if (side && side > 0) { setPrice(side); priceDefaulted.current = true; }
+          }
         })
         .catch(() => {});
     load();
@@ -266,14 +282,42 @@ export function OrderTicket({
             </select>
           </label>
           <label style={S.label}>Shares
-            <input type="number" value={qty} min={1} className="field" style={S.field}
-              onChange={(e) => setQty(Math.max(0, Math.floor(Number(e.target.value) || 0)))} />
+            <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              {qtyLocked && (
+                <button type="button" className="btn btn-secondary" style={S.lockBtn}
+                  title="Sell quantity is locked for safety — click to edit"
+                  onClick={() => setQtyLocked(false)}>Locked · Edit</button>
+              )}
+              <input type="number" value={qty} min={1} readOnly={qtyLocked}
+                className="field" style={{ ...S.field, ...(qtyLocked ? S.fieldLocked : {}) }}
+                onChange={(e) => setQty(Math.max(0, Math.floor(Number(e.target.value) || 0)))} />
+            </span>
           </label>
           {needsLimit && (
-            <label style={S.label}>Limit price
-              <input type="number" value={price} step="0.01" min={0.01} className="field" style={S.field}
-                onChange={(e) => setPrice(Number(e.target.value))} />
-            </label>
+            <>
+              <label style={S.label}>Limit price
+                <input type="number" value={price} step="0.01" min={0.01} className="field" style={S.field}
+                  onChange={(e) => { priceTouched.current = true; setPrice(Number(e.target.value)); }} />
+              </label>
+              {(mkt.bid || mkt.ask || suggestion.limit_price > 0) && (
+                <div style={S.spreadRow}>
+                  <button type="button" style={S.spreadBtn} disabled={!mkt.bid}
+                    onClick={() => { if (mkt.bid) { priceTouched.current = true; setPrice(mkt.bid); } }}>
+                    Bid {mkt.bid ? usd(mkt.bid) : "—"}
+                  </button>
+                  <button type="button" style={S.spreadBtn} disabled={!mkt.ask}
+                    onClick={() => { if (mkt.ask) { priceTouched.current = true; setPrice(mkt.ask); } }}>
+                    Ask {mkt.ask ? usd(mkt.ask) : "—"}
+                  </button>
+                  {suggestion.limit_price > 0 && (
+                    <button type="button" style={S.spreadBtn}
+                      onClick={() => { priceTouched.current = true; setPrice(suggestion.limit_price); }}>
+                      Target {usd(suggestion.limit_price)}
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
           )}
           {needsStop && (
             <label style={S.label}>Stop price
@@ -387,6 +431,10 @@ const S: Record<string, React.CSSProperties> = {
   warnNote: { fontSize: "var(--fs-xs)", color: "var(--warn)", margin: "8px 0 0", lineHeight: 1.45 },
   label: { display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "var(--fs-sm)", color: "var(--text-muted)", marginTop: 10 },
   field: { width: 150, textAlign: "right" },
+  fieldLocked: { opacity: 0.6, cursor: "not-allowed" },
+  lockBtn: { fontSize: "var(--fs-2xs)", padding: "2px 8px", whiteSpace: "nowrap" },
+  spreadRow: { display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 6 },
+  spreadBtn: { fontSize: "var(--fs-2xs)", padding: "3px 8px", borderRadius: "var(--r-sm)", border: "1px solid var(--border)", background: "var(--panel-2)", color: "var(--text-muted)", cursor: "pointer" },
   estRow: { display: "flex", justifyContent: "space-between", fontSize: "var(--fs-md)", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" },
   acct: { fontSize: "var(--fs-xs)", color: "var(--text-dim)", marginTop: 12 },
   warn: { color: "var(--warn)", fontSize: "var(--fs-2xs)", lineHeight: 1.4 },

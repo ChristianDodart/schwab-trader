@@ -3,6 +3,21 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.32.0 — "Smarter order ticket"
+
+Order-ticket improvements (first of a few waves working through the feature list):
+
+- Limit price now defaults to the resting side of the spread: a SELL starts at the
+  ask (the high), a BUY at the bid (the low). Under the price field are quick chips —
+  Bid, Ask, and your strategy Target — so you can see all three and one-tap between
+  them. Your own edits are never overwritten by the live quote.
+- Sell quantity is locked by default. A sell order opens with its share count
+  read-only ("Locked · Edit") so you can't fat-finger the size; click Edit to change
+  it. Buys stay freely editable.
+
+Still to come in this batch: P/L on the Orders page, single-ticker LIFO bulk sell,
+and a platform-wide indicator for app-computed vs Schwab-provided numbers.
+
 ## v0.31.12 — "Count all deposits (Funds Received / checks / MoneyLink Adj)"
 
 Fixes understated deposits / capital contributed. The importer only recognized cash
