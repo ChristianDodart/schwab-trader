@@ -384,7 +384,7 @@ export function OrderTicket({
           {!result ? (
             <div style={S.actions}>
               <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-              <button className={confirmCls} style={{ flex: 2 }} disabled={!canPlace} onClick={() => place()}>
+              <button className={`${confirmCls}${placing ? " btn-pending" : ""}`} style={{ flex: 2 }} disabled={!canPlace} onClick={() => place()}>
                 {confirmLabel}
               </button>
             </div>
@@ -393,7 +393,7 @@ export function OrderTicket({
               <p style={S.warnNote}><IconWarning /> {result.warning}</p>
               <div style={S.actions}>
                 <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setResult(null)}>Back</button>
-                <button className={confirmCls} style={{ flex: 2 }} disabled={placing} onClick={() => place(true)}>
+                <button className={`${confirmCls}${placing ? " btn-pending" : ""}`} style={{ flex: 2 }} disabled={placing} onClick={() => place(true)}>
                   {placing ? "Placing…" : isLive ? "Place anyway" : "Simulate anyway"}
                 </button>
               </div>

@@ -3,6 +3,22 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.41.0 — "Feel"
+
+- **Rows flash when a position changes.** The moment a fill lands — a buy-down rung firing, a
+  position opening, a trim, or a sell-out — that row gives a brief wash of color (green for a
+  buy, rose for a sell) and settles. It keys off your actual share count, so the ordinary
+  price ticks that arrive every couple of seconds never flash: only real fills do.
+- **The header figures roll to their new value** on a meaningful change (a fill, a deposit) and
+  snap instantly on the tiny second-to-second ticks — so live numbers stay easy to read instead
+  of jittering.
+- **A calm "placing" state on order buttons.** While an order is in flight, the button shows a
+  soft light sweep instead of a spinner — on single orders and the bulk actions alike.
+- **All of it honors "reduce motion."** With that setting on (your OS accessibility preferences),
+  the highlights and roll-ups become instant: every bit of information is still there, just
+  without the movement. The theme you pick never changes any of this — motion is identical across
+  every theme.
+
 ## v0.40.0 — "Themes"
 
 - **Pick a color theme in Settings → Appearance.** Eleven of them: Midnight (the

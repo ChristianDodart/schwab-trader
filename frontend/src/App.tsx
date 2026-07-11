@@ -11,6 +11,7 @@ import { ColumnManager } from "./ColumnManager";
 import { ConfirmDialog } from "./Modal";
 import { DASH_COLUMNS, DASH_COLUMN_LIST, DEFAULT_DASH_COLS, useColumnPrefs } from "./columns";
 import { KpiPicker, useKpiPrefs, visibleKpis } from "./kpis";
+import { CountUp } from "./anim";
 import { DashboardTable } from "./DashboardTable";
 import { tickerRiskColor } from "./columns";
 import { Ledger } from "./Ledger";
@@ -336,7 +337,7 @@ export function App() {
                   {kpis.length > 0 && (
                     <div style={S.kpiCluster}>
                       {kpis.map((k, i) => (
-                        <KPI key={k.id} label={k.label} value={k.value} n={k.n} color={k.color}
+                        <KPI key={k.id} label={k.label} value={k.value} raw={k.raw} n={k.n} color={k.color}
                           first={i === 0} hint={k.hint} />
                       ))}
                     </div>
@@ -677,15 +678,16 @@ function FeedTag({ mode }: { mode?: string }) {
   return null;
 }
 
-function KPI({ label, value, n, color, first, hint }: { label: string; value: string; n?: number | null; color?: string; first?: boolean; hint?: string }) {
+function KPI({ label, value, raw, n, color, first, hint }: { label: string; value: string; raw?: number; n?: number | null; color?: string; first?: boolean; hint?: string }) {
   // `color` (explicit) wins; otherwise derive from the sign of `n` (▲/▼ signed metric).
   const c = color ?? (n == null || n === 0 ? "var(--text)" : n > 0 ? "var(--pos)" : "var(--neg)");
   return (
     <div style={{ ...S.kpi, ...(first ? { borderLeft: "none" } : null), ...(hint ? { cursor: "help" } : null) }} title={hint}>
       <div style={S.kpiLabel}>{label}</div>
-      <div style={{ ...S.kpiVal, color: c }}>
+      <div style={{ ...S.kpiVal, color: c }} aria-label={value}>
         {n != null && n !== 0 && <span aria-hidden="true" style={{ fontSize: "0.68em", marginRight: 3 }}>{n > 0 ? "▲" : "▼"}</span>}
-        {value}
+        {/* Roll the figure on a meaningful change (a fill, a deposit); snap on ticks. */}
+        {raw != null ? <CountUp value={raw} format={usd} aria-hidden="true" /> : value}
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { DASH_COLUMNS, PINNED_DASH, ESSENTIAL_DASH_IDS, rowSignalChips, tickerRi
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
 import type { SignalRule } from "./signals";
+import { useFillFlash } from "./anim";
 import { IconChildArrow, IconBell, IconClose, IconChevronRight, IconChevronLeft } from "./Icon";
 
 // Column sorting: click a header to sort by it (asc/desc toggle, third click clears
@@ -229,6 +230,8 @@ export function DashboardTable({
       </th>
     );
   };
+  // Flash a row when its POSITION changes (a fill) — not on the 2s price ticks.
+  const fillDir = useFillFlash(rows);
   const displayRows = sort ? sortRows(rows, sort) : defaultOrder(rows);
   // Bulk mode stays flat (nesting would muddle selection); otherwise nest ETFs.
   const dispRows = bulk
@@ -283,11 +286,13 @@ export function DashboardTable({
                 else onSelect(r.symbol);
               };
               const isOpen = !bulk && r.symbol === selected;
+              const flash = bulk ? undefined : fillDir(r.symbol); // "buy" (shares up) | "sell" (down)
               const rowCls = [
                 clickable && "rowlink",
                 isOpen && "selected",
                 bulk && isChecked && "selected",
                 r.buy_mark ? "row-buy" : r.sell_mark ? "row-sell" : "",
+                flash && "row-flash",
               ].filter(Boolean).join(" ");
               return (
                 <Fragment key={r.symbol}>
@@ -305,7 +310,10 @@ export function DashboardTable({
                   onKeyDown={(e) => {
                     if (clickable && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onRowClick(); }
                   }}
-                  style={{ opacity: bulk ? (isCand ? 1 : 0.45) : r.is_watch ? 0.85 : 1 }}
+                  style={{
+                    opacity: bulk ? (isCand ? 1 : 0.45) : r.is_watch ? 0.85 : 1,
+                    ...(flash ? { ["--flash-tint" as string]: flash === "buy" ? "var(--pos-bg)" : "var(--neg-bg)" } : null),
+                  } as React.CSSProperties}
                 >
                   {bulk && (
                     <td style={{ textAlign: "center" }}>

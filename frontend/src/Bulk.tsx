@@ -307,7 +307,7 @@ export function BulkReviewModal({
             <div style={S.actions}>
               <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Back</button>
               <button
-                className={`btn ${isDemo ? "btn-secondary" : isSell || isExit ? "btn-danger" : "btn-buy"}`}
+                className={`btn ${isDemo ? "btn-secondary" : isSell || isExit ? "btn-danger" : "btn-buy"}${placing ? " btn-pending" : ""}`}
                 style={{ flex: 2 }}
                 disabled={placing || !rows.length || rows.some((r) => r.shares < 1 || (isLimit && !(r.limit_price > 0)))}
                 onClick={() => onConfirm(orderType, rows)}

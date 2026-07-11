@@ -64,6 +64,16 @@
 
 .btn-sm { padding: 3px 10px; font-size: var(--fs-xs); min-height: 26px; }
 
+/* calm pending state for an in-flight order: a slow light sweep across the button
+   (no spinner anxiety). Reduced-motion leaves a faint static sheen + the label. */
+.btn-pending { position: relative; overflow: hidden; }
+.btn-pending::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,0.20) 50%, transparent 80%);
+  background-size: 220% 100%;
+  animation: pending-sweep 1.15s var(--ease-in-out) infinite;
+}
+
 /* --- hover-reveal gear: stays collapsed (no space) until you hover its host
    control for ~0.5s, then slides out to the right. Pure CSS via transition-delay
    so it's predictable. Only the trigger button collapses (overflow:hidden), so the
@@ -151,6 +161,11 @@ select.field { height: auto !important; min-height: 30px; padding-top: 3px; padd
 /* signal edge-accents so a flagged row separates at a glance */
 .row-buy > td:first-child, .row-buy > th:first-child { box-shadow: inset 3px 0 0 var(--pos-strong); }
 .row-sell > td:first-child, .row-sell > th:first-child { box-shadow: inset 3px 0 0 var(--neg-strong); }
+
+/* fill flash: a one-shot wash on a row whose position just changed (a fill).
+   anim.tsx sets --flash-tint per direction (buy = green, sell = rose). Brief, so
+   it reads over the resting/hover background without fighting it. */
+.tbl tbody tr.row-flash { animation: row-flash 1.15s var(--ease-out); }
 
 /* icon that only appears on row hover / focus (declutters the resting table) */
 .hover-reveal { opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }

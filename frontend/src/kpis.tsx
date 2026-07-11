@@ -51,7 +51,7 @@ export const KPI_CATALOG: KpiDef[] = [
 export const DEFAULT_KPIS = ["invested", "day_change", "harvestable", "cash"];
 const KEY = "dash_kpis_v1";
 
-export type VisibleKpi = { id: string; label: string; hint: string; value: string; n?: number; color?: string };
+export type VisibleKpi = { id: string; label: string; hint: string; value: string; raw: number; n?: number; color?: string };
 
 export function useKpiPrefs() {
   const [ids, setIds] = useState<string[]>(() => {
@@ -83,7 +83,7 @@ export function visibleKpis(ids: string[], d: Dashboard, cash: KpiCash): Visible
     const n = k.num(d, cash);
     if (n == null) continue;
     out.push({
-      id: k.id, label: k.label, hint: k.hint, value: usd(n),
+      id: k.id, label: k.label, hint: k.hint, value: usd(n), raw: n,
       n: k.tone === "signed" ? n : undefined,
       color: k.tone === "positive" && n > 0 ? "var(--pos)" : undefined,
     });
