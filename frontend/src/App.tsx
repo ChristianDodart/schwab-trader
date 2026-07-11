@@ -70,6 +70,16 @@ export function App() {
   const [alertPrefill, setAlertPrefill] = useState<AlertPrefill | null>(null);
   const [syncing, setSyncing] = useState(false);
   const dashCols = useColumnPrefs("dash.cols.v1", DEFAULT_DASH_COLS, DASH_COLUMN_LIST);
+  // Simple mode: a decluttered dashboard for casual use — holdings only, four essential
+  // columns, no sector bar / bulk tools / toolbar / ƒ marks. Opt-in, persisted per device.
+  const [simple, setSimple] = useState<boolean>(() => {
+    try { return localStorage.getItem("dash.simple.v1") === "1"; } catch { return false; }
+  });
+  const toggleSimple = () => setSimple((s) => {
+    const n = !s;
+    try { localStorage.setItem("dash.simple.v1", n ? "1" : "0"); } catch { /* private mode */ }
+    return n;
+  });
   const kpiPrefs = useKpiPrefs();
   const toast = useToast();
   const [settingsDirty, setSettingsDirty] = useState(false);
@@ -90,6 +100,10 @@ export function App() {
   // To-Do: held positions meeting a BUY or SELL signal (built-in mark OR a custom rule).
   const todoRows = (data?.rows ?? []).filter((r) =>
     !r.is_watch && (r.buy_mark || r.sell_mark || signalRules.some((rule) => matchesRule(rule, r))));
+  // Simple mode shows real holdings only (no watchlist rows) and a fixed essentials
+  // column set. Ticker + Price are always rendered; these are the extra columns.
+  const holdingsRows = (data?.rows ?? []).filter((r) => !r.is_watch);
+  const SIMPLE_COLS = ["unrealized", "current_value"];
 
   // One-time "you just updated" toast: compare the running version to the last one we saw.
   // Only fires when it actually changed (not on a fresh install), then records the new one.
@@ -372,6 +386,10 @@ export function App() {
                 {syncing ? "Syncing…" : <><IconRefresh /> Sync from Schwab</>}
               </button>
               <span style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+                <button className={`btn btn-sm ${simple ? "btn-primary" : "btn-secondary"}`} aria-pressed={simple}
+                  title={simple ? "Switch back to the full advanced view" : "Simplify the dashboard — your holdings and the essentials only"}
+                  onClick={toggleSimple}>{simple ? "Simple ✓" : "Simple view"}</button>
+                {!simple && <>
                 <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
                   <button className="btn btn-secondary"
                     title="Bulk buy: the next rung on dips — or select any stock (incl. ones you don't hold) to enter"
@@ -396,6 +414,7 @@ export function App() {
                   </button>
                   <BulkGear kind="exit" />
                 </span>
+                </>}
               </span>
             </>
           ))}
@@ -433,19 +452,21 @@ export function App() {
                     Settings → Schwab connection.
                   </p>
                 )}
-                <div style={S.dashSubtabs} role="tablist" aria-label="Dashboard views">
-                  {([["all", "All"], ["todo", "To-Do"], ["top", "Top 10"]] as const).map(([k, label]) => (
-                    <button key={k} role="tab" aria-selected={dashSub === k} className="btn btn-sm"
-                      style={dashSub === k ? S.subActive : S.subIdle} onClick={() => setDashSub(k)}>
-                      {label}{k === "todo" && todoRows.length ? ` · ${todoRows.length}` : ""}
-                    </button>
-                  ))}
-                </div>
-                {dashSub === "top" ? (
+                {!simple && (
+                  <div style={S.dashSubtabs} role="tablist" aria-label="Dashboard views">
+                    {([["all", "All"], ["todo", "To-Do"], ["top", "Top 10"]] as const).map(([k, label]) => (
+                      <button key={k} role="tab" aria-selected={dashSub === k} className="btn btn-sm"
+                        style={dashSub === k ? S.subActive : S.subIdle} onClick={() => setDashSub(k)}>
+                        {label}{k === "todo" && todoRows.length ? ` · ${todoRows.length}` : ""}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {dashSub === "top" && !simple ? (
                   <Top10 rows={data.rows} onSelect={(sym) => setSelected(sym === selected ? null : sym)} />
                 ) : (
                   <>
-                    {dashSub === "all" && (
+                    {!simple && dashSub === "all" && (
                       <>
                         <SectorStrip rows={data.rows}
                           activeSector={sectorFilter}
@@ -489,7 +510,7 @@ export function App() {
                         </div>
                       </>
                     )}
-                    {dashSub === "todo" && (
+                    {!simple && dashSub === "todo" && (
                       <p style={S.note}>
                         {todoRows.length
                           ? `${todoRows.length} position${todoRows.length === 1 ? "" : "s"} meeting a buy or sell signal right now.`
@@ -498,8 +519,9 @@ export function App() {
                     )}
                     <div style={pricesStale ? { opacity: 0.55, transition: "opacity .2s" } : undefined}>
                       <DashboardTable
-                        rows={dashSub === "todo" ? todoRows : dashRows}
-                        cols={dashCols.ids}
+                        rows={simple ? holdingsRows : (dashSub === "todo" ? todoRows : dashRows)}
+                        cols={simple ? SIMPLE_COLS : dashCols.ids}
+                        simple={simple}
                         selected={selected}
                         onSelect={(sym) => setSelected(sym === selected ? null : sym)}
                         onRemoveTicker={removeTicker}

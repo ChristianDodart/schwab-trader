@@ -104,6 +104,7 @@ export function DashboardTable({
   signalRules = [],
   working,
   onShowOrders,
+  simple = false,
 }: {
   rows: DashboardRow[];
   cols: string[];
@@ -117,9 +118,12 @@ export function DashboardTable({
   signalRules?: SignalRule[];
   working?: Record<string, number>;        // symbol → count of resting orders
   onShowOrders?: (symbol: string) => void; // open the Orders tab filtered to it
+  simple?: boolean;                        // decluttered view: only Price pinned, no ƒ marks / legend
 }) {
   const defs = cols.map((id) => DASH_COLUMNS[id]).filter(Boolean);
-  const colSpan = 1 /* ticker */ + PINNED_DASH.length + defs.length + (bulk ? 1 : 0);
+  // Simple mode pins only Price (drops the always-on Last Pos P/L) for a 4-column grid.
+  const pinned = simple ? PINNED_DASH.filter((c) => c.id === "price") : PINNED_DASH;
+  const colSpan = 1 /* ticker */ + pinned.length + defs.length + (bulk ? 1 : 0);
   const cellFor = (c: DashCol, r: DashboardRow) =>
     c.watchNA && r.is_watch ? <span style={{ color: "var(--text-faint)" }}>—</span> : c.render(r);
 
@@ -143,7 +147,7 @@ export function DashboardTable({
         title={(prov === "schwab" ? "Provided by Schwab. " : "")
           + `Sort by ${label} (click again to flip, third click resets)`}
         onClick={() => clickSort(id)}>
-        {label}{computed && <CalcMark />}{sortMark(id)}
+        {label}{computed && !simple && <CalcMark />}{sortMark(id)}
       </th>
     );
   };
@@ -180,7 +184,7 @@ export function DashboardTable({
                 </th>
               )}
               <Th id="symbol" label="Ticker" align="left" prov="text" />
-              {PINNED_DASH.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
+              {pinned.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
               {defs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
             </tr>
           </thead>
@@ -282,7 +286,7 @@ export function DashboardTable({
                       </div>
                     )}
                   </td>
-                  {PINNED_DASH.map((c) => (
+                  {pinned.map((c) => (
                     <td key={c.id} style={{ textAlign: c.align }}>{cellFor(c, r)}</td>
                   ))}
                   {defs.map((c) => (
@@ -304,14 +308,14 @@ export function DashboardTable({
                 <td className="left" style={{ fontWeight: 700 }}>
                   Totals <span style={S.totalsSub}>· {held.length} held</span>
                 </td>
-                {PINNED_DASH.map((c) => totalCell(c.id, c.align))}
+                {pinned.map((c) => totalCell(c.id, c.align))}
                 {defs.map((c) => totalCell(c.id, c.align))}
               </tr>
             </tfoot>
           )}
         </table>
       </div>
-      <ProvenanceLegend />
+      {!simple && <ProvenanceLegend />}
     </div>
   );
 }

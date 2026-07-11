@@ -3,6 +3,19 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.34.0 — "Simple view"
+
+A one-click **Simple view** for the dashboard — for anyone who wants their holdings and
+nothing else. The "Simple view" button lives next to Sync from Schwab; the choice is
+remembered.
+
+When it's on, the dashboard shows just your **actual holdings** (watchlist rows hidden)
+in **four columns** — Ticker, Price, P/L, Value — and hides the clutter: the sector bar,
+the All / To-Do / Top-10 tabs, the filter/add/columns/pause toolbar, the Bulk buy/sell/exit
+tools, and the ƒ calculation marks. Click a ticker to open its ladder exactly as before,
+and flip back to the full **Advanced** view any time. Nothing about the advanced view
+changed — Simple is purely additive.
+
 ## v0.33.1 — "Cleaner provenance mark + Ledger coverage"
 
 Replaces the dotted-underline provenance style (from v0.33.0) with a cleaner one and
