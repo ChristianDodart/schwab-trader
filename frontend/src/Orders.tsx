@@ -76,7 +76,7 @@ export function Orders({ initialFilter }: { initialFilter?: string } = {}) {
         </span>
       </div>
       {loading ? (
-        <SkeletonTable rows={5} cols={7} />
+        <SkeletonTable rows={5} cols={8} />
       ) : err ? (
         <p style={S.note}>{err} <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }} onClick={() => load()}>Retry</button></p>
       ) : orders.length === 0 ? (
@@ -101,8 +101,10 @@ export function Orders({ initialFilter }: { initialFilter?: string } = {}) {
         <div style={{ overflowX: "auto", marginTop: 12 }}>
           <table className="tbl">
             <thead>
-              <tr>{["Entered", "Symbol", "Side", "Qty", "Filled", "Type", "Price", "Status", ""].map((h, i) => (
-                <th scope="col" key={h || "act"} className={i <= 1 ? "left" : ""}>{h}</th>
+              <tr>{["Entered", "Symbol", "Side", "Qty", "Filled", "Type", "Price", "P/L", "Status", ""].map((h, i) => (
+                <th scope="col" key={h || "act"} className={i <= 1 ? "left" : ""}
+                  title={h === "P/L" ? "Realized profit on a filled sell — calculated by the app (LIFO), not provided by Schwab" : undefined}
+                  style={h === "P/L" ? { borderBottom: "1px dotted var(--text-faint)" } : undefined}>{h}</th>
               ))}</tr>
             </thead>
             <tbody>
@@ -119,6 +121,13 @@ export function Orders({ initialFilter }: { initialFilter?: string } = {}) {
                     <td style={{ textAlign: "right" }}>{o.filled}</td>
                     <td style={{ textAlign: "right" }}>{o.type}</td>
                     <td style={{ textAlign: "right" }}>{o.price ? usd(o.price) : "—"}</td>
+                    <td style={{ textAlign: "right", borderBottom: "1px dotted var(--border)" }}
+                      title={o.realized_pl != null ? "App-calculated realized profit (LIFO)" : undefined}>
+                      {o.realized_pl != null
+                        ? <b style={{ color: o.realized_pl >= 0 ? "var(--pos)" : "var(--neg)" }}>
+                            {o.realized_pl >= 0 ? "+" : ""}{usd(o.realized_pl)}</b>
+                        : <span style={{ color: "var(--text-faint)" }}>—</span>}
+                    </td>
                     <td style={{ textAlign: "right" }}>
                       <span className="pill" style={statusChip(o.status)}>{o.status}</span>
                     </td>

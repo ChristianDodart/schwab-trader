@@ -167,6 +167,7 @@ async def _write(account_hash: str, fills, positions=None) -> dict:
                 buy_price=ct.buy_price, sell_price=ct.sell_price,
                 cost=ct.cost, profit=ct.profit,
                 opened_at=_as_date(ct.opened_at), completed_at=_as_date(ct.completed_at),
+                schwab_order_id=(getattr(ct, "order_id", "") or None),
             ))
         await s.commit()
 

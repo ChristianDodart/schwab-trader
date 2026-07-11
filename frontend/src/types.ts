@@ -392,6 +392,7 @@ export type Order = {
   fill_price?: number | null;
   status: string;
   entered: string;
+  realized_pl?: number | null;  // app-computed realized P/L for a filled SELL (LIFO); null otherwise
 };
 
 export type Lot = {

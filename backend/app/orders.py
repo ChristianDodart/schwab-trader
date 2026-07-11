@@ -318,7 +318,35 @@ async def list_orders(days: int = 7, account_hash: str | None = None) -> list[di
             "fill_price": round(fill, 4) if fill is not None else None,
             "status": o.get("status"),
             "entered": (o.get("enteredTime") or "")[:19],
+            "realized_pl": None,
         })
+
+    # Realized P/L per SELL order — the round-trips this order closed (its SELL fill
+    # retired long lots LIFO; each became a completed_trade tagged with the order id).
+    # Computed by us from the fill history (Schwab doesn't hand back a per-order P/L),
+    # so the UI marks it as app-calculated. Populated after the next resync for
+    # API-sourced sells; CSV-only sells have no order id and stay blank ("—").
+    sell_ids = [str(o["order_id"]) for o in out
+                if o.get("side") == "SELL" and o.get("order_id") is not None]
+    if sell_ids:
+        try:
+            from sqlalchemy import func, select
+            from .db import SessionLocal
+            from .db.models import CompletedTrade
+            async with SessionLocal() as s:
+                rows = (await s.execute(
+                    select(CompletedTrade.schwab_order_id, func.sum(CompletedTrade.profit))
+                    .where(CompletedTrade.account_hash == h,
+                           CompletedTrade.schwab_order_id.in_(sell_ids))
+                    .group_by(CompletedTrade.schwab_order_id)
+                )).all()
+            pl = {str(oid): float(p) for oid, p in rows if oid is not None}
+            for o in out:
+                oid = str(o.get("order_id"))
+                if o.get("side") == "SELL" and oid in pl:
+                    o["realized_pl"] = round(pl[oid], 2)
+        except Exception as e:
+            log.warning(f"order P/L join failed for {h[-4:]}: {e!r}")
     return out
 
 

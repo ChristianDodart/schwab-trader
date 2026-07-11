@@ -41,6 +41,7 @@ class ClosedTrade:
     sell_price: float
     opened_at: date | datetime
     completed_at: date | datetime
+    order_id: str = ""   # the SELL fill's Schwab order id (blank for CSV-sourced sells)
 
     @property
     def cost(self) -> float:
@@ -153,7 +154,7 @@ def reconstruct(fills: list[Fill]) -> dict:
                 lot = stack[-1]
                 take = min(remaining, lot.shares)
                 closed.append(ClosedTrade(f.symbol, take, lot.price, f.price,
-                                          lot.at, f.at))
+                                          lot.at, f.at, order_id=f.order_id or ""))
                 lot.shares -= take
                 remaining -= take
                 if lot.shares <= _EPS:

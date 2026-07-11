@@ -3,6 +3,18 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.32.1 — "P/L on the Orders page"
+
+- The Orders page now shows realized **P/L** per order. When a sell fills, the app
+  books the round-trips it closed (LIFO) and tags them with that Schwab order id, so
+  the row can show exactly what that sale made. Buys and working orders show "—" (a buy
+  has no realized P/L). It's an app-calculated number (Schwab doesn't return a per-order
+  P/L), marked with a dotted underline — the first taste of the computed-vs-Schwab
+  indicator coming platform-wide.
+
+The P/L fills in after the next background sync (which re-tags recent sells with their
+order id); sells that only exist in imported CSV history have no order id and stay "—".
+
 ## v0.32.0 — "Smarter order ticket"
 
 Order-ticket improvements (first of a few waves working through the feature list):
