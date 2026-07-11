@@ -103,6 +103,8 @@
    scroll box). Appears after a 0.5s dwell (JS timer) and fades/rises in. --- */
 .tip-host { display: inline; outline: none; } /* inline (not flex) keeps the ƒ superscript raised */
 .tip-host:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+/* While its tooltip is showing, ring the exact thing you're hovering. */
+.tip-active { outline: 1.5px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 .tip-anchor { position: fixed; z-index: var(--z-toast); pointer-events: none; }
 .tip-pop {
   position: relative; max-width: 260px; white-space: normal; text-align: left;

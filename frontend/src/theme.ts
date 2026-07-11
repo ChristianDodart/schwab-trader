@@ -128,13 +128,13 @@ export function storedFontSize(): FontSize {
     const v = localStorage.getItem(FS_KEY);
     if (v === "small" || v === "large" || v === "medium") return v;
   } catch { /* private mode */ }
-  return "medium";
+  return "small"; // Small = the default app scale (1)
 }
 
 export function applyFontSize(size: FontSize): void {
   const root = document.documentElement;
-  if (size === "medium") root.removeAttribute("data-fontsize"); // default scale = 1
-  else root.setAttribute("data-fontsize", size);
+  if (size === "small") root.removeAttribute("data-fontsize"); // default scale = 1
+  else root.setAttribute("data-fontsize", size);               // medium = 1.15, large = 1.3
 }
 
 export function setFontSize(size: FontSize): void {

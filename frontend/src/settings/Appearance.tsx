@@ -30,8 +30,8 @@ function useFontSize(): FontSize {
 }
 
 const FONT_SIZES: Array<{ id: FontSize; label: string; px: number }> = [
-  { id: "small", label: "Small", px: 12 },
-  { id: "medium", label: "Medium", px: 14 },
+  { id: "small", label: "Small", px: 13 },
+  { id: "medium", label: "Medium", px: 15 },
   { id: "large", label: "Large", px: 18 },
 ];
 

@@ -46,7 +46,7 @@ export function Tip({
   return (
     <span
       ref={ref}
-      className={`tip-host${className ? " " + className : ""}`}
+      className={`tip-host${pos ? " tip-active" : ""}${className ? " " + className : ""}`}
       style={style}
       tabIndex={focusable ? 0 : undefined}
       onMouseEnter={show}

@@ -3,6 +3,15 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.46.0 — "Bigger fonts + tidier hovers"
+
+- **The font-size options step up.** "Small" is now the original default size, and "Medium" and "Large"
+  go bigger from there (Large is noticeably larger than before) — so the whole app can be easier to read.
+- **A ring on what you're hovering.** When a hover description appears, the exact word/mark you're
+  pointing at gets a subtle outline, so it's clear what the tooltip belongs to.
+- **The Ledger's hovers are untangled.** Each stat's "ƒ" and "(i)" markers now share one clean tooltip
+  (the same on-theme bubble as the dashboard) instead of two separate popovers that overlapped the card.
+
 ## v0.45.0 — "Readability + polish"
 
 - **Three app-wide font sizes** — Small / Medium / Large, in Settings → Appearance. Scales the

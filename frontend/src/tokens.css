@@ -308,8 +308,9 @@
    APP-WIDE FONT SIZE — a separate `data-fontsize` attribute on <html> that just
    scales the type. Independent of (and composes with) the theme. Medium = default.
    --------------------------------------------------------------------------- */
-:root[data-fontsize="small"] { --fs-scale: 0.9; }
-:root[data-fontsize="large"] { --fs-scale: 1.15; }
+/* Small = default (scale 1, no attribute). Medium/Large step up from there. */
+:root[data-fontsize="medium"] { --fs-scale: 1.15; }
+:root[data-fontsize="large"]  { --fs-scale: 1.3; }
 
 /* ============================================================================
    GLOBAL BASE  (reads only semantic tokens, so it themes automatically)

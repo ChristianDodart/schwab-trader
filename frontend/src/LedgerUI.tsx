@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usd } from "./App";
 import { API } from "./api";
-import { Hint } from "./Hint";
+import { Tip } from "./Tip";
 import { CalcMark } from "./columns";
 
 // The selected account + active profile, resolved for print headers so a saved/
@@ -145,12 +145,15 @@ export function Card({ label, value, sub, big, accent, hint, schwab }: {
   label: string; value: string; sub?: string; big?: boolean; accent?: string; hint?: string;
   schwab?: boolean;   // a raw Schwab balance (no ƒ mark); everything else here is app-calculated
 }) {
+  const calc = !schwab;
+  // One hover target for the whole label: the ƒ (provenance) and the ⓘ (has-hint) glyphs
+  // share a single tooltip that combines both, instead of two separate popovers.
+  const tip = [calc ? "Calculated by the app (from your fills and/or Schwab data)." : "", hint ?? ""]
+    .filter(Boolean).join(" ");
+  const inner = <>{label}{calc && <CalcMark bare />}{hint && <span style={S.q}> ⓘ</span>}</>;
   return (
     <div className="panel" style={S.card}>
-      <div style={S.cardLabel}>
-        {label}{!schwab && <CalcMark />}
-        {hint && <Hint label={hint}><span style={S.q}> ⓘ</span></Hint>}
-      </div>
+      <div style={S.cardLabel}>{tip ? <Tip text={tip}>{inner}</Tip> : inner}</div>
       <div style={{ ...S.cardValue, fontSize: big ? "var(--fs-2xl)" : "var(--fs-xl)", color: accent ?? "var(--text)" }}>{value}</div>
       {sub && <div style={S.cardSub}>{sub}</div>}
     </div>
