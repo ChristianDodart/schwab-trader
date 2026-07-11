@@ -3,6 +3,21 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.33.0 — "Computed vs Schwab, at a glance"
+
+- Every table column now shows where its number comes from. Columns the app
+  **calculates** (from your fills and/or Schwab data — realized P/L, cost basis,
+  unrealized, % down, sell targets, LILO, projected profit, totals, …) get a dotted
+  underline on the header; numbers that come **straight from Schwab** (price, day P/L,
+  held shares, 52-week high/low) are plain. Hover any header to see which it is, and a
+  one-line legend sits under each table. Live on the dashboard and the position ladder;
+  the Orders P/L column and order-ticket estimates carry the same marker. (The rule:
+  if Schwab hands us the number it's Schwab's; if we compute it — even from Schwab
+  inputs — it's ours.)
+
+This completes the order-features batch (ask/bid defaults + sell lockout, Orders P/L,
+single-ticker LIFO sell, and this provenance indicator).
+
 ## v0.32.2 — "Single-ticker LIFO sell"
 
 - A new "Sell shares" box on each position: type how many shares to sell and the app

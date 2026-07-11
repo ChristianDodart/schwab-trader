@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { usd, pct } from "./App";
-import { DASH_COLUMNS, PINNED_DASH, rowSignalChips, tickerRiskColor, RISK_LABEL } from "./columns";
+import { DASH_COLUMNS, PINNED_DASH, rowSignalChips, tickerRiskColor, RISK_LABEL, ProvenanceLegend } from "./columns";
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
 import type { SignalRule } from "./signals";
@@ -134,15 +134,20 @@ export function DashboardTable({
   const clickSort = (id: string) =>
     setSort((s) => (s?.id !== id ? { id, dir: -1 } : s.dir === -1 ? { id, dir: 1 } : null));
   const sortMark = (id: string) => (sort?.id === id ? (sort.dir === -1 ? " ▼" : " ▲") : "");
-  const Th = ({ id, label, align }: { id: string; label: string; align?: string }) => (
-    <th scope="col" className={align === "left" ? "left" : ""}
-      aria-sort={sort?.id === id ? (sort.dir === -1 ? "descending" : "ascending") : undefined}
-      style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
-      title={`Sort by ${label} (click again to flip, third click resets)`}
-      onClick={() => clickSort(id)}>
-      {label}{sortMark(id)}
-    </th>
-  );
+  const Th = ({ id, label, align, prov }: { id: string; label: string; align?: string; prov?: DashCol["prov"] }) => {
+    const computed = prov == null;   // undefined = app-calculated → dotted underline
+    return (
+      <th scope="col" className={align === "left" ? "left" : ""}
+        aria-sort={sort?.id === id ? (sort.dir === -1 ? "descending" : "ascending") : undefined}
+        style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap",
+          ...(computed ? { borderBottom: "1px dotted var(--text-faint)" } : {}) }}
+        title={(computed ? "App-calculated (not a raw Schwab number). " : prov === "schwab" ? "Provided by Schwab. " : "")
+          + `Sort by ${label} (click again to flip, third click resets)`}
+        onClick={() => clickSort(id)}>
+        {label}{sortMark(id)}
+      </th>
+    );
+  };
   const displayRows = sortRows(rows, sort);
 
   // Totals over HELD positions only (watchlist rows have no position). Shown as a
@@ -175,9 +180,9 @@ export function DashboardTable({
                     aria-label="Select all candidates" />
                 </th>
               )}
-              <Th id="symbol" label="Ticker" align="left" />
-              {PINNED_DASH.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} />)}
-              {defs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} />)}
+              <Th id="symbol" label="Ticker" align="left" prov="text" />
+              {PINNED_DASH.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
+              {defs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
             </tr>
           </thead>
           <tbody>
@@ -307,6 +312,7 @@ export function DashboardTable({
           )}
         </table>
       </div>
+      <ProvenanceLegend />
     </div>
   );
 }

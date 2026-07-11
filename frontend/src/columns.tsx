@@ -15,10 +15,16 @@ import { IconWarning } from "./Icon";
 
 export type ColAlign = "left" | "right";
 
+// Provenance: "schwab" = a raw number straight from Schwab's API (price, day P/L, held
+// shares, 52wk hi/lo); "text" = a non-numeric/config field (sector, dates, mode).
+// Undefined = APP-CALCULATED — we derived it, even if from Schwab inputs. Computed
+// columns get a dotted-underline header + tooltip so it's clear what's ours vs Schwab's.
+export type Provenance = "schwab" | "text";
 export type DashCol = {
   id: string;
   label: string;
   align: ColAlign;
+  prov?: Provenance;
   watchNA?: boolean;                       // render "—" on watch rows (no position)
   render: (r: DashboardRow) => React.ReactNode;
 };
@@ -26,8 +32,33 @@ export type DetailCol = {
   id: string;
   label: string;
   align: ColAlign;
+  prov?: Provenance;
   render: (l: Lot) => React.ReactNode;
 };
+
+// Header cell that marks an app-computed column with a dotted underline + tooltip.
+// Schwab-passthrough and text columns render plain. Shared by the dashboard + detail.
+export function ColHeader({ label, prov, className }: { label: string; prov?: Provenance; className?: string }) {
+  const computed = prov == null;
+  return (
+    <th scope="col" className={className}
+      title={computed ? "App-calculated (not a raw Schwab number)"
+        : prov === "schwab" ? "Provided by Schwab" : undefined}
+      style={computed ? { borderBottom: "1px dotted var(--text-faint)" } : undefined}>
+      {label}
+    </th>
+  );
+}
+
+// One-line legend for the provenance marker — place under a table.
+export function ProvenanceLegend() {
+  return (
+    <p style={{ fontSize: "var(--fs-2xs)", color: "var(--text-dim)", margin: "6px 0 0" }}>
+      <span style={{ borderBottom: "1px dotted var(--text-faint)" }}>Dotted</span> columns are
+      app-calculated (from your fills and/or Schwab data); the rest come straight from Schwab.
+    </p>
+  );
+}
 
 const sign = (n: number | null | undefined) =>
   n == null ? undefined : n >= 0 ? "var(--pos)" : "var(--neg)";
@@ -120,21 +151,21 @@ export const DASH_COLUMN_LIST: DashCol[] = [
   { id: "avg_monthly", label: "Avg Monthly", align: "right", watchNA: true, render: (r) => <Colored v={usd(r.avg_monthly)} n={r.avg_monthly} /> },
   { id: "year_trades", label: "Trades (YTD)", align: "right", watchNA: true, render: (r) => num(r.year_trades) },
   { id: "portfolio_pct", label: "Portfolio %", align: "right", watchNA: true, render: (r) => <PortfolioPct r={r} /> },
-  { id: "sector", label: "Sector", align: "left", render: (r) => r.sector ? <span style={{ color: "var(--text-muted)" }}>{r.sector}</span> : <Dash /> },
+  { id: "sector", label: "Sector", align: "left", prov: "text", render: (r) => r.sector ? <span style={{ color: "var(--text-muted)" }}>{r.sector}</span> : <Dash /> },
   // additional available columns (not in the default layout)
   { id: "positions", label: "Positions", align: "right", watchNA: true, render: (r) => num(r.positions) },
-  { id: "shares", label: "Shares", align: "right", watchNA: true, render: (r) => num(r.shares) },
+  { id: "shares", label: "Shares", align: "right", prov: "schwab", watchNA: true, render: (r) => num(r.shares) },
   { id: "current_value", label: "Market Value", align: "right", watchNA: true, render: (r) => usd(r.current_value) },
   { id: "unrealized", label: "Unrealized P/L", align: "right", watchNA: true, render: (r) => <Colored v={usd(r.unrealized)} n={r.unrealized} /> },
-  { id: "day_change", label: "Day P/L", align: "right", watchNA: true, render: (r) => <Colored v={usd(r.day_change)} n={r.day_change} /> },
+  { id: "day_change", label: "Day P/L", align: "right", prov: "schwab", watchNA: true, render: (r) => <Colored v={usd(r.day_change)} n={r.day_change} /> },
   { id: "basis_per_share", label: "Basis / Share", align: "right", watchNA: true, render: (r) => usd(r.basis_per_share) },
   { id: "log_profit", label: "Profit (all-time)", align: "right", watchNA: true, render: (r) => <Colored v={usd(r.log_profit)} n={r.log_profit} /> },
   { id: "dividends", label: "Dividends", align: "right", watchNA: true, render: (r) => (r.dividends ? <span style={{ color: "var(--pos)" }}>{usd(r.dividends)}</span> : <Dash />) },
   { id: "total_return", label: "Total Return", align: "right", watchNA: true, render: (r) => <Colored v={usd(r.total_return)} n={r.total_return} /> },
   { id: "trades", label: "Trades (all-time)", align: "right", watchNA: true, render: (r) => num(r.trades) },
   { id: "next_buy_price", label: "Next Buy Trigger", align: "right", watchNA: true, render: (r) => usd(r.next_buy_price) },
-  { id: "year_high", label: "52wk High", align: "right", render: (r) => usd(r.year_high) },
-  { id: "year_low", label: "52wk Low", align: "right", render: (r) => usd(r.year_low) },
+  { id: "year_high", label: "52wk High", align: "right", prov: "schwab", render: (r) => usd(r.year_high) },
+  { id: "year_low", label: "52wk Low", align: "right", prov: "schwab", render: (r) => usd(r.year_low) },
 ];
 export const DASH_COLUMNS: Record<string, DashCol> = Object.fromEntries(
   DASH_COLUMN_LIST.map((c) => [c.id, c]),
@@ -143,7 +174,7 @@ export const DASH_COLUMNS: Record<string, DashCol> = Object.fromEntries(
 // numbers (current price + profit on the last position). Not user-removable and
 // not in the customizable registry, so they can't be hidden or duplicated.
 export const PINNED_DASH: DashCol[] = [
-  { id: "price", label: "Price", align: "left", render: (r) => <b>{usd(r.price)}</b> },
+  { id: "price", label: "Price", align: "left", prov: "schwab", render: (r) => <b>{usd(r.price)}</b> },
   { id: "last_pos_profit", label: "Last Pos P/L", align: "left", watchNA: true, render: (r) => <b><Colored v={usd(r.last_pos_profit)} n={r.last_pos_profit} /></b> },
 ];
 // Default customizable layout (ticker + PINNED_DASH render before these).
@@ -154,7 +185,7 @@ export const DEFAULT_DASH_COLS = [
 
 // ---- ticker drill-down columns (operate on a lot) ----
 export const DETAIL_COLUMN_LIST: DetailCol[] = [
-  { id: "buy_date", label: "Buy Date", align: "left", render: (l) => l.buy_date ?? "—" },
+  { id: "buy_date", label: "Buy Date", align: "left", prov: "text", render: (l) => l.buy_date ?? "—" },
   { id: "age_days", label: "Age", align: "right", render: (l) => (l.age_days == null ? "—" : `${l.age_days}d`) },
   { id: "shares", label: "Shares", align: "right", render: (l) => num(l.shares) },
   { id: "buy_price", label: "Buy", align: "right", render: (l) => usd(l.buy_price) },
@@ -170,7 +201,7 @@ export const DETAIL_COLUMN_LIST: DetailCol[] = [
       return pct(v);
     } },
   { id: "sell_target", label: "Sell Target", align: "right", render: (l) => usd(l.sell_target) },
-  { id: "sell_mode", label: "Sell Mode", align: "left", render: (l) => l.sell_mode },
+  { id: "sell_mode", label: "Sell Mode", align: "left", prov: "text", render: (l) => l.sell_mode },
   { id: "proj_profit", label: "Proj. Profit", align: "right", render: (l) => <Colored v={usd(l.proj_profit)} n={l.proj_profit} /> },
   { id: "pl_now", label: "P/L Now", align: "right", render: (l) => <Colored v={usd(l.pl_now)} n={l.pl_now} /> },
   { id: "next_buy_sug", label: "Next Buy Sug", align: "right", render: (l) => <span style={{ color: "var(--accent-quiet)" }}>{usd(l.next_buy_sug)}</span> },

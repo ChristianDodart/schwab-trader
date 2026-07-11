@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { usd, pct } from "./App";
 import { ColumnManager } from "./ColumnManager";
-import { DETAIL_COLUMNS, DETAIL_COLUMN_LIST, DEFAULT_DETAIL_COLS, useColumnPrefs, tickerRiskColor, RISK_LABEL } from "./columns";
+import { DETAIL_COLUMNS, DETAIL_COLUMN_LIST, DEFAULT_DETAIL_COLS, useColumnPrefs, tickerRiskColor, RISK_LABEL, ProvenanceLegend } from "./columns";
 import { OrderTicket } from "./OrderTicket";
 import { PriceChart } from "./PriceChart";
 import { SkeletonPanel } from "./Skeleton";
@@ -122,7 +122,9 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
             <tr>
               <th scope="col" className="left">Rung</th>
               {defs.map((c) => (
-                <th scope="col" key={c.id} className={c.align === "left" ? "left" : ""}>{c.label}</th>
+                <th scope="col" key={c.id} className={c.align === "left" ? "left" : ""}
+                  title={c.prov == null ? "App-calculated (not a raw Schwab number)" : c.prov === "schwab" ? "Provided by Schwab" : undefined}
+                  style={c.prov == null ? { borderBottom: "1px dotted var(--text-faint)" } : undefined}>{c.label}</th>
               ))}
               <th scope="col"></th>
             </tr>
@@ -149,6 +151,8 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
           </tbody>
         </table>
       </div>
+
+      <ProvenanceLegend />
 
       <LifoSell d={d} busy={busy} onReview={openLifoSell} />
 
