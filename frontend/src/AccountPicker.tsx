@@ -19,7 +19,9 @@ import { API } from "./api";
 // CONTROLLED: the selected account is driven by `value` (App's acctKey). choose()
 // only REQUESTS a change via onAccountChange — App owns the server select + commit,
 // so a guarded/cancelled switch (unsaved Settings) never desyncs the real account.
-export function AccountPicker({ value, onAccountChange, onInit }: { value?: string | null; onAccountChange?: (hash: string) => void; onInit?: (hash: string) => void }) {
+// Startup init lives in the App shell now (it fetches /accounts and sets acctKey), so
+// this component can mount lazily inside the Profile tab without breaking the feed.
+export function AccountPicker({ value, onAccountChange }: { value?: string | null; onAccountChange?: (hash: string) => void }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [initial, setInitial] = useState<string | null>(null);
   const [rollup, setRollup] = useState(false);
@@ -30,10 +32,6 @@ export function AccountPicker({ value, onAccountChange, onInit }: { value?: stri
       .then((j) => {
         setAccounts(j.accounts ?? []);
         setInitial(j.selected_hash ?? null);
-        // Startup: the server already has this account selected — just sync App's
-        // state via onInit. Do NOT route through onAccountChange, which would fire a
-        // redundant /accounts/select POST and wipe the freshly-loaded dashboard.
-        if (j.selected_hash) onInit?.(j.selected_hash);
       })
       .catch(() => {});
   }, []);

@@ -3,6 +3,17 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.36.0 — "A Profile tab for who + which account"
+
+- **Profile & account moved to their own tab.** Switching your trading profile
+  (Christian / Dave / …), picking which account is active, and connecting Schwab all
+  now live on a single, calm **Profile** tab — instead of crowding the bar above the
+  table. The sub-bar keeps one small chip showing who you're trading as and the active
+  account; click it to jump straight to the Profile tab.
+- **Nothing changed about how switching works** — the same guarded switch (it still
+  respects unsaved Settings) and the same "All accounts" overview with each account's
+  value, day profit, cash, and positions. It just has more room to breathe now.
+
 ## v0.35.1 — "Columns that roll in and out"
 
 - **The extra columns now roll open in place.** Instead of being hidden away behind the

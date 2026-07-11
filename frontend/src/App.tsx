@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AccountPicker } from "./AccountPicker";
+import { ProfilePanel, ContextChip } from "./ProfilePanel";
 import { AuthBanner, LiveStatusPill, useLiveness } from "./AuthBanner";
 import { FirstRun } from "./FirstRun";
 import { ReauthButton } from "./Reauth";
@@ -18,7 +18,6 @@ import { NotificationsBell, NotificationsProvider, NotificationsTab } from "./No
 import { Orders } from "./Orders";
 import { OrderTicket } from "./OrderTicket";
 import { PositionDetail } from "./PositionDetail";
-import { ProfileSwitcher } from "./ProfileSwitcher";
 import { Screener, MarketHoursBadge } from "./Screener";
 import { Settings } from "./Settings";
 import { FinancialRules } from "./FinancialRules";
@@ -38,9 +37,10 @@ const NAV: { id: View; label: string }[] = [
   { id: "orders", label: "Orders" },
   { id: "rules", label: "Rules" },
   { id: "notifications", label: "Notifications" },
+  { id: "profile", label: "Profile" },
   { id: "settings", label: "Settings" },
 ];
-type View = "dashboard" | "screen" | "ledger" | "orders" | "rules" | "notifications" | "settings";
+type View = "dashboard" | "screen" | "ledger" | "orders" | "rules" | "notifications" | "profile" | "settings";
 
 export function App() {
   const [data, setData] = useState<Dashboard | null>(null);
@@ -209,6 +209,16 @@ export function App() {
     guardedNav(() => commitAccount(hash));
   };
 
+  // Account init lives in the shell now (was in AccountPicker): sync acctKey to the
+  // server's already-selected account on startup, so the dashboard works even though
+  // the account picker itself moved to the Profile tab (mounted only when viewed).
+  // This just mirrors state — no /accounts/select POST — so it never disturbs the feed.
+  useEffect(() => {
+    fetch(`${API}/accounts`).then((r) => r.json())
+      .then((j) => { if (j?.selected_hash) setAcctKey(j.selected_hash); })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     let ws: WebSocket | null = null;
     let retry: ReturnType<typeof setTimeout>;
@@ -347,8 +357,7 @@ export function App() {
         {view === "dashboard" && <FirstRun nav={(v) => guardedNav(() => setView(v as View))} />}
 
         <div style={S.subbar}>
-          <ProfileSwitcher />
-          <AccountPicker value={acctKey} onAccountChange={onAccountChange} onInit={setAcctKey} />
+          <ContextChip acctKey={acctKey} onOpen={() => guardedNav(() => setView("profile"))} />
           {view === "dashboard" && (bulk.kind ? (
             <span style={S.bulkBar}>
               {bulk.loading ? (
@@ -432,6 +441,8 @@ export function App() {
 
         {view === "settings" ? (
           <Settings key={acctKey} onDirtyChange={setSettingsDirty} />
+        ) : view === "profile" ? (
+          <ProfilePanel acctKey={acctKey} onAccountChange={onAccountChange} />
         ) : view === "rules" ? (
           <FinancialRules key={acctKey} onDirtyChange={setSettingsDirty} />
         ) : view === "notifications" ? (

@@ -90,8 +90,8 @@ export function FirstRun({ nav }: { nav: (view: string) => void }) {
           {!steps.connected && <ReauthButton label="Connect Schwab" onComplete={load} />}
         </Step>
         <Step n={2} done={steps.account} title="Choose your trading account"
-          desc="Pick the account in the picker below the header, then turn on 'Trading enabled' under Settings — orders are off until you do.">
-          {!steps.account && <button className="btn btn-secondary btn-sm" onClick={() => nav("settings")}>Open Settings</button>}
+          desc="Pick the account on the Profile tab, then turn on 'Trading enabled' under Settings — orders are off until you do.">
+          {!steps.account && <button className="btn btn-secondary btn-sm" onClick={() => nav("profile")}>Open Profile</button>}
         </Step>
         <Step n={3} done={steps.history} title="Import your history"
           desc="One CSV brings in years of trades, deposits, and dividends (Schwab.com: Accounts, History, Export). Re-importing is always safe.">
