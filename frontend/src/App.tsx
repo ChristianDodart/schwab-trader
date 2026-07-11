@@ -26,7 +26,7 @@ import { useToast } from "./Toast";
 import type { AlertPrefill, BuyCandidate, Dashboard, DashboardRow, ExitCandidate, SellCandidate, Suggestion } from "./types";
 
 import { API, wsUrl } from "./api";
-import { IconRefresh, IconWarning, IconClose } from "./Icon";
+import { IconRefresh, IconWarning, IconClose, IconSearch } from "./Icon";
 
 const WS_URL = wsUrl("/ws/dashboard");
 
@@ -48,7 +48,8 @@ export function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<View>("dashboard");
   const [showHelp, setShowHelp] = useState(false);
-  const [symQuery, setSymQuery] = useState("");        // "/" jump-to filter (by ticker)
+  const [symQuery, setSymQuery] = useState("");        // Ctrl+F find-bar filter (by ticker)
+  const [findOpen, setFindOpen] = useState(false);     // browser-style find bar (hidden until Ctrl+F)
   const [sectorFilter, setSectorFilter] = useState<string | null>(null); // click a sector chip
   const [dashSub, setDashSub] = useState<"all" | "todo" | "top">("all");
   const symInputRef = useRef<HTMLInputElement>(null);
@@ -168,6 +169,17 @@ export function App() {
   // so it never fights with order tickets, search boxes, or dialogs.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Browser-style find: Ctrl/Cmd+F opens the hidden ticker find bar on the dashboard
+      // (works from anywhere, even mid-typing, exactly like a browser's find). Handled
+      // before the modifier bail-out below so the app owns it instead of the OS.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === "f" || e.key === "F")) {
+        if (view === "dashboard" && !simple && dashSub === "all" && !document.querySelector(".modal-overlay")) {
+          e.preventDefault();
+          setFindOpen(true);
+          setTimeout(() => symInputRef.current?.focus(), 0);
+        }
+        return;
+      }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const el = e.target as HTMLElement | null;
       const tag = el?.tagName;
@@ -182,7 +194,6 @@ export function App() {
       }
       if (e.key === "g") { gPending.current = true; setTimeout(() => { gPending.current = false; }, 900); return; }
       if (e.key === "?") { e.preventDefault(); setShowHelp((v) => !v); return; }
-      if (e.key === "/" && view === "dashboard") { e.preventDefault(); symInputRef.current?.focus(); return; }
       if (/^[1-9]$/.test(e.key)) {
         const t = NAV[Number(e.key) - 1];
         if (t) { e.preventDefault(); guardedNav(() => setView(t.id)); }
@@ -255,7 +266,7 @@ export function App() {
   const mode = data?.mode;
 
   // Bulk selection only makes sense on the dashboard — leaving it cancels.
-  useEffect(() => { if (view !== "dashboard") bulk.cancel(); }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (view !== "dashboard") { bulk.cancel(); setFindOpen(false); } }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addTicker = () => {
     const sym = addSym.trim().toUpperCase();
@@ -354,6 +365,28 @@ export function App() {
 
         <UpdateBanner />
         <AuthBanner />
+
+        {/* Browser-style find bar: hidden until Ctrl/Cmd+F, floats at the top-right,
+            filters the dashboard by ticker, and closes on Esc — just like a browser. */}
+        {findOpen && view === "dashboard" && !simple && dashSub === "all" && (
+          <div style={S.findBar} role="search" aria-label="Find ticker">
+            <span style={{ display: "inline-flex", color: "var(--text-dim)" }} aria-hidden="true"><IconSearch size={15} /></span>
+            <input ref={symInputRef} value={symQuery} placeholder="Find ticker…" aria-label="Find ticker"
+              style={S.findInput}
+              onChange={(e) => setSymQuery(e.target.value.toUpperCase())}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") { e.preventDefault(); setSymQuery(""); setFindOpen(false); }
+              }} />
+            <span style={S.findCount}>
+              {symQuery
+                ? `${dashRows.length} match${dashRows.length === 1 ? "" : "es"}`
+                : `${data?.rows.length ?? 0} tickers`}
+            </span>
+            <button className="btn btn-ghost btn-sm" aria-label="Close find (Esc)" title="Close (Esc)"
+              onClick={() => { setSymQuery(""); setFindOpen(false); }}><IconClose /></button>
+          </div>
+        )}
+
         {view === "dashboard" && <FirstRun nav={(v) => guardedNav(() => setView(v as View))} />}
 
         <div style={S.subbar}>
@@ -486,14 +519,10 @@ export function App() {
                           activeSector={sectorFilter}
                           onSectorClick={(name) => setSectorFilter((cur) => (cur === name ? null : name))} />
                         <div style={S.filterBar}>
-                          <input ref={symInputRef} className="field" value={symQuery} placeholder="Jump to ticker  ( / )"
-                            aria-label="Filter positions by ticker" style={{ height: 30, width: 190 }}
-                            onChange={(e) => setSymQuery(e.target.value.toUpperCase())}
-                            onKeyDown={(e) => { if (e.key === "Escape") { setSymQuery(""); e.currentTarget.blur(); } }} />
-                          {symQuery && <button className="btn btn-ghost btn-sm" onClick={() => setSymQuery("")}>clear</button>}
                           {(symQuery || sectorFilter) && (
                             <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-xs)" }}>
                               showing {dashRows.length} of {data.rows.length}
+                              {symQuery && <> · <b style={{ color: "var(--text-muted)" }}>“{symQuery}”</b></>}
                             </span>
                           )}
                           {sectorFilter && (
@@ -598,7 +627,7 @@ function HelpOverlay({ onClose }: { onClose: () => void }) {
   const rows: [string, string][] = [
     ...NAV.map((t, i) => [String(i + 1), `Go to ${t.label}`] as [string, string]),
     ["g then d/s/l/o/r", "Jump to a tab (vim-style)"],
-    ["/", "Jump to a ticker (dashboard)"],
+    ["Ctrl/Cmd + F", "Find a ticker (dashboard)"],
     ["?", "Show / hide this help"],
     ["Esc", "Close dialogs"],
   ];
@@ -761,6 +790,14 @@ const S: Record<string, React.CSSProperties> = {
   kpiVal: { fontSize: "var(--fs-lg)", fontWeight: 600, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center" },
   kpiHero: { fontSize: "var(--fs-2xl)", fontWeight: 700, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center", lineHeight: 1.1 },
   subbar: { display: "flex", alignItems: "center", gap: 16, marginTop: 18, flexWrap: "wrap" },
+  // Floating browser-style find bar (Ctrl/Cmd+F). Fixed top-right, above content.
+  findBar: { position: "fixed", top: 14, right: 18, zIndex: 60,
+    display: "flex", alignItems: "center", gap: 8, padding: "6px 8px 6px 12px",
+    background: "var(--pop)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)",
+    boxShadow: "var(--shadow-pop)" },
+  findInput: { border: "none", background: "transparent", color: "var(--text)", font: "inherit",
+    fontSize: "var(--fs-sm)", outline: "none", width: 170, height: 26 },
+  findCount: { fontSize: "var(--fs-2xs)", color: "var(--text-faint)", whiteSpace: "nowrap", minWidth: 62, textAlign: "right" },
   bulkBar: { display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" },
   addWrap: { display: "flex", gap: 6, alignItems: "center" },
   note: { color: "var(--text-muted)", fontSize: "var(--fs-md)", marginTop: 16 },

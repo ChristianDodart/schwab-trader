@@ -3,6 +3,14 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.36.1 — "Ctrl+F to find a ticker"
+
+- **Find a ticker the way you find anything else.** The always-visible "Jump to ticker"
+  box is gone; press **Ctrl+F** (Cmd+F on Mac) on the dashboard and a small find bar
+  slides in at the top-right — type a few letters to filter your positions, see the live
+  match count, and press **Esc** or the × to close it. Exactly how find works in your
+  browser and every other app, so there's nothing new to learn.
+
 ## v0.36.0 — "A Profile tab for who + which account"
 
 - **Profile & account moved to their own tab.** Switching your trading profile
