@@ -20,11 +20,13 @@ export type ThemeId =
   | "dracula" | "one-dark" | "monokai" | "everforest-dark" | "kanagawa"
   | "github-dark" | "ayu-mirage"
   | "github-light" | "one-light" | "rosepine-dawn" | "everforest-light"
-  | "high-contrast-light";
+  | "high-contrast-light"
+  // v0.49 vivid additions
+  | "tron" | "synthwave" | "cyberpunk" | "amber-crt" | "miami" | "ultraviolet";
 
 export type ThemeChoice = ThemeId | "system";
 
-export type ThemeGroup = "Dark" | "Light" | "High Contrast";
+export type ThemeGroup = "Dark" | "Light" | "Vivid" | "High Contrast";
 
 export interface ThemeMeta {
   id: ThemeId;
@@ -40,7 +42,7 @@ export const DARK_DEFAULT: ThemeId = "midnight";
 export const LIGHT_DEFAULT: ThemeId = "institutional";
 
 /** Display order of the groups in the picker. */
-export const THEME_GROUPS: ThemeGroup[] = ["Dark", "Light", "High Contrast"];
+export const THEME_GROUPS: ThemeGroup[] = ["Dark", "Light", "Vivid", "High Contrast"];
 
 export const THEMES: ThemeMeta[] = [
   // ---- Dark ----
@@ -66,6 +68,13 @@ export const THEMES: ThemeMeta[] = [
   { id: "one-light",       label: "One Light",        group: "Light", blurb: "Atom's editor light, calm.",         bg: "#fafafa", surface: "#ffffff", accent: "#4078f2", pos: "#2f7a2e", neg: "#b8541c" },
   { id: "rosepine-dawn",   label: "Rosé Pine Dawn",   group: "Light", blurb: "Soft rose on warm paper.",           bg: "#faf4ed", surface: "#fffaf3", accent: "#907aa9", pos: "#396e78", neg: "#a3475e" },
   { id: "everforest-light",label: "Everforest Light", group: "Light", blurb: "Warm paper-green, low strain.",      bg: "#fdf6e3", surface: "#fffbef", accent: "#3a94c5", pos: "#636f00", neg: "#bd5410" },
+  // ---- Vivid ----
+  { id: "tron",           label: "Tron",             group: "Vivid", blurb: "Sharp electric cyan, digital grid.", bg: "#060a10", surface: "#0b141d", accent: "#22d3ee", pos: "#3ce8b0", neg: "#ff9d4d" },
+  { id: "synthwave",      label: "Synthwave",        group: "Vivid", blurb: "Magenta & cyan, retro-future.",      bg: "#1a132b", surface: "#241a3d", accent: "#ff5fd2", pos: "#5ef2b0", neg: "#ff9e5a" },
+  { id: "cyberpunk",      label: "Cyberpunk",        group: "Vivid", blurb: "Neon yellow on black, high-vis.",    bg: "#08080c", surface: "#101018", accent: "#fcee0a", pos: "#00ffa3", neg: "#ff9f43" },
+  { id: "amber-crt",      label: "Amber CRT",        group: "Vivid", blurb: "Warm amber-phosphor terminal.",      bg: "#140d05", surface: "#1d1409", accent: "#ffb000", pos: "#c6e04d", neg: "#ff8a3d" },
+  { id: "miami",          label: "Miami",            group: "Vivid", blurb: "Hot pink & teal, sunset neon.",      bg: "#0b1f29", surface: "#102b37", accent: "#ff5fa8", pos: "#43e8a0", neg: "#ffa15a" },
+  { id: "ultraviolet",    label: "Ultraviolet",      group: "Vivid", blurb: "Electric violet on near-black.",     bg: "#0d0a17", surface: "#161122", accent: "#b26bff", pos: "#5be3a2", neg: "#ffa15a" },
   // ---- High Contrast ----
   { id: "high-contrast",       label: "High Contrast",       group: "High Contrast", blurb: "Accessibility-first on black.",  bg: "#000000", surface: "#0b0b0f", accent: "#66aaff", pos: "#4fe39a", neg: "#ffab5e" },
   { id: "high-contrast-light", label: "High Contrast Light", group: "High Contrast", blurb: "Accessibility-first on white.",  bg: "#ffffff", surface: "#ffffff", accent: "#0b5cc7", pos: "#036b3f", neg: "#9a3b00" },

@@ -520,6 +520,108 @@
   --shadow-strong: rgba(0,0,0,0.28); --shadow-color: rgba(0,0,0,0.18); --shadow-color-soft: rgba(0,0,0,0.10);
 }
 
+/* ===========================================================================
+   VIVID — saturated, color-forward themes. Bright accents ride on near-black
+   surfaces, so `--on-accent` / `--on-bright` are DARK (dark ink on a neon fill)
+   — the opposite of the deep-blue themes. Still AA for text and P/L.
+   =========================================================================== */
+
+/* TRON — sharp electric cyan on black-blue, digital-grid feel. */
+:root[data-theme="tron"] {
+  --bg: #060a10; --panel: #0b141d; --panel-2: #122232; --pop: #0e1a26; --panel-header: #0b141d;
+  --surface-hi: rgba(45,215,255,0.05); --surface-hi-strong: rgba(45,215,255,0.10);
+  --border-hairline: #10202e; --border: #17384c; --border-strong: #256a8c; --neg-border: #5a3a20;
+  --text: #cfeefb; --text-muted: #a7d3e6; --text-dim: #7ba7bd; --text-faint: #628a9d;
+  --accent: #22d3ee; --accent-hover: #4ce0f7; --accent-quiet: #38dcff;
+  --accent-fill: #22d3ee; --accent-fill-hover: #4ce0f7;
+  --pos: #3ce8b0; --pos-strong: #17b98a; --neg: #ff9d4d; --neg-strong: #ff7a3d; --warn: #ffcf4d; --danger: #ff5f5f;
+  --pos-bg: rgba(60,232,176,0.12); --neg-bg: rgba(255,157,77,0.13); --danger-bg: rgba(255,95,95,0.15);
+  --warn-bg: #33300f; --warn-border: #5f5a1c; --info-bg: rgba(34,211,238,0.12); --accent-bg: rgba(34,211,238,0.16);
+  --on-accent: #041018; --on-bright: #041018; --danger-text: #ff9d9d;
+  --bg-glow: rgba(34,211,238,0.08); --selection-bg: rgba(34,211,238,0.26);
+  --shadow-strong: rgba(0,0,0,0.72); --shadow-color: rgba(0,0,0,0.56); --shadow-color-soft: rgba(0,0,0,0.36);
+}
+
+/* SYNTHWAVE — hot magenta + cyan on deep purple, retro-future. */
+:root[data-theme="synthwave"] {
+  --bg: #1a132b; --panel: #241a3d; --panel-2: #30234f; --pop: #281d43; --panel-header: #241a3d;
+  --surface-hi: rgba(255,255,255,0.05); --surface-hi-strong: rgba(255,255,255,0.09);
+  --border-hairline: #2b2048; --border: #3c2c60; --border-strong: #574080; --neg-border: #5e2f4a;
+  --text: #f2e6ff; --text-muted: #d6c2ee; --text-dim: #ab96cc; --text-faint: #8b78ae;
+  --accent: #ff5fd2; --accent-hover: #ff7ada; --accent-quiet: #4ff0f0;
+  --accent-fill: #b32b8c; --accent-fill-hover: #c53c9c;
+  --pos: #5ef2b0; --pos-strong: #24c988; --neg: #ff9e5a; --neg-strong: #ff6b81; --warn: #ffd166; --danger: #ff5f7a;
+  --pos-bg: rgba(94,242,176,0.12); --neg-bg: rgba(255,158,90,0.13); --danger-bg: rgba(255,95,122,0.15);
+  --warn-bg: #3a2f16; --warn-border: #665422; --info-bg: rgba(79,240,240,0.10); --accent-bg: rgba(255,95,210,0.16);
+  --on-accent: #ffffff; --on-bright: #1a132b; --danger-text: #ffb3c1;
+  --bg-glow: rgba(255,95,210,0.07); --selection-bg: rgba(255,95,210,0.24);
+  --shadow-strong: rgba(0,0,0,0.62); --shadow-color: rgba(0,0,0,0.48); --shadow-color-soft: rgba(0,0,0,0.30);
+}
+
+/* CYBERPUNK — neon yellow on black, cyan links, danger magenta. */
+:root[data-theme="cyberpunk"] {
+  --bg: #08080c; --panel: #101018; --panel-2: #191922; --pop: #14141d; --panel-header: #101018;
+  --surface-hi: rgba(252,238,10,0.05); --surface-hi-strong: rgba(252,238,10,0.09);
+  --border-hairline: #171720; --border: #27272f; --border-strong: #444426; --neg-border: #5a2f3a;
+  --text: #f4f2df; --text-muted: #cececa; --text-dim: #9a9a94; --text-faint: #79796f;
+  --accent: #fcee0a; --accent-hover: #fff447; --accent-quiet: #22e5ff;
+  --accent-fill: #fcee0a; --accent-fill-hover: #fff447;
+  --pos: #00ffa3; --pos-strong: #00c07a; --neg: #ff9f43; --neg-strong: #ff3c5f; --warn: #ffc400; --danger: #ff3c5f;
+  --pos-bg: rgba(0,255,163,0.12); --neg-bg: rgba(255,159,67,0.13); --danger-bg: rgba(255,60,95,0.15);
+  --warn-bg: #332d05; --warn-border: #5f551c; --info-bg: rgba(34,229,255,0.10); --accent-bg: rgba(252,238,10,0.14);
+  --on-accent: #0a0a04; --on-bright: #0a0a04; --danger-text: #ff9db0;
+  --bg-glow: rgba(252,238,10,0.06); --selection-bg: rgba(252,238,10,0.20);
+  --shadow-strong: rgba(0,0,0,0.74); --shadow-color: rgba(0,0,0,0.58); --shadow-color-soft: rgba(0,0,0,0.38);
+}
+
+/* AMBER CRT — warm amber-phosphor monochrome; P/L split into lime vs orange. */
+:root[data-theme="amber-crt"] {
+  --bg: #140d05; --panel: #1d1409; --panel-2: #2a1e0e; --pop: #221809; --panel-header: #1d1409;
+  --surface-hi: rgba(255,176,0,0.05); --surface-hi-strong: rgba(255,176,0,0.09);
+  --border-hairline: #241a0c; --border: #3a2a12; --border-strong: #61491f; --neg-border: #5a3320;
+  --text: #ffcf8a; --text-muted: #e2b276; --text-dim: #b88d57; --text-faint: #937046;
+  --accent: #ffb000; --accent-hover: #ffc23d; --accent-quiet: #ffb42a;
+  --accent-fill: #d99100; --accent-fill-hover: #e8a017;
+  --pos: #c6e04d; --pos-strong: #9cb52f; --neg: #ff8a3d; --neg-strong: #ff6a4d; --warn: #ffd24d; --danger: #ff6a4d;
+  --pos-bg: rgba(198,224,77,0.12); --neg-bg: rgba(255,138,61,0.13); --danger-bg: rgba(255,106,77,0.15);
+  --warn-bg: #33290c; --warn-border: #5f4c1c; --info-bg: rgba(255,176,0,0.10); --accent-bg: rgba(255,176,0,0.14);
+  --on-accent: #140d05; --on-bright: #140d05; --danger-text: #ffb59a;
+  --bg-glow: rgba(255,176,0,0.06); --selection-bg: rgba(255,176,0,0.22);
+  --shadow-strong: rgba(0,0,0,0.72); --shadow-color: rgba(0,0,0,0.56); --shadow-color-soft: rgba(0,0,0,0.36);
+}
+
+/* MIAMI — hot pink accent + teal links on deep teal, sunset neon. */
+:root[data-theme="miami"] {
+  --bg: #0b1f29; --panel: #102b37; --panel-2: #173a49; --pop: #133340; --panel-header: #102b37;
+  --surface-hi: rgba(255,255,255,0.05); --surface-hi-strong: rgba(255,255,255,0.09);
+  --border-hairline: #133441; --border: #1d4a5b; --border-strong: #2c6d82; --neg-border: #5e3548;
+  --text: #e9fbff; --text-muted: #bce4ec; --text-dim: #86b6c2; --text-faint: #67929e;
+  --accent: #ff5fa8; --accent-hover: #ff7cb8; --accent-quiet: #2fe6d0;
+  --accent-fill: #c73179; --accent-fill-hover: #d63d84;
+  --pos: #43e8a0; --pos-strong: #17b877; --neg: #ffa15a; --neg-strong: #ff6f8f; --warn: #ffcf5a; --danger: #ff5f7f;
+  --pos-bg: rgba(67,232,160,0.12); --neg-bg: rgba(255,161,90,0.13); --danger-bg: rgba(255,95,127,0.15);
+  --warn-bg: #33300f; --warn-border: #5f581c; --info-bg: rgba(47,230,208,0.10); --accent-bg: rgba(255,95,168,0.15);
+  --on-accent: #ffffff; --on-bright: #06181f; --danger-text: #ffb0c0;
+  --bg-glow: rgba(255,95,168,0.06); --selection-bg: rgba(47,230,208,0.20);
+  --shadow-strong: rgba(0,0,0,0.62); --shadow-color: rgba(0,0,0,0.48); --shadow-color-soft: rgba(0,0,0,0.30);
+}
+
+/* ULTRAVIOLET — electric violet on near-black, cyan links. */
+:root[data-theme="ultraviolet"] {
+  --bg: #0d0a17; --panel: #161122; --panel-2: #211a33; --pop: #1b1530; --panel-header: #161122;
+  --surface-hi: rgba(168,85,247,0.05); --surface-hi-strong: rgba(168,85,247,0.10);
+  --border-hairline: #1d1730; --border: #2d2347; --border-strong: #483d70; --neg-border: #532f4a;
+  --text: #ece4ff; --text-muted: #cdc0ee; --text-dim: #a396c8; --text-faint: #8377a8;
+  --accent: #b26bff; --accent-hover: #c184ff; --accent-quiet: #6be0ff;
+  --accent-fill: #8a3fe0; --accent-fill-hover: #9a52ec;
+  --pos: #5be3a2; --pos-strong: #25c07f; --neg: #ffa15a; --neg-strong: #ff6f9c; --warn: #ffd166; --danger: #ff5f8a;
+  --pos-bg: rgba(91,227,162,0.12); --neg-bg: rgba(255,161,90,0.13); --danger-bg: rgba(255,95,138,0.15);
+  --warn-bg: #352f16; --warn-border: #5f5622; --info-bg: rgba(107,224,255,0.10); --accent-bg: rgba(178,107,255,0.16);
+  --on-accent: #ffffff; --on-bright: #0d0a17; --danger-text: #ffb0c6;
+  --bg-glow: rgba(178,107,255,0.08); --selection-bg: rgba(178,107,255,0.24);
+  --shadow-strong: rgba(0,0,0,0.68); --shadow-color: rgba(0,0,0,0.52); --shadow-color-soft: rgba(0,0,0,0.34);
+}
+
 /* ---------------------------------------------------------------------------
    APP-WIDE FONT SIZE — a separate `data-fontsize` attribute on <html> that just
    scales the type. Independent of (and composes with) the theme. Medium = default.

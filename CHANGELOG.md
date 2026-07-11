@@ -3,6 +3,17 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.49.0 — "A theme dropdown + vivid colors"
+
+- **The theme picker is now a compact dropdown** instead of a long grid — the Settings page no
+  longer scrolls to reach it. The button shows a live preview of the current theme; opening it lists
+  every theme grouped (Dark, Light, Vivid, High Contrast), each with its own preview, and the list
+  scrolls on its own if it's tall.
+- **A new "Vivid" group** of six saturated, color-forward themes, all still WCAG AA:
+  **Tron** (sharp electric-cyan, digital-grid feel), **Synthwave** (magenta & cyan), **Cyberpunk**
+  (neon yellow on black), **Amber CRT** (warm amber-phosphor terminal), **Miami** (hot pink & teal),
+  and **Ultraviolet** (electric violet). 29 themes in total.
+
 ## v0.48.0 — "Twice the themes, grouped"
 
 - **12 new themes**, all meeting WCAG AA contrast for text and profit/loss — 23 in total.
