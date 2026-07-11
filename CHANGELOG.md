@@ -3,6 +3,18 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.52.0 — "No double-counted deposits"
+
+- **Fixed a duplicated-transfer bug that threw the cash cross-check off by whole deposits.** When you
+  imported a Transactions CSV *before* Schwab had posted a recent transfer, the deposit got logged
+  twice — once from the CSV (keyed to the transfer's effective date) and again when Schwab's live pull
+  later saw it (keyed to the posted date, a day or two apart). Schwab's pull only checked for exact
+  transaction-ID matches, so it never noticed the CSV twin. The app now recognizes a CSV deposit and
+  its later Schwab copy as the same money and keeps just one — so the cross-check stops over-counting.
+- **This self-heals.** The next time your Ledger syncs, any existing duplicate deposits are cleaned up
+  automatically — no re-import needed. (For the reporting account this removes one duplicated $1,000
+  transfer, closing the cross-check to within a couple of cents.)
+
 ## v0.51.0 — "The ledger, pinned"
 
 - **Trade fees and margin interest now sync live from Schwab.** They used to arrive only when you

@@ -333,7 +333,35 @@ async def refresh_cashflows_from_schwab(account_hash: str,
             if (await s.execute(stmt)).scalar_one_or_none() is not None:
                 added += 1
         await s.commit()
-    return {"ok": True, "added": added, "window_days": 60}
+    removed = await _dedup_transfers_vs_schwab(account_hash)
+    return {"ok": True, "added": added, "removed_duplicates": removed, "window_days": 60}
+
+
+async def _dedup_transfers_vs_schwab(account_hash: str) -> int:
+    """Heal transfers that exist BOTH as a CSV row (effective date) and a later
+    Schwab-pulled row (posted date, txn id) — the Schwab pull dedups only by txn id, so
+    it can't see the CSV twin. Deletes the redundant CSV rows (Schwab is canonical); see
+    activity.plan_transfer_dedup. Runs on every transfer sync, so a duplicate created by
+    importing a CSV before Schwab posts the transfer self-heals on the next pull."""
+    async with SessionLocal() as s:
+        rows = (await s.execute(
+            select(CashFlow.id, CashFlow.day, CashFlow.amount, CashFlow.source, CashFlow.schwab_txn_id)
+            .where(CashFlow.account_hash == account_hash)
+        )).all()
+        dupe_ids = activity_mod.plan_transfer_dedup(
+            [{"id": r[0], "day": r[1], "amount": _f(r[2]), "source": r[3], "schwab_txn_id": r[4]}
+             for r in rows]
+        )
+        if not dupe_ids:
+            return 0
+        from sqlalchemy import delete as _delete
+        await s.execute(
+            _delete(CashFlow).where(CashFlow.account_hash == account_hash, CashFlow.id.in_(dupe_ids))
+        )
+        await s.commit()
+    log.info(f"[cashflow] healed {len(dupe_ids)} duplicate CSV transfer(s) for {account_hash[-4:]} "
+             f"(same amount as a Schwab-pulled row within the window)")
+    return len(dupe_ids)
 
 
 # ===================== consolidated activity sync =====================

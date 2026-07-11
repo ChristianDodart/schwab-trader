@@ -122,3 +122,77 @@ def test_merge_clears_window_when_feed_has_no_rows():
     existing = [{"day": "2026-07-10", "amount": -0.06, "type": "TRADE FEES"}]
     merged, net_new = merge_window_rows(existing, [], "2026-07-01", "2026-07-11")
     assert merged == [] and net_new == 0
+
+
+# ---------- plan_transfer_dedup ----------
+from datetime import date
+from app.activity import plan_transfer_dedup
+
+
+def _cf(id, day, amount, source, txn=None):
+    return {"id": id, "day": date.fromisoformat(day), "amount": amount,
+            "source": source, "schwab_txn_id": txn}
+
+
+def test_dedup_heals_christians_july_cluster():
+    # The real bug: a CSV row keyed to the EFFECTIVE date (07-07) duplicates the
+    # Schwab row keyed to the POSTED date (07-08) of the same $1000 transfer.
+    rows = [
+        _cf(1, "2025-10-06", 200, "csv"),
+        _cf(2, "2025-10-24", 1700, "csv"),
+        _cf(3, "2026-01-13", -2709.59, "csv"),
+        _cf(4, "2026-07-01", 1000, "schwab", "a"),
+        _cf(5, "2026-07-01", 1000, "schwab", "b"),
+        _cf(6, "2026-07-06", 1500, "csv"),          # journal, no schwab twin
+        _cf(7, "2026-07-07", 1000, "csv"),          # <-- duplicate of the 07-08 schwab row
+        _cf(8, "2026-07-08", 1000, "schwab", "c"),
+        _cf(9, "2026-07-09", 1000, "schwab", "d"),
+        _cf(10, "2026-07-13", 1000, "schwab", "e"),  # genuinely newer transfer, no CSV twin
+    ]
+    assert plan_transfer_dedup(rows) == [7]
+
+
+def test_dedup_is_idempotent():
+    rows = [
+        _cf(7, "2026-07-07", 1000, "csv"),
+        _cf(8, "2026-07-08", 1000, "schwab", "c"),
+    ]
+    assert plan_transfer_dedup(rows) == [7]
+    # After removing 7, nothing matches again.
+    assert plan_transfer_dedup([r for r in rows if r["id"] != 7]) == []
+
+
+def test_dedup_never_touches_schwab_or_manual_rows():
+    rows = [
+        _cf(1, "2026-07-08", 1000, "schwab", "c"),
+        _cf(2, "2026-07-07", 1000, "manual"),   # a deliberate hand entry — leave it
+    ]
+    assert plan_transfer_dedup(rows) == []      # only source=='csv' is auto-removed
+
+
+def test_dedup_keeps_csv_outside_window():
+    rows = [
+        _cf(1, "2026-07-01", 1000, "schwab", "c"),
+        _cf(2, "2026-07-07", 1000, "csv"),      # 6 days from the schwab row → distinct
+    ]
+    assert plan_transfer_dedup(rows) == []
+
+
+def test_dedup_keeps_csv_only_history():
+    # Old transfers (outside Schwab's 60-day pull) exist only as CSV — no twin, no delete.
+    rows = [
+        _cf(1, "2025-10-06", 200, "csv"),
+        _cf(2, "2025-10-24", 1700, "csv"),
+    ]
+    assert plan_transfer_dedup(rows) == []
+
+
+def test_dedup_one_anchor_absorbs_one_csv_only():
+    # Two CSV rows of the same amount but only ONE schwab twin nearby: exactly one is a
+    # duplicate; the other is a distinct transfer and must survive.
+    rows = [
+        _cf(1, "2026-07-08", 1000, "schwab", "c"),
+        _cf(2, "2026-07-07", 1000, "csv"),   # nearest to the anchor → removed
+        _cf(3, "2026-07-20", 1000, "csv"),   # far from any schwab row → kept
+    ]
+    assert plan_transfer_dedup(rows) == [2]

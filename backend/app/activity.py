@@ -116,6 +116,67 @@ def parse_margin_interest(data: list | None) -> list[dict]:
     return out
 
 
+def plan_transfer_dedup(rows: list[dict], window_days: int = 4) -> list:
+    """Find CSV transfer rows that duplicate a Schwab-pulled one, and return their ids
+    to delete. Pure — the DB layer does the deleting.
+
+    The bug this heals: the 60-day Schwab transfer pull dedups ONLY by schwab_txn_id,
+    so it never notices a transfer that a CSV import already logged. A CSV row is keyed
+    to the transfer's EFFECTIVE date; the Schwab pull keys the same transfer to its
+    POSTED date (a day or two later, with a txn id the CSV row lacks) — so the money
+    lands in the log twice and the cash identity over-states by that amount.
+
+    A ``source=='csv'`` row (no txn id) is a duplicate when a Schwab-sourced row (has a
+    schwab_txn_id) of the SAME amount sits within ±window_days. Each Schwab row absorbs
+    at most ONE csv duplicate, so two genuinely-distinct same-amount transfers on nearby
+    days aren't collapsed. Schwab rows are canonical (idempotent txn id + posted date)
+    and are never deleted; csv-only history outside the ~60-day Schwab window has no
+    Schwab twin, so it's untouched. Idempotent: after one pass nothing matches again.
+
+    Each row: {id, day (date | ISO str), amount, source, schwab_txn_id}."""
+    from datetime import date as _date
+
+    def as_day(v):
+        if isinstance(v, _date):
+            return v
+        try:
+            y, m, d = str(v)[:10].split("-")
+            return _date(int(y), int(m), int(d))
+        except Exception:
+            return None
+
+    # Schwab-sourced anchors (have a txn id), grouped by amount; unclaimed until matched.
+    anchors: dict[float, list[list]] = {}
+    for r in rows:
+        if r.get("schwab_txn_id"):
+            d = as_day(r.get("day"))
+            if d is not None:
+                anchors.setdefault(round(float(r["amount"]), 2), []).append([d, False])
+
+    # CSV rows in stable (day, id) order so the match is deterministic.
+    csv_rows = sorted(
+        (r for r in rows if r.get("source") == "csv" and not r.get("schwab_txn_id")),
+        key=lambda r: (str(r.get("day")), r.get("id", 0)),
+    )
+    to_delete = []
+    for r in csv_rows:
+        d = as_day(r.get("day"))
+        if d is None:
+            continue
+        amt = round(float(r["amount"]), 2)
+        best = None  # (day_diff, anchor_entry)
+        for entry in anchors.get(amt, []):
+            if entry[1]:
+                continue
+            diff = abs((entry[0] - d).days)
+            if diff <= window_days and (best is None or diff < best[0]):
+                best = (diff, entry)
+        if best is not None:
+            best[1][1] = True          # claim the anchor
+            to_delete.append(r["id"])
+    return to_delete
+
+
 def merge_window_rows(existing: list[dict], fresh: list[dict],
                       lo: str, hi: str,
                       types: tuple[str, ...] = REPLACE_TYPES) -> tuple[list[dict], int]:
