@@ -175,7 +175,14 @@ export const DASH_COLUMNS: Record<string, DashCol> = Object.fromEntries(
 // numbers (current price + profit on the last position). Not user-removable and
 // not in the customizable registry, so they can't be hidden or duplicated.
 export const PINNED_DASH: DashCol[] = [
-  { id: "price", label: "Price", align: "left", prov: "schwab", render: (r) => <b>{usd(r.price)}</b> },
+  { id: "price", label: "Price", align: "left", prov: "schwab", render: (r) => (
+      r.is_watch && r.last_held != null
+        ? <span style={{ whiteSpace: "nowrap" }}><b>{usd(r.price)}</b>
+            <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-2xs)", marginLeft: 6 }}
+              title="The price you last sold this at — watching for a re-entry below it">sold {usd(r.last_held)}</span>
+          </span>
+        : <b>{usd(r.price)}</b>
+    ) },
   { id: "last_pos_profit", label: "Last Pos P/L", align: "left", watchNA: true, render: (r) => <b><Colored v={usd(r.last_pos_profit)} n={r.last_pos_profit} /></b> },
 ];
 // Columns always shown (never folded): Price + Last Pos P/L (pinned) plus these two.

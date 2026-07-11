@@ -4,7 +4,7 @@ import { DASH_COLUMNS, PINNED_DASH, ESSENTIAL_DASH_IDS, rowSignalChips, tickerRi
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
 import type { SignalRule } from "./signals";
-import { IconChildArrow, IconBell, IconClose, IconChevronRight, IconChevronLeft } from "./Icon";
+import { IconChildArrow, IconBell, IconClose, IconChevronRight, IconChevronLeft, IconEye } from "./Icon";
 
 // Column sorting: click a header to sort by it (asc/desc toggle, third click clears
 // back to the default order). Persisted per browser. Applied BEFORE nesting, so ETF
@@ -242,6 +242,12 @@ export function DashboardTable({
                     <span style={S.tickerLine}>
                       {depth > 0 && <span style={S.childArrow} aria-hidden="true"><IconChildArrow size={13} /></span>}
                       <span style={{ fontWeight: 700, color: tickerRiskColor(r.risk) }} title={r.risk ? RISK_LABEL[r.risk] : undefined}>{r.symbol}</span>
+                      {depth > 0 && parent && parent.pct_of_high != null && (
+                        <span style={S.underlyingChip}
+                          title={`Read direction from the underlying — ${parent.symbol} is at ${pct(parent.pct_of_high)} of its 52-week high`}>
+                          {parent.symbol} {Math.round(parent.pct_of_high * 100)}%
+                        </span>
+                      )}
                       {r.has_note && <NoteDot preview={r.note_preview} />}
                       {r.has_rules && <span style={S.rulesDot} title="Uses its own ticker rules (sell target / dip depth) — open to see or edit them" aria-label="custom rules">◆</span>}
                       {(working?.[r.symbol] ?? 0) > 0 && (
@@ -257,8 +263,9 @@ export function DashboardTable({
                       )}
                       {rowSignalChips(r, signalRules)}
                       {r.is_watch && (
-                        <span className="tag" style={S.watchTag}>
-                          watch{r.last_held != null ? ` · last $${r.last_held.toFixed(2)}` : ""}
+                        <span style={S.watchEye} aria-label="On your watchlist"
+                          title={r.last_held != null ? `On your watchlist — last sold at $${r.last_held.toFixed(2)}` : "On your watchlist"}>
+                          <IconEye size={13} />
                         </span>
                       )}
                       {!bulk && (
@@ -290,11 +297,6 @@ export function DashboardTable({
                       )}
                     </span>
                     {isOpen && r.name && <div style={S.name}>{r.name}</div>}
-                    {depth > 0 && parent && parent.pct_of_high != null && (
-                      <div style={S.underlyingCtx} title={`Read direction from the underlying, ${parent.symbol}`}>
-                        {parent.symbol} at {pct(parent.pct_of_high)} of 52wk high
-                      </div>
-                    )}
                   </td>
                   {pinned.map((c) => (
                     <td key={c.id} style={{ textAlign: c.align }}>{cellFor(c, r)}</td>
@@ -362,9 +364,15 @@ const S: Record<string, React.CSSProperties> = {
   drawer: { padding: 0, whiteSpace: "normal", background: "var(--panel-2)", boxShadow: "inset 3px 0 0 var(--accent)" },
   tickerLine: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" },
   name: { fontSize: "var(--fs-2xs)", color: "var(--text-dim)", marginTop: 2 },
-  watchTag: { color: "var(--accent-quiet)", border: "1px solid #3a4a5a", marginLeft: 2 },
+  // Watchlist: a quiet eye glyph (replaces the old "WATCH · LAST $X" text). The
+  // last-sold price moves to the Price cell where it can be compared to the live price.
+  watchEye: { display: "inline-flex", alignItems: "center", color: "var(--text-faint)", cursor: "help" },
   childArrow: { color: "var(--text-faint)", fontSize: "var(--fs-sm)", marginRight: -2 },
-  underlyingCtx: { fontSize: "var(--fs-2xs)", color: "var(--accent-quiet)", marginTop: 2 },
+  // ETF underlying context: a compact chip (parent + its % of 52wk high) inline in the
+  // ticker cell, replacing the old full-sentence line under the row.
+  underlyingChip: { fontSize: "var(--fs-2xs)", color: "var(--text-faint)", background: "var(--panel-2)",
+    border: "1px solid var(--border)", borderRadius: "var(--r-sm)", padding: "0 6px", lineHeight: 1.6,
+    whiteSpace: "nowrap", cursor: "help", fontVariantNumeric: "tabular-nums" },
   noteDot: { color: "var(--accent-quiet)", fontSize: 8, cursor: "help", lineHeight: 1 },
   rulesDot: { color: "var(--warn)", fontSize: 8, cursor: "help", lineHeight: 1 },
   // Bare resting-order count — a compact amber badge (hover explains, click opens Orders).

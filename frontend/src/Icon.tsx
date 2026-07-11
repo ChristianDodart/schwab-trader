@@ -30,6 +30,7 @@ import {
   Trash2,
   Pencil,
   GripVertical,
+  Eye,
 } from "lucide-react";
 
 // Default visual size (px). Tuned to sit comfortably next to the app's text.
@@ -86,3 +87,4 @@ export const IconSearch = icon(Search, "Search");
 export const IconTrash = icon(Trash2, "Trash");
 export const IconEdit = icon(Pencil, "Edit");
 export const IconGrip = icon(GripVertical, "Grip");      // drag-to-reorder handle
+export const IconEye = icon(Eye, "Eye");                 // watchlist indicator

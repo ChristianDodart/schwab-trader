@@ -3,6 +3,18 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.39.0 — "Cleaner watch rows + more finish"
+
+- **Watchlist rows read cleaner.** The wordy "WATCH · LAST $x" tag is now a quiet little
+  eye icon next to the ticker, and the price you last sold at moves next to the live
+  price (as "sold $x") — so you can see at a glance whether it's back below your exit.
+- **Leveraged-ETF context is a compact chip.** The line "QBTS at 43.08% of 52wk high"
+  under an ETF becomes a small "QBTS 43%" chip right beside the ticker — same signal,
+  far less clutter (hover it for the full explanation).
+- **A bit more finish.** Filled buttons pick up a soft top-light sheen, and inputs now
+  sit slightly recessed with an accent-colored text cursor — small touches that make the
+  controls feel more physical.
+
 ## v0.38.0 — "Fit and finish"
 
 A visual-quality pass over the whole app — no features changed, everything just
