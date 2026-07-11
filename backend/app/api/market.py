@@ -11,7 +11,7 @@ from .. import notifications as notifications_svc
 from .. import screener as screener_svc
 from .. import watchlist as watchlist_svc
 from ..dashboard import build_dashboard, build_position_detail, invalidate_dashboard_cache
-from ..main import _selected
+from ._shared import _selected
 from ..schwab import hub
 
 router = APIRouter()

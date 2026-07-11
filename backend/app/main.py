@@ -7,39 +7,32 @@ endpoints live in APIRouter modules under app/api/ and are included below.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from contextlib import asynccontextmanager
-from typing import Any
 
-from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sqlalchemy import text
 
 from . import accounts as accounts_svc
 from . import backup as backup_svc
-from . import bulk as bulk_svc
-from . import config_store
 from . import credentials as credentials_svc
 from . import ledger as ledger_svc
-from . import market_data as market_svc
 from . import notifications as notifications_svc
-from . import orders as orders_svc
-from . import phone as phone_svc
 from . import profiles as profiles_svc
 from . import rebuild as rebuild_svc
-from . import screener as screener_svc
 from . import watchlist as watchlist_svc
 from .config import settings
-from .logsetup import recent_warnings, setup_logging
+from .logsetup import setup_logging
+from .api._shared import _selected
 
 setup_logging(settings.data_dir)  # before anything logs — file + console + diagnostics ring
 
-from .dashboard import build_dashboard, build_position_detail, invalidate_dashboard_cache
-from .db import SessionLocal, init_db
+from .dashboard import build_dashboard, invalidate_dashboard_cache
+from .db import init_db
 from .schwab import hub, run_activity_resync, run_quote_stream
-from .schwab.auth import begin_reauth, complete_reauth, get_client, token_status
+from .schwab import auth as auth_mod
+from .schwab.auth import get_client
 from .schwab.auth import probe_live as auth_probe_live
 from .schwab.enrich import enrich_tickers
 from .strategy import StrategyConfig
@@ -72,9 +65,10 @@ _NUDGE_RANK = {"soon": 1, "today": 2, "expired": 3}
 
 
 async def _maybe_reauth_nudge() -> None:
-    from .schwab.auth import token_status
-
-    st = token_status()
+    # Resolved through the module at CALL time (not import time): token_status is
+    # monkeypatched in tests and can be rebound after a reauth — a from-import here
+    # would freeze the stale function.
+    st = auth_mod.token_status()
     issued = st.get("issued_at")
     days = st.get("days_left")
     if not issued:
@@ -210,29 +204,6 @@ def _restart_stream() -> None:
     if old is not None:
         old.cancel()
     app.state.stream_task = asyncio.create_task(run_quote_stream())
-
-
-async def _selected() -> str:
-    return await accounts_svc.get_setting(accounts_svc._sel_key()) or ""
-
-
-def _csv_response(name: str, headers: list[str], rows: list[list]) -> Response:
-    """Build a downloadable CSV (stdlib csv → attachment). `name` gets today's date."""
-    import csv
-    import io
-    from datetime import date as _date
-
-    buf = io.StringIO()
-    w = csv.writer(buf)
-    w.writerow(headers)
-    w.writerows(rows)
-    fname = f"{name}-{_date.today().isoformat()}.csv"
-    return Response(content=buf.getvalue(), media_type="text/csv",
-                    headers={"Content-Disposition": f'attachment; filename="{fname}"'})
-
-
-class CsvImportBody(BaseModel):
-    csv: str                    # raw text of a Schwab "Transactions" CSV export
 
 
 class EnrichBody(BaseModel):

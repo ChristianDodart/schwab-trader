@@ -1,0 +1,15 @@
+# Conservative lint: real-bug detection only, no style churn.
+# Run:  .venv/Scripts/python.exe -m ruff check app tests
+line-length = 120
+target-version = "py314"
+
+[lint]
+# F = pyflakes (unused imports/vars, undefined names, redefinitions)
+# E9 = syntax/indentation errors, B = bugbear (mutable defaults, etc.)
+select = ["F", "E9", "B"]
+# B008: FastAPI Depends()-in-default is idiomatic; B905: zip strict= not needed yet
+ignore = ["B008", "B905"]
+
+[lint.per-file-ignores]
+# Package hubs re-export their submodules' names on purpose.
+"**/__init__.py" = ["F401"]

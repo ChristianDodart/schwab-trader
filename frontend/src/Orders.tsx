@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usd } from "./App";
+import { usd } from "./format";
 import { Modal } from "./Modal";
 import { SkeletonTable } from "./Skeleton";
 import { useToast } from "./Toast";

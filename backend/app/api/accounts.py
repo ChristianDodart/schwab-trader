@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from .. import accounts as accounts_svc
 from .. import rebuild as rebuild_svc
-from ..main import _selected
+from ._shared import _selected
 from ..schwab.auth import get_client
 
 router = APIRouter()

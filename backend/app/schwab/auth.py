@@ -11,10 +11,8 @@ We use the MANUAL flow because the registered callback is https://127.0.0.1/
 """
 from __future__ import annotations
 
-import json
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 
 from ..config import settings
 

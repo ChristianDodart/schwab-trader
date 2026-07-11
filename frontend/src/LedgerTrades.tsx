@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { usd } from "./App";
+import { usd } from "./format";
 import { SkeletonCards, SkeletonPanel } from "./Skeleton";
 import { AccountStamp, ALL_TIME, Card, Panel, PeriodSelector, S, moneyColor, type Period } from "./LedgerUI";
 import type { TradeLog } from "./types";

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { usd, pct } from "./format";
 import { ProfilePanel, ContextChip } from "./ProfilePanel";
 import { AuthBanner, LiveStatusPill, useLiveness } from "./AuthBanner";
 import { FirstRun } from "./FirstRun";
@@ -809,11 +810,6 @@ function Top10({ rows, onSelect }: { rows: DashboardRow[]; onSelect: (s: string)
     </div>
   );
 }
-
-export const usd = (n: number | null | undefined) =>
-  n == null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD" });
-export const pct = (n: number | null | undefined) =>
-  n == null ? "—" : `${(n * 100).toFixed(2)}%`;
 
 const S: Record<string, React.CSSProperties> = {
   header: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, rowGap: 12, flexWrap: "wrap" },

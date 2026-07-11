@@ -14,7 +14,8 @@ from .. import ledger as ledger_svc
 from .. import notifications as notifications_svc
 from .. import phone as phone_svc
 from .. import profiles as profiles_svc
-from ..main import _selected, strategy
+from ..main import strategy
+from ._shared import _selected
 
 router = APIRouter()
 

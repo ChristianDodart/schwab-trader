@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { usd } from "./App";
+import { usd } from "./format";
 import { SkeletonTable } from "./Skeleton";
 import { useToast } from "./Toast";
 import type { CandidateScreen, MarketHours, Mover, VetResult } from "./types";

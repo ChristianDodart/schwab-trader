@@ -25,15 +25,12 @@ from .db import SessionLocal
 from .db.models import Lot, Ticker
 from .schwab import hub
 from .strategy import rules
+from .util import _f
 
 _EPS = 1e-9
 _DEFAULT_PREFS = {"sell_min_gain_pct": 0.0, "buy_dip_pct": 10.0, "exit_offset_pct": 0.0}
 _BULK_MAX_NOTIONAL = 25_000.0   # per-order fat-finger ceiling (well above a ~$1.5k rung)
 _BULK_PRICE_BAND = 0.25         # an edited BUY limit may sit at most this far from the market
-
-
-def _f(x) -> float:
-    return float(x) if x is not None else 0.0
 
 
 def _price(sym: str):
@@ -344,8 +341,6 @@ async def bulk_buy(account_hash: str, items: list[dict], order_type: str = "LIMI
     LIMIT within +-25% of the market (fat-finger), and a per-order notional ceiling.
     LIMIT places at the reviewed price; MARKET fills now."""
     ot = "MARKET" if str(order_type).upper() == "MARKET" else "LIMIT"
-    cfg = await config_store.get_strategy(account_hash)
-    by = await _lots_by_symbol(account_hash)
     results = []
     seen_syms: set[str] = set()
     for it in items:

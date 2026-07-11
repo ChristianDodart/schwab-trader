@@ -3,6 +3,15 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.53.0 — "Spring cleaning"
+
+- **Internal code-quality release** — no feature or behavior changes. Nine copy-pasted number
+  parsers and four CSV-header helpers consolidated into one shared module each; the API layer
+  decoupled from the app entrypoint; money formatters moved out of the root component; a linter
+  (ruff) added to the backend with all findings fixed, including a few genuinely dead code paths
+  and two wasted database reads in the bulk-buy flow.
+- Everything verified unchanged: 218 backend + 32 frontend tests green.
+
 ## v0.52.0 — "No double-counted deposits"
 
 - **Fixed a duplicated-transfer bug that threw the cash cross-check off by whole deposits.** When you

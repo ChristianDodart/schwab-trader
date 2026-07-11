@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
+from ..util import _f  # noqa: F401 — re-exported to ledger modules
 
 # The trader's local market timezone — defines the calendar "day" for snapshots
 # and same-day P&L so a UTC server doesn't bucket evening activity into tomorrow.
@@ -12,10 +13,6 @@ MARKET_TZ = ZoneInfo("America/Denver")  # user is in Utah (UT state tax below)
 
 def _today() -> date:
     return datetime.now(MARKET_TZ).date()
-
-
-def _f(x) -> float:
-    return float(x) if x is not None else 0.0
 
 
 _GRAINS = {"day": "day", "week": "week", "month": "month", "year": "year"}

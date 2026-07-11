@@ -11,13 +11,7 @@ account value (and thus in gain/XIRR). The income view reports dividends receive
 NOT add them on top of the account-value gain (that would double-count).
 """
 from __future__ import annotations
-
-
-def _f(x) -> float:
-    try:
-        return float(x)
-    except (TypeError, ValueError):
-        return 0.0
+from .util import _f
 
 
 # Schwab transaction `type` values that represent dividend/interest income. We also match

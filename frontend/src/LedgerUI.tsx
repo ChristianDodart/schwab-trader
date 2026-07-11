@@ -2,7 +2,7 @@
 // Kept dependency-light (only App's formatters) so both tabs — and the shell —
 // can import from here without a cycle.
 import { useEffect, useRef, useState } from "react";
-import { usd } from "./App";
+import { usd } from "./format";
 import { API } from "./api";
 import { Tip } from "./Tip";
 import { CalcMark } from "./columns";

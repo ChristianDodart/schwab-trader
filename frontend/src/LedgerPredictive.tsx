@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { usd, pct } from "./App";
+import { usd, pct } from "./format";
 import { SkeletonCards, SkeletonPanel } from "./Skeleton";
 import { useToast } from "./Toast";
 import { Card, Panel, Row, S, moneyColor } from "./LedgerUI";

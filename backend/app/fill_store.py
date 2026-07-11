@@ -29,6 +29,7 @@ from sqlalchemy import delete, select
 from .db import SessionLocal
 from .db.models import FillRecord
 from .reconstruct import Fill
+from .util import csv_col
 
 log = logging.getLogger(__name__)
 
@@ -357,11 +358,7 @@ def parse_csv_trades(csv_text: str) -> dict:
     except Exception as e:
         return {"ok": False, "error": f"Couldn't parse the CSV ({e}).", "fills": []}
 
-    def col(r: dict, name: str):
-        for k, v in r.items():
-            if k and k.strip().lower() == name:
-                return v
-        return None
+    col = csv_col   # case/space-tolerant Schwab CSV header lookup
 
     if not rows or col(rows[0], "date") is None or col(rows[0], "action") is None:
         return {"ok": False, "error": "This doesn't look like a Schwab transactions export "
@@ -585,7 +582,7 @@ async def heal_ledger(account_hash: str) -> dict:
             g = group_key(r.trade_date, r.symbol, r.side)
             groups.setdefault(g, {"api": [], "csv": []}).setdefault(r.source, []).append(r)
         doomed_ids: list[int] = []
-        for g, by in groups.items():
+        for by in groups.values():
             api_rows, csv_rows = by.get("api", []), by.get("csv", [])
             if not api_rows or not csv_rows:
                 continue

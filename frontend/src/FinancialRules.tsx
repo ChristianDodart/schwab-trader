@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { usd } from "./App";
+import { usd } from "./format";
 import { SignalRulesEditor } from "./settings/SignalRulesEditor";
 import { useToast } from "./Toast";
 import { IconCheck, IconWarning, IconClose } from "./Icon";

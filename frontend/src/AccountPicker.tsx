@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { usd } from "./App";
+import { usd } from "./format";
 import { Modal } from "./Modal";
 
 type Account = {

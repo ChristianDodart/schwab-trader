@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { usd } from "./App";
+import { usd } from "./format";
 import { Panel, moneyColor } from "./LedgerUI";
 import type { LedgerActivity as Activity } from "./types";
 import { API } from "./api";

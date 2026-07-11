@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 import json as _json
 
 from .. import dividends as dividends_mod
+from ..util import csv_col
 
 _DIV_KEY = "dividends:"  # + account_hash
 
@@ -80,11 +81,7 @@ async def import_other_cash_csv(account_hash: str, csv_text: str) -> dict:
         log.warning(f"other-cash CSV import for {account_hash[-4:]} failed to parse: {e!r}")
         return {"ok": False, "added": 0}
 
-    def col(r: dict, name: str):
-        for k, v in r.items():
-            if k and k.strip().lower() == name:
-                return v
-        return None
+    col = csv_col   # case/space-tolerant Schwab CSV header lookup
 
     fresh = []
     fee_by_day: dict[str, float] = {}
@@ -180,11 +177,7 @@ async def import_dividends_csv(account_hash: str, csv_text: str) -> dict:
     if not rows:
         return {"ok": False, "error": "No data rows in the file.", "added": 0}
 
-    def col(r: dict, name: str):
-        for k, v in r.items():
-            if k and k.strip().lower() == name:
-                return v
-        return None
+    col = csv_col   # case/space-tolerant Schwab CSV header lookup
 
     if col(rows[0], "amount") is None or col(rows[0], "date") is None:
         return {"ok": False, "error": "This doesn't look like a Schwab transactions export (no Date/Amount columns).", "added": 0}
@@ -469,11 +462,7 @@ async def import_cashflows_csv(account_hash: str, csv_text: str) -> dict:
         return {"ok": False, "error": "No data rows in the file.", "added": 0}
 
     # Case/space-tolerant column lookup (Schwab headers: Date, Action, Amount, …).
-    def col(r: dict, name: str) -> str | None:
-        for k, v in r.items():
-            if k and k.strip().lower() == name:
-                return v
-        return None
+    col = csv_col   # case/space-tolerant Schwab CSV header lookup
 
     if col(rows[0], "amount") is None or col(rows[0], "date") is None:
         return {"ok": False, "error": "This doesn't look like a Schwab transactions export (no Date/Amount columns).", "added": 0}

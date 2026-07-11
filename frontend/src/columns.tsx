@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { usd, pct } from "./App";
+import { usd, pct } from "./format";
 import type { DashboardRow, Lot } from "./types";
 import { matchesRule, type SignalRule } from "./signals";
 

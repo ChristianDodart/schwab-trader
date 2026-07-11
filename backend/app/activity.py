@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from .util import _f
 
 _MARKET_DAY_TZ = ZoneInfo("America/New_York")
 
@@ -29,13 +30,6 @@ _MARKET_DAY_TZ = ZoneInfo("America/New_York")
 # same underlying Schwab records, so replacement can never fight, and a re-run/re-import
 # is a perfect no-op.
 REPLACE_TYPES = ("TRADE FEES", "MARGIN INTEREST")
-
-
-def _f(x) -> float:
-    try:
-        return float(x)
-    except (TypeError, ValueError):
-        return 0.0
 
 
 def eastern_day(t: dict) -> str | None:

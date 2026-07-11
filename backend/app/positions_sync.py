@@ -12,15 +12,9 @@ from __future__ import annotations
 import logging
 
 from .fills import _SKIP_ASSET_TYPES
+from .util import _f
 
 log = logging.getLogger(__name__)
-
-
-def _f(x) -> float:
-    try:
-        return float(x)
-    except (TypeError, ValueError):
-        return 0.0
 
 
 def _fetch_positions_sync(client, account_hash):

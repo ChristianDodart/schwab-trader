@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { usd } from "./App";
+import { usd } from "./format";
 import type { Dashboard } from "./types";
 import { IconSettings } from "./Icon";
 

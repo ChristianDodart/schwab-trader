@@ -18,6 +18,7 @@ from .schwab import auth as _auth
 from .schwab.auth import get_client
 
 import logging
+from .util import _f
 
 log = logging.getLogger("schwab.accounts")
 # Strong refs to fire-and-forget background tasks so the loop can't GC them mid-run;
@@ -34,10 +35,6 @@ SELECTED_KEY = "selected_account_hash"   # the active account: scopes all views 
 # EXCLUDED — it's an internal transfer and often nets to zero / is ambiguous.
 _TRANSFER_IN = {"ACH_RECEIPT", "WIRE_IN", "CASH_RECEIPT", "ELECTRONIC_FUND"}
 _TRANSFER_OUT = {"ACH_DISBURSEMENT", "WIRE_OUT", "CASH_DISBURSEMENT"}
-
-
-def _f(x) -> float:
-    return float(x) if x is not None else 0.0
 
 
 def _sel_key() -> str:

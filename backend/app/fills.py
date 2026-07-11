@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 from .reconstruct import Fill
 from .schwab.auth import get_client
+from .util import _f
 
 log = logging.getLogger(__name__)
 
@@ -40,13 +41,6 @@ async def _lookback_days() -> int:
 # instruments that are NOT share-based (options/futures/forex) — those can't be
 # reconstructed as share lots. Never skip SILENTLY; a skip is logged.
 _SKIP_ASSET_TYPES = {"OPTION", "FUTURE", "FOREX"}
-
-
-def _f(x) -> float:
-    try:
-        return float(x)
-    except (TypeError, ValueError):
-        return 0.0
 
 
 def _parse_dt(s) -> datetime | None:

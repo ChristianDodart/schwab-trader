@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { usd } from "./App";
+import { usd } from "./format";
 import { Modal } from "./Modal";
 import type { BulkUI } from "./DashboardTable";
 import type { BulkPrefs, BulkResult, BuyCandidate, DashboardRow, ExitCandidate, SellCandidate } from "./types";

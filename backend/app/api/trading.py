@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from .. import bulk as bulk_svc
 from .. import orders as orders_svc
-from ..main import _selected
+from ._shared import _selected
 
 router = APIRouter()
 

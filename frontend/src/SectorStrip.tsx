@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { DashboardRow } from "./types";
-import { usd } from "./App";
+import { usd } from "./format";
 import { IconWarning } from "./Icon";
 
 // Concentration alert threshold (% of invested in a single sector). Persisted locally;

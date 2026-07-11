@@ -31,7 +31,8 @@ SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=
 # bundle. Callers do `from ..db import dialect_insert as pg_insert` and use it exactly
 # like the old postgresql insert (identical .values().on_conflict_*() API on both).
 if engine.dialect.name == "sqlite":
-    from sqlalchemy.dialects.sqlite import insert as dialect_insert
+    # This IMPORT is the definition: re-exported via app/db/__init__ as pg_insert.
+    from sqlalchemy.dialects.sqlite import insert as dialect_insert  # noqa: F401
 
     # SQLite concurrency hardening — the whole app shares ONE file with several
     # concurrent writers (snapshot scheduler, resyncs, UI writes) plus ~1/sec reads:
@@ -52,7 +53,7 @@ if engine.dialect.name == "sqlite":
         cur.execute("PRAGMA foreign_keys=ON")
         cur.close()
 else:
-    from sqlalchemy.dialects.postgresql import insert as dialect_insert
+    from sqlalchemy.dialects.postgresql import insert as dialect_insert  # noqa: F401
 
 
 def _sync_url() -> str:

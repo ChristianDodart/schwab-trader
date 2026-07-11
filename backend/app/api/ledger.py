@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from .. import accounts as accounts_svc
 from .. import ledger as ledger_svc
-from ..main import CsvImportBody, _csv_response, _selected
+from ._shared import CsvImportBody, _csv_response, _selected
 
 log = logging.getLogger(__name__)
 

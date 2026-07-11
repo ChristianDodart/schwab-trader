@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { usd, pct } from "./App";
+import { usd, pct } from "./format";
 import { ColumnManager } from "./ColumnManager";
 import { DETAIL_COLUMNS, DETAIL_COLUMN_LIST, DEFAULT_DETAIL_COLS, useColumnPrefs, tickerRiskColor, RISK_LABEL, ProvenanceLegend, CalcMark } from "./columns";
 import { OrderTicket } from "./OrderTicket";

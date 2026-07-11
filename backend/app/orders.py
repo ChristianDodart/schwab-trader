@@ -28,6 +28,7 @@ from .db.models import Lot
 from .schwab import hub
 from .schwab.auth import get_client
 from .strategy import rules
+from .util import _f
 
 log = logging.getLogger(__name__)
 
@@ -42,10 +43,6 @@ _TERMINAL = {
 # ~$500–1500/rung, so these only trip on a likely typo.
 _FATFINGER_PCT = 0.20       # limit this far from the last price → confirm
 _NOTIONAL_CONFIRM = 10_000  # a BUY larger than this (qty × price) → confirm
-
-
-def _f(x) -> float:
-    return float(x) if x is not None else 0.0
 
 
 def _ref_price(symbol: str) -> float | None:
@@ -102,15 +99,15 @@ def _build_order(symbol: str, side: str, quantity: int, order_type: str,
     try:
         ot = OrderType[order_type]
     except KeyError:
-        raise ValueError(f"unsupported order type: {order_type}")
+        raise ValueError(f"unsupported order type: {order_type}") from None
     try:
         dur = Duration[str(duration).upper()]
     except KeyError:
-        raise ValueError(f"unsupported duration: {duration}")
+        raise ValueError(f"unsupported duration: {duration}") from None
     try:
         sess = Session[str(session).upper()]
     except KeyError:
-        raise ValueError(f"unsupported session: {session}")
+        raise ValueError(f"unsupported session: {session}") from None
 
     ob = OrderBuilder()
     ob.set_session(sess)
@@ -133,7 +130,7 @@ def _build_order(symbol: str, side: str, quantity: int, order_type: str,
         try:
             lt = StopPriceLinkType[tt]  # PERCENT or VALUE
         except KeyError:
-            raise ValueError(f"unsupported trailing type: {trailing_type}")
+            raise ValueError(f"unsupported trailing type: {trailing_type}") from None
         off = float(trailing_offset)
         # sanity bounds (PERCENT is whole-number percent: 5 == 5%, not 0.05)
         if tt == "PERCENT" and not (0.1 <= off <= 50):

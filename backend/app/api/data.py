@@ -13,7 +13,7 @@ from .. import ledger as ledger_svc
 from ..config import settings
 from ..db import SessionLocal
 from ..logsetup import recent_warnings
-from ..main import CsvImportBody, _selected
+from ._shared import CsvImportBody, _selected
 from ..schwab import hub
 from ..version import APP_VERSION
 

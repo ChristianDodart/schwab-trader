@@ -18,11 +18,7 @@ from .db.models import CompletedTrade, Lot, Ticker
 from .ledger import MARKET_TZ, get_dividends, get_etf_links, get_last_held
 from .schwab import hub
 from .strategy import StrategyConfig, rules
-
-
-def _f(x) -> float:
-    """Numeric/Decimal/None -> float."""
-    return float(x) if x is not None else 0.0
+from .util import _f
 
 
 def position_day_change(net_change: float, price: float, shares: float,
