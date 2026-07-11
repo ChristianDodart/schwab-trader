@@ -1,58 +1,79 @@
 /* ============================================================================
    Schwab Trader — component primitives.
    The interaction layer inline styles can't express: :hover, :focus-visible,
-   :active, and media queries. Components apply these classes (and still pass
-   tokenized inline styles for one-off tweaks). Reads only tokens from tokens.css.
+   :active, media queries, and motion. Components apply these classes (and still
+   pass tokenized inline styles for one-off tweaks). Reads only tokens from
+   tokens.css. Tuned for a calm, premium "precision instrument" feel: layered
+   depth, lit-from-above surfaces, a single signature easing curve, and restrained
+   micro-interactions.
    ============================================================================ */
 
 /* --- page shell: fluid gutter + max-width so it neither cramps a laptop nor
    sprawls on an ultrawide --- */
 .app-main {
-  padding: clamp(16px, 2.4vw, 28px) clamp(16px, 3vw, 32px);
+  padding: clamp(16px, 2.4vw, 30px) clamp(16px, 3vw, 34px);
   min-height: 100vh;
 }
 .app-container { max-width: 1680px; margin-inline: auto; }
 
-/* --- titles (kills the h2=16 / h3=13 / h3=14 / h3=17 drift) --- */
-.page-title { font-size: var(--fs-xl); font-weight: var(--fw-semibold); margin: 0; letter-spacing: -0.01em; }
+/* --- titles --- */
+.page-title { font-size: var(--fs-xl); font-weight: var(--fw-semibold); margin: 0; letter-spacing: -0.015em; }
 .section-title {
-  font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.06em;
+  font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.07em;
   color: var(--text-dim); font-weight: var(--fw-semibold); margin: 0;
 }
 
-/* --- buttons --- */
+/* --- buttons ---------------------------------------------------------------
+   Filled action buttons (primary/buy/danger) get a top inner highlight + a soft
+   shadow, lift 1px on hover, and press back down on :active — the tactile cue
+   that reads as "quality". Secondary/ghost stay quiet (surface + border only). */
 .btn {
   font-family: inherit; font-size: var(--fs-sm); font-weight: var(--fw-semibold);
   border-radius: var(--r-md); padding: 6px 13px; cursor: pointer;
   border: 1px solid transparent; line-height: 1.2; white-space: nowrap;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px;
-  transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast), filter var(--dur-fast);
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
 }
-.btn:active { transform: translateY(0.5px); }
-.btn:disabled { opacity: 0.5; cursor: default; }
-.btn-primary { background: var(--accent); color: #fff; }
-.btn-primary:not(:disabled):hover { background: var(--accent-hover); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.45; cursor: default; box-shadow: none !important; transform: none !important; }
+
+.btn-primary { background: var(--accent); color: #fff; box-shadow: var(--elev-1), inset 0 1px 0 var(--surface-hi-strong); }
+.btn-primary:not(:disabled):hover { background: var(--accent-hover); box-shadow: var(--elev-2), inset 0 1px 0 var(--surface-hi-strong); transform: translateY(-1px); }
+.btn-primary:not(:disabled):active { transform: translateY(0); box-shadow: var(--elev-1); }
+
 .btn-secondary { background: var(--panel-2); color: var(--text-muted); border-color: var(--border-strong); }
-.btn-secondary:not(:disabled):hover { color: var(--text); border-color: var(--text-faint); }
+.btn-secondary:not(:disabled):hover { color: var(--text); border-color: var(--text-faint); background: color-mix(in srgb, var(--panel-2) 82%, white); }
+
 .btn-ghost { background: transparent; color: var(--text-muted); border-color: var(--border-strong); }
-.btn-ghost:not(:disabled):hover { background: var(--panel-2); color: var(--text); }
-.btn-buy { background: var(--pos-strong); color: #fff; }
-.btn-buy:not(:disabled):hover { filter: brightness(1.1); }
+.btn-ghost:not(:disabled):hover { background: var(--panel-2); color: var(--text); border-color: var(--text-faint); }
+
+.btn-buy { background: var(--pos-strong); color: #fff; box-shadow: var(--elev-1), inset 0 1px 0 var(--surface-hi-strong); }
+.btn-buy:not(:disabled):hover { background: color-mix(in srgb, var(--pos-strong) 86%, white); box-shadow: var(--elev-2), inset 0 1px 0 var(--surface-hi-strong); transform: translateY(-1px); }
+.btn-buy:not(:disabled):active { transform: translateY(0); box-shadow: var(--elev-1); }
+
 .btn-sell { background: transparent; color: var(--neg-strong); border-color: #5a2a3c; }
-.btn-sell:not(:disabled):hover { background: var(--neg-bg); }
-.btn-danger { background: var(--danger); color: #fff; font-weight: var(--fw-bold); }
-.btn-danger:not(:disabled):hover { filter: brightness(1.08); }
+.btn-sell:not(:disabled):hover { background: var(--neg-bg); border-color: var(--neg-strong); }
+
+.btn-danger { background: var(--danger); color: #fff; font-weight: var(--fw-bold); box-shadow: var(--elev-1), inset 0 1px 0 var(--surface-hi-strong); }
+.btn-danger:not(:disabled):hover { background: color-mix(in srgb, var(--danger) 88%, white); box-shadow: var(--elev-2), inset 0 1px 0 var(--surface-hi-strong); transform: translateY(-1px); }
+.btn-danger:not(:disabled):active { transform: translateY(0); box-shadow: var(--elev-1); }
+
 .btn-sm { padding: 3px 10px; font-size: var(--fs-xs); min-height: 26px; }
 
-/* --- hover-reveal gear: a settings gear that stays collapsed (no space) until you
-   hover its host control for ~0.5s, then slides out to the right. Pure CSS via
-   transition-delay so it's predictable. The gear's own popover isn't clipped because
-   only the trigger button collapses (overflow:hidden on it), not an ancestor. --- */
+/* --- hover-reveal gear: stays collapsed (no space) until you hover its host
+   control for ~0.5s, then slides out to the right. Pure CSS via transition-delay
+   so it's predictable. Only the trigger button collapses (overflow:hidden), so the
+   gear's own popover is never clipped. --- */
 .gear-host { display: inline-flex; align-items: center; }
 .gear-host .gear-reveal {
   max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; pointer-events: none;
   padding-left: 0; padding-right: 0; border-width: 0; margin-left: 0; min-height: 26px;
-  transition: max-width .16s ease, opacity .16s ease, margin-left .16s ease, padding .16s ease;
+  transition: max-width .18s var(--ease-out), opacity .18s var(--ease-out),
+              margin-left .18s var(--ease-out), padding .18s var(--ease-out);
 }
 .gear-host:hover .gear-reveal,
 .gear-host:focus-within .gear-reveal,
@@ -60,7 +81,6 @@
   max-width: 40px; opacity: 1; margin-left: 4px; padding-left: 9px; padding-right: 9px;
   border-width: 1px; pointer-events: auto; transition-delay: .5s;
 }
-/* collapse immediately on leave (no delay); only the reveal waits ~0.5s */
 .gear-host:not(:hover) .gear-reveal:not([aria-expanded="true"]) { transition-delay: 0s; }
 
 /* --- nav tabs --- */
@@ -68,84 +88,99 @@
   background: transparent; color: var(--text-dim); border: 1px solid transparent;
   border-radius: var(--r-md); padding: 5px 13px; font-size: var(--fs-md);
   font-weight: var(--fw-semibold); cursor: pointer; font-family: inherit;
-  transition: background var(--dur-fast), color var(--dur-fast);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
-.navtab:hover { color: var(--text-muted); background: var(--panel); }
-.navtab[aria-current="page"], .navtab.active { background: var(--panel-2); color: #fff; border-color: var(--border-strong); }
+.navtab:hover { color: var(--text-muted); background: var(--panel-2); }
+.navtab[aria-current="page"], .navtab.active {
+  background: var(--panel-2); color: #fff; border-color: var(--border-strong);
+  box-shadow: inset 0 1px 0 var(--surface-hi);
+}
 
 /* --- fields --- */
 .field {
   background: var(--panel-2); color: var(--text); border: 1px solid var(--border-strong);
   border-radius: var(--r-md); padding: 6px 10px; font-size: var(--fs-sm); font-family: inherit;
-  transition: border-color var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 .field:hover { border-color: var(--text-faint); }
+.field:focus, .field:focus-visible {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
 .field::placeholder { color: var(--text-faint); }
 /* Native selects render extra internal chrome on Windows: a fixed pixel height clips
-   the text vertically at >100% DPI scaling. Let them size to their content instead —
-   any inline `height` is overridden so no call site can reintroduce the clipping. */
+   the text vertically at >100% DPI. Let them size to content instead — any inline
+   `height` is overridden so no call site can reintroduce the clipping. */
 select.field { height: auto !important; min-height: 30px; padding-top: 3px; padding-bottom: 3px; }
 
-/* --- panels / cards --- */
+/* --- panels / cards: lit-from-above material (top inner highlight + soft lift) --- */
 .panel {
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-lg);
+  box-shadow: var(--elev-1), inset 0 1px 0 var(--surface-hi);
 }
 
 /* --- data tables --- */
 .tbl { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 .tbl th {
-  border-bottom: 1px solid var(--border-strong); padding: 8px 12px; font-size: var(--fs-2xs);
-  text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim);
+  border-bottom: 1px solid var(--border-strong); padding: 9px 12px; font-size: var(--fs-2xs);
+  text-transform: uppercase; letter-spacing: 0.055em; color: var(--text-dim);
   white-space: nowrap; font-weight: var(--fw-semibold); text-align: right;
 }
 .tbl th.left { text-align: left; }
-.tbl td { border-bottom: 1px solid var(--border-hairline); padding: 8px 12px; font-size: var(--fs-sm); white-space: nowrap; color: var(--text); }
+.tbl td { border-bottom: 1px solid var(--border-hairline); padding: 9px 12px; font-size: var(--fs-sm); white-space: nowrap; color: var(--text); }
+.tbl tbody tr { transition: background var(--dur-fast) var(--ease-out); }
 .tbl tbody tr:last-child td { border-bottom: none; }
 
-/* Foldable columns: the header + body + footer cells of the non-essential columns.
-   Their content lives in a .foldwrap whose max-width animates 0 <-> content so the
-   whole column rolls in/out (auto table layout follows the widest cell). Collapsing
-   the cell padding too makes it disappear cleanly when folded. */
+/* Foldable columns: header+body+footer cells of the non-essential columns. Content
+   lives in a .foldwrap whose max-width animates 0 <-> content so the whole column
+   rolls in/out (auto table layout follows the widest cell). */
 .tbl .foldcol > .foldwrap {
   display: inline-block; overflow: hidden; white-space: nowrap; vertical-align: middle;
-  max-width: 320px; opacity: 1; transition: max-width .38s ease, opacity .28s ease;
+  max-width: 320px; opacity: 1; transition: max-width var(--dur-slow) var(--ease-out), opacity var(--dur-base) var(--ease-out);
 }
 .tbl th.foldcol.folded, .tbl td.foldcol.folded { padding-left: 0; padding-right: 0; }
 .tbl .foldcol.folded > .foldwrap { max-width: 0; opacity: 0; }
 
-/* clickable/expandable row: the hover + focus feedback that was impossible inline */
-.rowlink { cursor: pointer; transition: background var(--dur-fast); outline: none; }
-.rowlink:hover { background: var(--panel-2); }
-.rowlink:focus-visible { outline: 2px solid var(--accent-quiet); outline-offset: -2px; }
-.rowlink.selected { background: var(--panel-2); }
+/* clickable/expandable row: hover + focus feedback impossible inline */
+.rowlink { cursor: pointer; transition: background var(--dur-fast) var(--ease-out); outline: none; }
+.rowlink:hover { background: color-mix(in srgb, var(--panel-2) 60%, transparent); }
+.rowlink:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rowlink.selected { background: var(--panel-2); box-shadow: inset 0 1px 0 var(--surface-hi); }
 /* signal edge-accents so a flagged row separates at a glance */
 .row-buy > td:first-child, .row-buy > th:first-child { box-shadow: inset 3px 0 0 var(--pos-strong); }
 .row-sell > td:first-child, .row-sell > th:first-child { box-shadow: inset 3px 0 0 var(--neg-strong); }
 
 /* icon that only appears on row hover / focus (declutters the resting table) */
-.hover-reveal { opacity: 0; transition: opacity var(--dur-fast); }
-.rowlink:hover .hover-reveal, .hover-reveal:focus-visible, tr:hover .hover-reveal { opacity: 0.7; }
+.hover-reveal { opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
+.rowlink:hover .hover-reveal, .hover-reveal:focus-visible, tr:hover .hover-reveal { opacity: 0.75; }
 
 /* --- chips / pills / tags --- */
 .chip {
   display: inline-flex; align-items: center; gap: 3px; font-size: var(--fs-2xs);
   font-weight: var(--fw-bold); color: #fff; padding: 2px 8px; border-radius: var(--r-sm); line-height: 1.3;
+  box-shadow: inset 0 1px 0 var(--surface-hi-strong);
 }
 .chip-buy { background: var(--pos-strong); }
 .chip-sell { background: var(--neg-strong); }
 .pill { font-size: var(--fs-2xs); font-weight: var(--fw-semibold); padding: 3px 10px; border-radius: var(--r-pill); }
 .tag { font-size: 10px; letter-spacing: 0.03em; text-transform: uppercase; border-radius: var(--r-sm); padding: 0 5px; }
 
-/* --- modal (shared by OrderTicket + Reauth) --- */
+/* --- modal (shared by OrderTicket + Reauth + bulk/confirm) --- */
 .modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: var(--z-overlay);
+  position: fixed; inset: 0; background: rgba(6,6,9,0.62);
+  backdrop-filter: blur(7px) saturate(1.05); -webkit-backdrop-filter: blur(7px) saturate(1.05);
+  z-index: var(--z-overlay);
   display: flex; align-items: center; justify-content: center; padding: 16px;
+  animation: overlay-in var(--dur-base) var(--ease-out);
 }
 .modal {
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-lg);
-  box-shadow: var(--shadow-modal); z-index: var(--z-modal);
+  box-shadow: var(--elev-3), inset 0 1px 0 var(--surface-hi); z-index: var(--z-modal);
   width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto;
+  animation: modal-in var(--dur-base) var(--ease-out);
 }
+@keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
 
 /* --- toast --- */
 .toast-host {
@@ -154,18 +189,27 @@ select.field { height: auto !important; min-height: 30px; padding-top: 3px; padd
 }
 .toast {
   background: var(--pop); border: 1px solid var(--border-strong); border-left-width: 3px;
-  border-radius: var(--r-md); box-shadow: var(--shadow-pop); padding: 10px 12px;
-  font-size: var(--fs-sm); color: var(--text); display: flex; gap: 9px; align-items: flex-start;
-  animation: toast-in var(--dur-base) ease;
+  border-radius: var(--r-md); box-shadow: var(--elev-2), inset 0 1px 0 var(--surface-hi);
+  padding: 10px 12px; font-size: var(--fs-sm); color: var(--text); display: flex; gap: 9px; align-items: flex-start;
+  animation: toast-in var(--dur-base) var(--ease-out);
 }
 .toast-error { border-left-color: var(--danger); }
 .toast-success { border-left-color: var(--pos-strong); }
 .toast-info { border-left-color: var(--accent); }
-@keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
 
-/* --- skeleton loading --- */
-.skeleton { background: var(--panel-2); border-radius: var(--r-sm); animation: skel 1.2s ease-in-out infinite; }
-@keyframes skel { 0%,100% { opacity: 0.5; } 50% { opacity: 0.85; } }
+/* --- skeleton loading: a light sweep across the surface (premium shimmer, not a
+   blink). --- */
+.skeleton {
+  border-radius: var(--r-sm);
+  background: linear-gradient(100deg,
+    var(--panel-2) 30%,
+    color-mix(in srgb, var(--panel-2) 55%, var(--border-strong)) 50%,
+    var(--panel-2) 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s var(--ease-in-out) infinite;
+}
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 /* --- print: show only the .print-only summary block (window.print / Save as PDF) --- */
 .print-only { display: none; }

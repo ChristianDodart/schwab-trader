@@ -1,51 +1,58 @@
 /* ============================================================================
    Schwab Trader — design tokens.
-   The single source of truth for color, type, spacing, radius, and elevation.
-   Imported once (main.tsx). Components read these via var() in their inline
-   styles. These are REFINED from the palette already in the app — deduped into
-   named semantic roles, not a new theme, so the app still looks like itself.
+   The single source of truth for color, type, spacing, radius, elevation, and
+   motion. Imported once (main.tsx). Components read these via var() in inline
+   styles, so refining a token here lifts the whole app at once. This is a
+   POLISH of the existing palette — same identity, higher fidelity: deeper
+   surfaces with lit-from-above highlights, a layered elevation ramp, a signature
+   easing curve, and antialiased tabular type.
    ============================================================================ */
 :root {
-  /* --- SURFACES (elevation ramp; collapses #1b1b20/#1c1c22/#1b1b22/#202028) --- */
-  --bg:            #16161a;  /* page */
-  --panel:         #1b1b20;  /* cards, panels, modals */
+  /* --- SURFACES (elevation ramp, cool-neutral, subtly deepened for more pop) --- */
+  --bg:            #131317;  /* page */
+  --panel:         #1a1a20;  /* cards, panels, modals */
   --panel-2:       #23232b;  /* inputs, secondary buttons, inset/selected rows */
-  --pop:           #1c1c22;  /* popovers / menus (float above panels) */
-  --panel-header:  #202028;  /* tab strips, table-header fills */
+  --pop:           #1e1e26;  /* popovers / menus (float above panels) */
+  --panel-header:  #1f1f27;  /* tab strips, table-header fills */
 
-  /* --- BORDERS (3 tiers; collapses #333/#2c2c33/#3a3a44/#34343e/#2f2f38/#242428) --- */
-  --border-hairline: #242428; /* table-row & list dividers */
-  --border:          #2c2c33; /* panel / card / modal edges */
-  --border-strong:   #3a3a44; /* inputs, buttons, th underline, focused controls */
+  /* Lit-from-above material: a 1px inner highlight on the top edge of raised
+     surfaces (panels, popovers, filled buttons) reads as real, physical depth. */
+  --surface-hi:  rgba(255,255,255,0.055);
+  --surface-hi-strong: rgba(255,255,255,0.09);
+
+  /* --- BORDERS (3 tiers) --- */
+  --border-hairline: #24242a; /* table-row & list dividers */
+  --border:          #2d2d35; /* panel / card / modal edges */
+  --border-strong:   #3b3b46; /* inputs, buttons, th underline, focused controls */
 
   /* --- TEXT (4 tiers; floor raised so small figures pass WCAG AA on dark) --- */
-  --text:        #e9e9ea; /* primary */
-  --text-muted:  #c9c9cc; /* secondary body, field labels */
-  --text-dim:    #9a9aa0; /* captions, eyebrows, table headers (~5.2:1) */
-  --text-faint:  #8a8a90; /* hints, captions, disabled — WCAG-AA (≥4.5:1) on panel/popover surfaces */
+  --text:        #edeef0; /* primary */
+  --text-muted:  #cbccd0; /* secondary body, field labels */
+  --text-dim:    #9a9ba2; /* captions, eyebrows, table headers (~5.2:1) */
+  --text-faint:  #8a8b92; /* hints, captions, disabled — WCAG-AA on panel/pop */
 
-  /* --- BRAND / ACCENT (split from gain: blue = "a control", green = "an outcome") --- */
-  --accent:        #4a90e2; /* primary actions: Save, Add, Vet, active toggles */
-  --accent-hover:  #5a9ff0;
-  --accent-quiet:  #85b7eb; /* links, info text, focus ring */
+  /* --- BRAND / ACCENT (blue = "a control", green = "an outcome") --- */
+  --accent:        #4f97ec; /* primary actions: Save, Add, Vet, active toggles */
+  --accent-hover:  #62a6f5;
+  --accent-quiet:  #8fbdee; /* links, info text, focus ring */
 
   /* --- SEMANTIC MONEY (text vs fill pair — impossible to drift apart) --- */
-  --pos:         #5dcaa5; /* positive numbers / text (P/L, %) */
-  --pos-strong:  #1d9e75; /* positive fills: BUY chip, buy button */
+  --pos:         #57cca8; /* positive numbers / text (P/L, %) */
+  --pos-strong:  #1fa079; /* positive fills: BUY chip, buy button */
   --neg:         #f0997b; /* negative numbers / text */
-  --neg-strong:  #d4537e; /* negative fills: SELL chip, sell button */
-  --warn:        #e0a83e; /* single caution yellow */
-  --danger:      #d4537e; /* destructive / LIVE-order (alias of neg-strong) */
+  --neg-strong:  #d6547f; /* negative fills: SELL chip, sell button */
+  --warn:        #e3ab43; /* single caution yellow */
+  --danger:      #d6547f; /* destructive / LIVE-order (alias of neg-strong) */
 
   /* soft tinted backgrounds (banners, soft chips, row tints) */
-  --pos-bg:    rgba(93,202,165,0.12);
+  --pos-bg:    rgba(87,204,168,0.12);
   --neg-bg:    rgba(240,153,123,0.12);
-  --danger-bg: rgba(212,83,126,0.14);
+  --danger-bg: rgba(214,84,127,0.14);
   --warn-bg:   #3a3013;  --warn-border: #6e5a1f;
-  --info-bg:   rgba(133,183,235,0.12);
-  --accent-bg: rgba(74,144,226,0.14);
+  --info-bg:   rgba(143,189,238,0.12);
+  --accent-bg: rgba(79,151,236,0.14);
 
-  /* --- TYPE SCALE (maps the scattered 10–26px literals) --- */
+  /* --- TYPE SCALE --- */
   --fs-2xs: 11px; /* eyebrows, table headers, tags */
   --fs-xs:  12px; /* captions, badges, hints */
   --fs-sm:  13px; /* dense body, controls, table cells */
@@ -61,44 +68,63 @@
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px;
   --sp-6: 24px; --sp-8: 32px;
 
-  /* --- RADII --- */
-  --r-sm:   4px;   /* chips, badges */
-  --r-md:   6px;   /* buttons, inputs, selects */
-  --r-lg:   10px;  /* panels, cards, popovers, modals */
+  /* --- RADII (a touch softer for a modern, premium feel) --- */
+  --r-sm:   5px;   /* chips, badges */
+  --r-md:   7px;   /* buttons, inputs, selects */
+  --r-lg:   12px;  /* panels, cards, popovers, modals */
   --r-pill: 999px; /* status pills, unread badge */
 
-  /* --- ELEVATION + Z (z tiers fix the popover/overlay collision) --- */
-  --shadow-pop:   0 12px 32px rgba(0,0,0,0.5);
-  --shadow-modal: 0 20px 50px rgba(0,0,0,0.55);
+  /* --- ELEVATION (layered, soft — reads as depth, not a hard drop) --- */
+  --elev-1: 0 1px 2px rgba(0,0,0,0.35), 0 1px 1px rgba(0,0,0,0.22);
+  --elev-2: 0 6px 16px -4px rgba(0,0,0,0.42), 0 2px 6px -2px rgba(0,0,0,0.30);
+  --elev-3: 0 16px 40px -8px rgba(0,0,0,0.52), 0 6px 14px -4px rgba(0,0,0,0.34);
+  --shadow-pop:   var(--elev-2);
+  --shadow-modal: var(--elev-3);
   --z-popover: 60; --z-overlay: 99; --z-modal: 100; --z-toast: 120;
 
-  /* --- MOTION --- */
-  --dur-fast: 0.12s; --dur-base: 0.2s;
+  /* --- MOTION (one signature ease-out so everything feels of a piece) --- */
+  --dur-fast: 0.14s; --dur-base: 0.22s; --dur-slow: 0.36s;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);      /* decisive settle */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 /* Global base — replaces per-component fontFamily/bg redeclarations. */
 html, body { margin: 0; }
 body {
-  background: var(--bg);
+  /* Faint top-down glow layered over the flat fill so the page reads as an ambient
+     "screen" with depth rather than a solid slab. */
+  background: radial-gradient(125% 80% at 50% -8%, rgba(79,151,236,0.06), transparent 55%), var(--bg);
+  background-attachment: fixed;
   color: var(--text);
   font-family: var(--font-sans);
+  /* Crisper, lighter type on dark surfaces + real tabular figures everywhere so
+     money columns line up to the pixel. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "tnum" 1, "cv01" 1, "ss01" 1;
+  text-rendering: optimizeLegibility;
 }
 
-/* One focus ring, app-wide. Hand-styled buttons killed the default outline; this
-   restores a visible, on-brand indicator for every keyboard user. */
+/* One focus ring, app-wide: a crisp accent outline plus a soft glow so keyboard
+   focus is unmistakable but never harsh. */
 :focus-visible {
-  outline: 2px solid var(--accent-quiet);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
+  border-radius: 3px;
 }
 
-::selection { background: rgba(74,144,226,0.30); }
+::selection { background: rgba(79,151,236,0.32); }
 
-/* Subtle dark scrollbars (Chromium) so overflow regions match the theme. */
+/* Refined dark scrollbars (Chromium) that brighten on hover. */
 * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
-*::-webkit-scrollbar { width: 10px; height: 10px; }
-*::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--r-pill); }
+*::-webkit-scrollbar { width: 11px; height: 11px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong); border-radius: var(--r-pill);
+  border: 3px solid transparent; background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--text-faint); background-clip: padding-box; }
 *::-webkit-scrollbar-track { background: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; animation: none !important; }
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }

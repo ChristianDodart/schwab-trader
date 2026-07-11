@@ -3,6 +3,24 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.38.0 — "Fit and finish"
+
+A visual-quality pass over the whole app — no features changed, everything just
+feels more considered and premium.
+
+- **Real depth.** Panels, cards, and menus are now lit from above with a subtle
+  highlight and a soft layered shadow, so surfaces read as physical instead of flat.
+- **Buttons you can feel.** The primary, Buy, and Get-me-out buttons gently lift on
+  hover and press back down on click — a small tactile cue that makes the app feel
+  responsive.
+- **Calmer motion.** Everything now shares one easing curve, so opening a menu, folding
+  a column, or a toast sliding in all move the same, unhurried way.
+- **Focus that glows.** Click into any input and it picks up a soft blue focus ring.
+- **Softer, deeper palette.** Slightly richer surfaces, a touch more rounding, crisper
+  antialiased text, and money figures that always line up to the pixel.
+- **Nicer loading + dialogs.** Skeletons now shimmer across instead of blinking, and
+  modals fade up over a gently blurred backdrop.
+
 ## v0.37.0 — "Minimalist pass"
 
 - **The Sync button is gone — it syncs itself now.** The selected account reconciles in
