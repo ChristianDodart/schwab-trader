@@ -3,6 +3,23 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.40.0 — "Themes"
+
+- **Pick a color theme in Settings → Appearance.** Eleven of them: Midnight (the
+  original), Terminal, Catppuccin Mocha, Nord, Gruvbox, Tokyo Night, Rosé Pine,
+  Solarized (dark and light), Institutional Light for well-lit rooms, and a
+  High-Contrast option. Each shows a live swatch of its surface, accent, and
+  profit/loss colors, and applies to the whole app the moment you click it.
+- **"Follow system"** tracks your computer's light/dark setting automatically; pick a
+  specific theme any time to override it. Your choice is saved on this install and
+  applies before the window even paints — no flash of the wrong theme on startup.
+- **Every theme is accessibility-checked.** All text and the profit/loss colors meet
+  WCAG AA contrast against their backgrounds, and profit/loss never relies on color
+  alone — the sign, arrows, and labels stay. Switching themes changes only color:
+  layout, spacing, and motion are identical across all of them.
+- **Charts follow the theme too** — the price and equity-curve charts restyle to match
+  whichever theme is active.
+
 ## v0.39.3 — "Held ETFs count as holdings"
 
 - **An ETF you hold no longer hides in the watchlist just because you only watch its

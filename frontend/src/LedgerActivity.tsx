@@ -145,7 +145,7 @@ const S2: Record<string, React.CSSProperties> = {
   cards: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, margin: "4px 0 16px" },
   num: { textAlign: "right", fontVariantNumeric: "tabular-nums" },
   grainTabs: { display: "inline-flex", gap: 3, background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: "var(--r-pill)", padding: 2 },
-  grainOn: { border: "none", background: "var(--accent)", color: "#0b0e13", fontWeight: 700, borderRadius: "var(--r-pill)" },
+  grainOn: { border: "none", background: "var(--accent-fill)", color: "var(--on-accent)", fontWeight: 700, borderRadius: "var(--r-pill)" },
   grainOff: { border: "none", background: "transparent", color: "var(--text-muted)", borderRadius: "var(--r-pill)" },
   track: { display: "block", height: 5, width: "100%", background: "var(--panel-2)", borderRadius: 3, overflow: "hidden" },
   fill: { display: "block", height: "100%", borderRadius: 3 },

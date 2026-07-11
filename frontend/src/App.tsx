@@ -768,7 +768,7 @@ const S: Record<string, React.CSSProperties> = {
   h1: { fontSize: "var(--fs-xl)", fontWeight: 700, margin: 0, letterSpacing: "-0.01em", whiteSpace: "nowrap" },
   headerRight: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 },
   nav: { display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" },
-  navBadge: { marginLeft: 6, background: "var(--warn)", color: "#1a1a1a", fontSize: "var(--fs-2xs)", fontWeight: 700, borderRadius: "var(--r-pill)", padding: "0 6px", lineHeight: 1.6 },
+  navBadge: { marginLeft: 6, background: "var(--warn)", color: "var(--on-bright)", fontSize: "var(--fs-2xs)", fontWeight: 700, borderRadius: "var(--r-pill)", padding: "0 6px", lineHeight: 1.6 },
   rightZone: { display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", justifyContent: "flex-end" },
   statusZone: { display: "flex", alignItems: "center", gap: 10 },
   statusItem: { display: "inline-flex", alignItems: "center", gap: 5, fontSize: "var(--fs-xs)", color: "var(--text-dim)", whiteSpace: "nowrap" },
@@ -802,7 +802,7 @@ const S: Record<string, React.CSSProperties> = {
   // active chip, roomy hit targets, and breathing room above the table.
   dashSubtabs: { display: "inline-flex", gap: 3, margin: "4px 0 16px", background: "var(--panel-2)",
     border: "1px solid var(--border)", borderRadius: "var(--r-pill)", padding: 4 },
-  subActive: { border: "none", background: "var(--accent)", color: "#fff", fontWeight: 700,
+  subActive: { border: "none", background: "var(--accent-fill)", color: "var(--on-accent)", fontWeight: 700,
     borderRadius: "var(--r-pill)", padding: "6px 18px", minHeight: 32 },
   subIdle: { border: "none", background: "transparent", color: "var(--text-muted)", fontWeight: 600,
     borderRadius: "var(--r-pill)", padding: "6px 18px", minHeight: 32 },

@@ -1,50 +1,73 @@
 /* ============================================================================
-   Schwab Trader — design tokens.
-   The single source of truth for color, type, spacing, radius, elevation, and
-   motion. Imported once (main.tsx). Components read these via var() in inline
-   styles, so refining a token here lifts the whole app at once. This is a
-   POLISH of the existing palette — same identity, higher fidelity: deeper
-   surfaces with lit-from-above highlights, a layered elevation ramp, a signature
-   easing curve, and antialiased tabular type.
-   ============================================================================ */
-:root {
-  /* --- SURFACES (elevation ramp, cool-neutral, subtly deepened for more pop) --- */
-  --bg:            #131317;  /* page */
-  --panel:         #1a1a20;  /* cards, panels, modals */
-  --panel-2:       #23232b;  /* inputs, secondary buttons, inset/selected rows */
-  --pop:           #1e1e26;  /* popovers / menus (float above panels) */
-  --panel-header:  #1f1f27;  /* tab strips, table-header fills */
+   Schwab Trader — design tokens (COLOR + STATIC layout scales).
 
-  /* Lit-from-above material: a 1px inner highlight on the top edge of raised
-     surfaces (panels, popovers, filled buttons) reads as real, physical depth. */
+   TWO-TIER, THEME-SWAPPABLE:
+   • `:root` holds the THEME-INDEPENDENT scales — type, spacing, radii, z-index,
+     and shadow *geometry* (offsets/blur/spread). These never change with a theme.
+     It also carries the DEFAULT ("Midnight") semantic color layer as the fallback.
+   • Each `[data-theme="…"]` block is a SELF-CONTAINED swap of the semantic COLOR
+     layer only — surfaces, borders, text, accent, semantic P/L, and shadow COLOR.
+     Adding a new theme = add one block here + one row in theme.ts. Zero component
+     edits: every component reads only these semantic tokens via var().
+
+   Motion (durations, easing, keyframes, reduced-motion) lives in motion.css and
+   is UNREACHABLE from here — see the invariant note in that file.
+
+   Semantic color contract (the only colors components may consume):
+     surfaces   --bg --panel --panel-2 --pop --panel-header
+     highlight  --surface-hi --surface-hi-strong           (lit-from-above sheen)
+     borders    --border-hairline --border --border-strong --neg-border
+     text       --text --text-muted --text-dim --text-faint
+     accent     --accent --accent-hover --accent-quiet
+     money      --pos --pos-strong --neg --neg-strong --warn --danger
+     tints      --pos-bg --neg-bg --danger-bg --warn-bg --warn-border --info-bg --accent-bg
+     ink        --on-accent  (text on accent fill)   --on-bright (ink on bright pos/warn fill)
+                --danger-text (text on danger-bg strip)
+     ambience   --bg-glow --selection-bg
+     shadow clr --shadow-strong --shadow-color --shadow-color-soft
+   ============================================================================ */
+
+/* ---------------------------------------------------------------------------
+   THEME-INDEPENDENT SCALES  +  DEFAULT (Midnight) SEMANTIC COLORS
+   --------------------------------------------------------------------------- */
+:root, :root[data-theme="midnight"] {
+  /* --- SURFACES (elevation ramp) --- */
+  --bg:            #131317;
+  --panel:         #1a1a20;
+  --panel-2:       #23232b;
+  --pop:           #1e1e26;
+  --panel-header:  #1f1f27;
   --surface-hi:  rgba(255,255,255,0.055);
   --surface-hi-strong: rgba(255,255,255,0.09);
 
-  /* --- BORDERS (3 tiers) --- */
-  --border-hairline: #24242a; /* table-row & list dividers */
-  --border:          #2d2d35; /* panel / card / modal edges */
-  --border-strong:   #3b3b46; /* inputs, buttons, th underline, focused controls */
+  /* --- BORDERS --- */
+  --border-hairline: #24242a;
+  --border:          #2d2d35;
+  --border-strong:   #3b3b46;
+  --neg-border:      #5a2a3c;
 
-  /* --- TEXT (4 tiers; floor raised so small figures pass WCAG AA on dark) --- */
-  --text:        #edeef0; /* primary */
-  --text-muted:  #cbccd0; /* secondary body, field labels */
-  --text-dim:    #9a9ba2; /* captions, eyebrows, table headers (~5.2:1) */
-  --text-faint:  #8a8b92; /* hints, captions, disabled — WCAG-AA on panel/pop */
+  /* --- TEXT --- */
+  --text:        #edeef0;
+  --text-muted:  #cbccd0;
+  --text-dim:    #9a9ba2;
+  --text-faint:  #8a8b92;
 
-  /* --- BRAND / ACCENT (blue = "a control", green = "an outcome") --- */
-  --accent:        #4f97ec; /* primary actions: Save, Add, Vet, active toggles */
+  /* --- ACCENT (blue = "a control") --- */
+  --accent:        #4f97ec;  /* identity blue: links, focus, borders, icons */
   --accent-hover:  #62a6f5;
-  --accent-quiet:  #8fbdee; /* links, info text, focus ring */
+  --accent-quiet:  #8fbdee;
+  --accent-fill:       #3877c8;  /* primary-button solid: deepened so white label clears AA (4.5) */
+  --accent-fill-hover: #3470bf;
 
-  /* --- SEMANTIC MONEY (text vs fill pair — impossible to drift apart) --- */
-  --pos:         #57cca8; /* positive numbers / text (P/L, %) */
-  --pos-strong:  #1fa079; /* positive fills: BUY chip, buy button */
-  --neg:         #f0997b; /* negative numbers / text */
-  --neg-strong:  #d6547f; /* negative fills: SELL chip, sell button */
-  --warn:        #e3ab43; /* single caution yellow */
-  --danger:      #d6547f; /* destructive / LIVE-order (alias of neg-strong) */
+  /* --- SEMANTIC MONEY --- */
+  --pos:         #57cca8;
+  --pos-strong:  #1fa079;
+  --neg:         #f0997b;
+  --neg-strong:  #d6547f;
+  --warn:        #e3ab43;
+  --danger:      #d6547f;
 
-  /* soft tinted backgrounds (banners, soft chips, row tints) */
+  /* --- TINTS --- */
   --pos-bg:    rgba(87,204,168,0.12);
   --neg-bg:    rgba(240,153,123,0.12);
   --danger-bg: rgba(214,84,127,0.14);
@@ -52,14 +75,25 @@
   --info-bg:   rgba(143,189,238,0.12);
   --accent-bg: rgba(79,151,236,0.14);
 
+  /* --- INK ON FILLS --- */
+  --on-accent:   #ffffff;
+  --on-bright:   #0b0e13;
+  --danger-text: #f6b7cc;
+
+  /* --- AMBIENCE --- */
+  --bg-glow:      rgba(79,151,236,0.06);
+  --selection-bg: rgba(79,151,236,0.32);
+
+  /* --- SHADOW COLOR (geometry is theme-independent, below) --- */
+  --shadow-strong:     rgba(0,0,0,0.52);
+  --shadow-color:      rgba(0,0,0,0.40);
+  --shadow-color-soft: rgba(0,0,0,0.26);
+
+  /* ===== THEME-INDEPENDENT from here down — never overridden by a theme ===== */
+
   /* --- TYPE SCALE --- */
-  --fs-2xs: 11px; /* eyebrows, table headers, tags */
-  --fs-xs:  12px; /* captions, badges, hints */
-  --fs-sm:  13px; /* dense body, controls, table cells */
-  --fs-md:  14px; /* default body, nav tabs */
-  --fs-lg:  17px; /* section titles, modal banners */
-  --fs-xl:  20px; /* panel hero numbers */
-  --fs-2xl: 26px; /* page title, header KPI hero */
+  --fs-2xs: 11px; --fs-xs: 12px; --fs-sm: 13px; --fs-md: 14px;
+  --fs-lg: 17px; --fs-xl: 20px; --fs-2xl: 26px;
   --fw-normal: 400; --fw-medium: 500; --fw-semibold: 600; --fw-bold: 700;
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
@@ -68,56 +102,225 @@
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px;
   --sp-6: 24px; --sp-8: 32px;
 
-  /* --- RADII (a touch softer for a modern, premium feel) --- */
-  --r-sm:   5px;   /* chips, badges */
-  --r-md:   7px;   /* buttons, inputs, selects */
-  --r-lg:   12px;  /* panels, cards, popovers, modals */
-  --r-pill: 999px; /* status pills, unread badge */
+  /* --- RADII --- */
+  --r-sm: 5px; --r-md: 7px; --r-lg: 12px; --r-pill: 999px;
 
-  /* --- ELEVATION (layered, soft — reads as depth, not a hard drop) --- */
-  /* soft top-light sheen layered over filled buttons for a material, lit look */
+  /* Text on saturated money/brand fills (buy/danger/chips). White works on every
+     theme's -strong fills; a theme may still override it. */
+  --on-emphasis: #ffffff;
+
+  /* --- ELEVATION: geometry fixed here; COLOR comes from themeable --shadow-* --- */
   --btn-sheen: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 55%);
-  --elev-1: 0 1px 2px rgba(0,0,0,0.35), 0 1px 1px rgba(0,0,0,0.22);
-  --elev-2: 0 6px 16px -4px rgba(0,0,0,0.42), 0 2px 6px -2px rgba(0,0,0,0.30);
-  --elev-3: 0 16px 40px -8px rgba(0,0,0,0.52), 0 6px 14px -4px rgba(0,0,0,0.34);
+  --elev-1: 0 1px 2px var(--shadow-color), 0 1px 1px var(--shadow-color-soft);
+  --elev-2: 0 6px 16px -4px var(--shadow-color), 0 2px 6px -2px var(--shadow-color-soft);
+  --elev-3: 0 16px 40px -8px var(--shadow-strong), 0 6px 14px -4px var(--shadow-color);
   --shadow-pop:   var(--elev-2);
   --shadow-modal: var(--elev-3);
   --z-popover: 60; --z-overlay: 99; --z-modal: 100; --z-toast: 120;
-
-  /* --- MOTION (one signature ease-out so everything feels of a piece) --- */
-  --dur-fast: 0.14s; --dur-base: 0.22s; --dur-slow: 0.36s;
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);      /* decisive settle */
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
-/* Global base — replaces per-component fontFamily/bg redeclarations. */
+/* ---------------------------------------------------------------------------
+   TERMINAL — near-black surfaces, phosphor-green accent, high legibility.
+   --------------------------------------------------------------------------- */
+:root[data-theme="terminal"] {
+  --bg: #0a0d0a; --panel: #0f140f; --panel-2: #182018; --pop: #131a13; --panel-header: #131a13;
+  --surface-hi: rgba(120,255,150,0.06); --surface-hi-strong: rgba(120,255,150,0.10);
+  --border-hairline: #1b271b; --border: #263626; --border-strong: #37503a;
+  --neg-border: #4a2f22;
+  --text: #d6f5d6; --text-muted: #a9d9a9; --text-dim: #7fb582; --text-faint: #6a9a6d;
+  --accent: #3fd671; --accent-hover: #5ce88a; --accent-quiet: #86e6a0;
+  --accent-fill: var(--accent); --accent-fill-hover: var(--accent-hover);
+  --pos: #46d67a; --pos-strong: #1f9a52; --neg: #f0975a; --neg-strong: #e8703a; --warn: #e6c14a; --danger: #ef6a5a;
+  --pos-bg: rgba(70,214,122,0.13); --neg-bg: rgba(240,151,90,0.13); --danger-bg: rgba(239,106,90,0.15);
+  --warn-bg: #2e2a10; --warn-border: #5c521f; --info-bg: rgba(63,214,113,0.10); --accent-bg: rgba(63,214,113,0.14);
+  --on-accent: #04140a; --on-bright: #04140a; --danger-text: #ffb3a6;
+  --bg-glow: rgba(63,214,113,0.05); --selection-bg: rgba(63,214,113,0.30);
+  --shadow-strong: rgba(0,0,0,0.66); --shadow-color: rgba(0,0,0,0.52); --shadow-color-soft: rgba(0,0,0,0.34);
+}
+
+/* ---------------------------------------------------------------------------
+   CATPPUCCIN MOCHA — muted mauve/blue on soft-dark.
+   --------------------------------------------------------------------------- */
+:root[data-theme="catppuccin"] {
+  --bg: #1e1e2e; --panel: #24243a; --panel-2: #313244; --pop: #292a3d; --panel-header: #282a3c;
+  --surface-hi: rgba(255,255,255,0.05); --surface-hi-strong: rgba(255,255,255,0.09);
+  --border-hairline: #2c2d40; --border: #383a52; --border-strong: #494b66; --neg-border: #4d3448;
+  --text: #cdd6f4; --text-muted: #bac2de; --text-dim: #a6adc8; --text-faint: #9399b2;
+  --accent: #cba6f7; --accent-hover: #d7bbfa; --accent-quiet: #89b4fa;
+  --accent-fill: var(--accent); --accent-fill-hover: var(--accent-hover);
+  --pos: #a6e3a1; --pos-strong: #40a02b; --neg: #fab387; --neg-strong: #f38ba8; --warn: #f9e2af; --danger: #f38ba8;
+  --pos-bg: rgba(166,227,161,0.13); --neg-bg: rgba(250,179,135,0.13); --danger-bg: rgba(243,139,168,0.15);
+  --warn-bg: #34301c; --warn-border: #5f5730; --info-bg: rgba(137,180,250,0.12); --accent-bg: rgba(203,166,247,0.15);
+  --on-accent: #1e1e2e; --on-bright: #1e1e2e; --danger-text: #f7b0c3;
+  --bg-glow: rgba(203,166,247,0.06); --selection-bg: rgba(203,166,247,0.30);
+  --shadow-strong: rgba(0,0,0,0.50); --shadow-color: rgba(0,0,0,0.38); --shadow-color-soft: rgba(0,0,0,0.24);
+}
+
+/* ---------------------------------------------------------------------------
+   NORD — cool desaturated blues/greys, low-glare.
+   --------------------------------------------------------------------------- */
+:root[data-theme="nord"] {
+  --bg: #2e3440; --panel: #343b48; --panel-2: #3b4252; --pop: #39414f; --panel-header: #353d4b;
+  --surface-hi: rgba(255,255,255,0.045); --surface-hi-strong: rgba(255,255,255,0.08);
+  --border-hairline: #333a47; --border: #434c5e; --border-strong: #4c566a; --neg-border: #5a3f42;
+  --text: #eceff4; --text-muted: #dbe0e9; --text-dim: #b6becd; --text-faint: #9aa4b6;
+  --accent: #88c0d0; --accent-hover: #9fd0dd; --accent-quiet: #a3cede;
+  --accent-fill: var(--accent); --accent-fill-hover: var(--accent-hover);
+  --pos: #a3be8c; --pos-strong: #6f8f56; --neg: #dd9a80; --neg-strong: #bf616a; --warn: #ebcb8b; --danger: #bf616a;
+  --pos-bg: rgba(163,190,140,0.14); --neg-bg: rgba(208,135,112,0.14); --danger-bg: rgba(191,97,106,0.16);
+  --warn-bg: #3a3620; --warn-border: #665f38; --info-bg: rgba(136,192,208,0.13); --accent-bg: rgba(136,192,208,0.15);
+  --on-accent: #2e3440; --on-bright: #2e3440; --danger-text: #e8a7ac;
+  --bg-glow: rgba(136,192,208,0.05); --selection-bg: rgba(136,192,208,0.26);
+  --shadow-strong: rgba(0,0,0,0.44); --shadow-color: rgba(0,0,0,0.32); --shadow-color-soft: rgba(0,0,0,0.20);
+}
+
+/* ---------------------------------------------------------------------------
+   GRUVBOX (dark) — warm retro earth tones.
+   --------------------------------------------------------------------------- */
+:root[data-theme="gruvbox"] {
+  --bg: #282828; --panel: #32302f; --panel-2: #3c3836; --pop: #363130; --panel-header: #353130;
+  --surface-hi: rgba(255,255,255,0.045); --surface-hi-strong: rgba(255,255,255,0.08);
+  --border-hairline: #353130; --border: #504945; --border-strong: #665c54; --neg-border: #5a3226;
+  --text: #f2e5bc; --text-muted: #ebdbb2; --text-dim: #c4b795; --text-faint: #a89984;
+  --accent: #83a598; --accent-hover: #98b5aa; --accent-quiet: #8ec07c;
+  --accent-fill: var(--accent); --accent-fill-hover: var(--accent-hover);
+  --pos: #b8bb26; --pos-strong: #7c8010; --neg: #fe8019; --neg-strong: #cc4b13; --warn: #fabd2f; --danger: #fb4934;
+  --pos-bg: rgba(184,187,38,0.14); --neg-bg: rgba(254,128,25,0.14); --danger-bg: rgba(251,73,52,0.15);
+  --warn-bg: #3a3115; --warn-border: #6b5a24; --info-bg: rgba(131,165,152,0.14); --accent-bg: rgba(131,165,152,0.16);
+  --on-accent: #1d2021; --on-bright: #1d2021; --danger-text: #fb9a8f;
+  --bg-glow: rgba(131,165,152,0.05); --selection-bg: rgba(131,165,152,0.28);
+  --shadow-strong: rgba(0,0,0,0.52); --shadow-color: rgba(0,0,0,0.40); --shadow-color-soft: rgba(0,0,0,0.26);
+}
+
+/* ---------------------------------------------------------------------------
+   TOKYO NIGHT — deep indigo surfaces, neon blue/purple.
+   --------------------------------------------------------------------------- */
+:root[data-theme="tokyonight"] {
+  --bg: #1a1b26; --panel: #1f2335; --panel-2: #292e42; --pop: #24283b; --panel-header: #20243a;
+  --surface-hi: rgba(255,255,255,0.05); --surface-hi-strong: rgba(255,255,255,0.09);
+  --border-hairline: #232741; --border: #2c314a; --border-strong: #3b4261; --neg-border: #4a2f45;
+  --text: #c0caf5; --text-muted: #a9b1d6; --text-dim: #8b93b8; --text-faint: #757da8;
+  --accent: #7aa2f7; --accent-hover: #90b3f9; --accent-quiet: #bb9af7;
+  --accent-fill: var(--accent); --accent-fill-hover: var(--accent-hover);
+  --pos: #9ece6a; --pos-strong: #6a9c37; --neg: #ff9e64; --neg-strong: #f7768e; --warn: #e0af68; --danger: #f7768e;
+  --pos-bg: rgba(158,206,106,0.13); --neg-bg: rgba(255,158,100,0.13); --danger-bg: rgba(247,118,142,0.15);
+  --warn-bg: #33301c; --warn-border: #5e5730; --info-bg: rgba(122,162,247,0.13); --accent-bg: rgba(122,162,247,0.16);
+  --on-accent: #16161e; --on-bright: #16161e; --danger-text: #f9a3b4;
+  --bg-glow: rgba(122,162,247,0.06); --selection-bg: rgba(122,162,247,0.28);
+  --shadow-strong: rgba(0,0,0,0.56); --shadow-color: rgba(0,0,0,0.44); --shadow-color-soft: rgba(0,0,0,0.28);
+}
+
+/* ---------------------------------------------------------------------------
+   ROSÉ PINE — muted rose/pine/gold on a soft base; low fatigue.
+   --------------------------------------------------------------------------- */
+:root[data-theme="rosepine"] {
+  --bg: #191724; --panel: #1f1d2e; --panel-2: #26233a; --pop: #232132; --panel-header: #211f30;
+  --surface-hi: rgba(255,255,255,0.045); --surface-hi-strong: rgba(255,255,255,0.08);
+  --border-hairline: #26233a; --border: #322f48; --border-strong: #403d52; --neg-border: #543a42;
+  --text: #e0def4; --text-muted: #cac8e0; --text-dim: #a9a6c4; --text-faint: #908caa;
+  --accent: #c4a7e7; --accent-hover: #d2bbee; --accent-quiet: #9ccfd8;
+  --accent-fill: var(--accent); --accent-fill-hover: var(--accent-hover);
+  --pos: #9ccfd8; --pos-strong: #31748f; --neg: #ebbcba; --neg-strong: #eb6f92; --warn: #f6c177; --danger: #eb6f92;
+  --pos-bg: rgba(156,207,216,0.14); --neg-bg: rgba(235,188,186,0.14); --danger-bg: rgba(235,111,146,0.15);
+  --warn-bg: #362f1e; --warn-border: #635636; --info-bg: rgba(156,207,216,0.13); --accent-bg: rgba(196,167,231,0.15);
+  --on-accent: #191724; --on-bright: #191724; --danger-text: #f2b3c2;
+  --bg-glow: rgba(196,167,231,0.06); --selection-bg: rgba(196,167,231,0.26);
+  --shadow-strong: rgba(0,0,0,0.50); --shadow-color: rgba(0,0,0,0.38); --shadow-color-soft: rgba(0,0,0,0.24);
+}
+
+/* ---------------------------------------------------------------------------
+   SOLARIZED DARK — the precision classic (dark pair).
+   --------------------------------------------------------------------------- */
+:root[data-theme="solarized-dark"] {
+  --bg: #002b36; --panel: #073642; --panel-2: #0e4b58; --pop: #0a4250; --panel-header: #083c49;
+  --surface-hi: rgba(255,255,255,0.04); --surface-hi-strong: rgba(255,255,255,0.075);
+  --border-hairline: #08404d; --border: #12505e; --border-strong: #26697a; --neg-border: #5a3a2a;
+  --text: #eee8d5; --text-muted: #cdd3c6; --text-dim: #9faca6; --text-faint: #8a9894;
+  --accent: #268bd2; --accent-hover: #3a9be0; --accent-quiet: #3bb3aa;
+  --accent-fill: #1c73b3; --accent-fill-hover: #175f96;
+  --pos: #93c020; --pos-strong: #647d00; --neg: #eb7a3f; --neg-strong: #dc322f; --warn: #cba90f; --danger: #dc322f;
+  --pos-bg: rgba(147,192,32,0.14); --neg-bg: rgba(235,122,63,0.14); --danger-bg: rgba(220,50,47,0.16);
+  --warn-bg: #303017; --warn-border: #5b5622; --info-bg: rgba(38,139,210,0.14); --accent-bg: rgba(38,139,210,0.16);
+  --on-accent: #ffffff; --on-bright: #002b36; --danger-text: #f0a58f;
+  --bg-glow: rgba(38,139,210,0.06); --selection-bg: rgba(38,139,210,0.28);
+  --shadow-strong: rgba(0,0,0,0.50); --shadow-color: rgba(0,0,0,0.38); --shadow-color-soft: rgba(0,0,0,0.24);
+}
+
+/* ---------------------------------------------------------------------------
+   SOLARIZED LIGHT — the precision classic (light pair).
+   --------------------------------------------------------------------------- */
+:root[data-theme="solarized-light"] {
+  --bg: #fdf6e3; --panel: #fbf3da; --panel-2: #eee8d5; --pop: #fbf3da; --panel-header: #f2ead3;
+  --surface-hi: rgba(255,255,255,0.7); --surface-hi-strong: rgba(255,255,255,0.9);
+  --border-hairline: #ece5cd; --border: #ddd6bf; --border-strong: #c8c0a6; --neg-border: #d9b79a;
+  --text: #384c50; --text-muted: #4f6367; --text-dim: #6a7c7c; --text-faint: #6a7b7b;
+  --accent: #1c7fc4; --accent-hover: #2a8dd0; --accent-quiet: #147268;
+  --accent-fill: #1668a8; --accent-fill-hover: #12588f;
+  --pos: #4f6a00; --pos-strong: #647d00; --neg: #b34817; --neg-strong: #dc322f; --warn: #8a6805; --danger: #c62d2a;
+  --pos-bg: rgba(95,125,0,0.13); --neg-bg: rgba(196,83,26,0.13); --danger-bg: rgba(198,45,42,0.13);
+  --warn-bg: #f2e7c4; --warn-border: #d9c98f; --info-bg: rgba(28,127,196,0.12); --accent-bg: rgba(28,127,196,0.13);
+  --on-accent: #ffffff; --on-bright: #ffffff; --danger-text: #a3271f;
+  --bg-glow: rgba(38,139,210,0.05); --selection-bg: rgba(38,139,210,0.20);
+  --shadow-strong: rgba(51,51,20,0.20); --shadow-color: rgba(51,51,20,0.13); --shadow-color-soft: rgba(51,51,20,0.08);
+}
+
+/* ---------------------------------------------------------------------------
+   INSTITUTIONAL LIGHT — clean paper/white, navy accent. Daylight brokerage look.
+   --------------------------------------------------------------------------- */
+:root[data-theme="institutional"] {
+  --bg: #f3f6fa; --panel: #ffffff; --panel-2: #eef2f7; --pop: #ffffff; --panel-header: #f6f9fc;
+  --surface-hi: rgba(255,255,255,0.8); --surface-hi-strong: rgba(255,255,255,1);
+  --border-hairline: #e7ecf3; --border: #d8dfe9; --border-strong: #c1cad8; --neg-border: #d9b3b3;
+  --text: #172232; --text-muted: #3d4a5c; --text-dim: #5f6c7d; --text-faint: #7d8a9a;
+  --accent: #1f4e8c; --accent-hover: #2a63ad; --accent-quiet: #2f6fbf;
+  --accent-fill: var(--accent); --accent-fill-hover: var(--accent-hover);
+  --pos: #0d7a52; --pos-strong: #0b6f4c; --neg: #bd5518; --neg-strong: #b23a3a; --warn: #8f6712; --danger: #c0392b;
+  --pos-bg: rgba(13,122,82,0.10); --neg-bg: rgba(189,85,24,0.10); --danger-bg: rgba(192,57,43,0.10);
+  --warn-bg: #fbf1d6; --warn-border: #e6d29a; --info-bg: rgba(31,78,140,0.09); --accent-bg: rgba(31,78,140,0.10);
+  --on-accent: #ffffff; --on-bright: #ffffff; --danger-text: #a12b1f;
+  --bg-glow: rgba(31,78,140,0.04); --selection-bg: rgba(31,78,140,0.16);
+  --shadow-strong: rgba(15,30,60,0.20); --shadow-color: rgba(15,30,60,0.13); --shadow-color-soft: rgba(15,30,60,0.07);
+}
+
+/* ---------------------------------------------------------------------------
+   HIGH CONTRAST — accessibility-first, maximum legibility (dark).
+   --------------------------------------------------------------------------- */
+:root[data-theme="high-contrast"] {
+  --bg: #000000; --panel: #0b0b0f; --panel-2: #17171d; --pop: #101015; --panel-header: #0e0e13;
+  --surface-hi: rgba(255,255,255,0.08); --surface-hi-strong: rgba(255,255,255,0.14);
+  --border-hairline: #3a3a44; --border: #55555f; --border-strong: #7d7d89; --neg-border: #8a4a5c;
+  --text: #ffffff; --text-muted: #ececf2; --text-dim: #cbcbd6; --text-faint: #b2b2be;
+  --accent: #66aaff; --accent-hover: #85bcff; --accent-quiet: #a6cdff;
+  --accent-fill: var(--accent); --accent-fill-hover: var(--accent-hover);
+  --pos: #4fe39a; --pos-strong: #17b877; --neg: #ffab5e; --neg-strong: #ff6f91; --warn: #ffd23f; --danger: #ff6f91;
+  --pos-bg: rgba(79,227,154,0.16); --neg-bg: rgba(255,171,94,0.16); --danger-bg: rgba(255,111,145,0.18);
+  --warn-bg: #33320f; --warn-border: #6e6a1f; --info-bg: rgba(102,170,255,0.16); --accent-bg: rgba(102,170,255,0.18);
+  --on-accent: #001222; --on-bright: #001018; --danger-text: #ffb3c4;
+  --bg-glow: rgba(102,170,255,0.05); --selection-bg: rgba(102,170,255,0.34);
+  --shadow-strong: rgba(0,0,0,0.80); --shadow-color: rgba(0,0,0,0.66); --shadow-color-soft: rgba(0,0,0,0.44);
+}
+
+/* ============================================================================
+   GLOBAL BASE  (reads only semantic tokens, so it themes automatically)
+   ============================================================================ */
 html, body { margin: 0; }
 body {
-  /* Faint top-down glow layered over the flat fill so the page reads as an ambient
-     "screen" with depth rather than a solid slab. */
-  background: radial-gradient(125% 80% at 50% -8%, rgba(79,151,236,0.06), transparent 55%), var(--bg);
+  background: radial-gradient(125% 80% at 50% -8%, var(--bg-glow), transparent 55%), var(--bg);
   background-attachment: fixed;
   color: var(--text);
   font-family: var(--font-sans);
-  /* Crisper, lighter type on dark surfaces + real tabular figures everywhere so
-     money columns line up to the pixel. */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "tnum" 1, "cv01" 1, "ss01" 1;
   text-rendering: optimizeLegibility;
 }
+/* Light themes: subpixel AA keeps text from thinning on pale surfaces. */
+:root[data-theme="solarized-light"] body,
+:root[data-theme="institutional"] body { -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto; }
 
-/* One focus ring, app-wide: a crisp accent outline plus a soft glow so keyboard
-   focus is unmistakable but never harsh. */
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 3px;
-}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+::selection { background: var(--selection-bg); }
 
-::selection { background: rgba(79,151,236,0.32); }
-
-/* Refined dark scrollbars (Chromium) that brighten on hover. */
 * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 *::-webkit-scrollbar { width: 11px; height: 11px; }
 *::-webkit-scrollbar-thumb {
@@ -126,7 +329,3 @@ body {
 }
 *::-webkit-scrollbar-thumb:hover { background: var(--text-faint); background-clip: padding-box; }
 *::-webkit-scrollbar-track { background: transparent; }
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
-}

@@ -351,5 +351,5 @@ function CumulativeSpark({ trades }: { trades: TradeLog["trades"] }) {
 
 const S2: Record<string, React.CSSProperties> = {
   subStats: { display: "flex", gap: 20, flexWrap: "wrap", fontSize: "var(--fs-md)", margin: "12px 2px 0", color: "var(--text-muted)", alignItems: "center" },
-  dayTag: { color: "var(--accent-quiet)", border: "1px solid #3a4a5a" },
+  dayTag: { color: "var(--accent-quiet)", border: "1px solid var(--border-strong)" },
 };

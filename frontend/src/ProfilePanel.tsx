@@ -96,7 +96,7 @@ const S: Record<string, React.CSSProperties> = {
   scope: { color: "var(--text-dim)", fontSize: "var(--fs-sm)", marginBottom: 8, lineHeight: 1.5 },
   section: { background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", padding: 16, marginTop: 12 },
   h3: { margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 },
-  infoIcon: { fontSize: "var(--fs-2xs)", color: "var(--accent-quiet)", border: "1px solid #3a4a5a", borderRadius: "var(--r-pill)", padding: "0 5px", cursor: "help", textTransform: "none", letterSpacing: 0 },
+  infoIcon: { fontSize: "var(--fs-2xs)", color: "var(--accent-quiet)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-pill)", padding: "0 5px", cursor: "help", textTransform: "none", letterSpacing: 0 },
   help: { fontSize: "var(--fs-xs)", color: "var(--text-faint)", marginTop: 10, lineHeight: 1.5 },
   // ContextChip
   chip: { display: "inline-flex", alignItems: "center", gap: 6, maxWidth: 260 },

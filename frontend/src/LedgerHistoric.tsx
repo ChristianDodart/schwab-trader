@@ -22,9 +22,9 @@ type DivRow = { day: string; amount: number; symbol: string | null; type?: strin
 type Dividends = { rows: DivRow[]; summary: { total: number; ytd: number | null; year: number | null; count: number } };
 
 const pillBtn = (active: boolean): React.CSSProperties => ({
-  background: active ? "var(--accent)" : "transparent",
-  color: active ? "#fff" : "var(--text-muted)",
-  border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+  background: active ? "var(--accent-fill)" : "transparent",
+  color: active ? "var(--on-accent)" : "var(--text-muted)",
+  border: `1px solid ${active ? "var(--accent-fill)" : "var(--border)"}`,
 });
 
 const qs = (p: Period) => {
@@ -625,6 +625,6 @@ const S2: Record<string, React.CSSProperties> = {
   barVal: { width: 96, textAlign: "right", fontSize: "var(--fs-sm)", fontVariantNumeric: "tabular-nums" },
   barTrades: { width: 70, textAlign: "right", fontSize: "var(--fs-xs)", color: "var(--text-faint)" },
   cfSummary: { display: "flex", gap: 20, flexWrap: "wrap", fontSize: "var(--fs-md)", marginBottom: 10 },
-  tagSchwab: { color: "var(--accent-quiet)", border: "1px solid #3a4a5a" },
+  tagSchwab: { color: "var(--accent-quiet)", border: "1px solid var(--border-strong)" },
   tagManual: { color: "var(--text-dim)", border: "1px solid var(--border)" },
 };

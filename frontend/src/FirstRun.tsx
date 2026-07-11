@@ -136,7 +136,7 @@ const S: Record<string, React.CSSProperties> = {
   badge: { width: 22, height: 22, minWidth: 22, borderRadius: "50%", display: "inline-flex", alignItems: "center",
     justifyContent: "center", fontSize: "var(--fs-xs)", fontWeight: 700, color: "var(--text-muted)",
     border: "1px solid var(--border-strong)" },
-  badgeDone: { color: "#0b0e13", background: "var(--pos)", borderColor: "var(--pos)" },
+  badgeDone: { color: "var(--on-bright)", background: "var(--pos)", borderColor: "var(--pos)" },
   stepTitle: { fontSize: "var(--fs-md)", fontWeight: 600 },
   stepDesc: { fontSize: "var(--fs-xs)", color: "var(--text-dim)", marginTop: 2, lineHeight: 1.45 },
 };

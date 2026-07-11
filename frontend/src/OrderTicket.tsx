@@ -422,7 +422,7 @@ export function OrderTicket({
 }
 
 const S: Record<string, React.CSSProperties> = {
-  liveStrip: { background: "var(--danger-bg)", borderBottom: "1px solid var(--danger)", color: "#f6b7cc", fontSize: "var(--fs-xs)", fontWeight: 700, letterSpacing: "0.03em", padding: "8px 20px", borderTopLeftRadius: "var(--r-lg)", borderTopRightRadius: "var(--r-lg)" },
+  liveStrip: { background: "var(--danger-bg)", borderBottom: "1px solid var(--danger)", color: "var(--danger-text)", fontSize: "var(--fs-xs)", fontWeight: 700, letterSpacing: "0.03em", padding: "8px 20px", borderTopLeftRadius: "var(--r-lg)", borderTopRightRadius: "var(--r-lg)" },
   demoStrip: { background: "var(--panel-2)", borderBottom: "1px solid var(--border)", color: "var(--text-dim)", fontSize: "var(--fs-xs)", fontWeight: 600, padding: "8px 20px", borderTopLeftRadius: "var(--r-lg)", borderTopRightRadius: "var(--r-lg)" },
   body: { padding: 20 },
   title: { fontSize: "var(--fs-lg)", fontWeight: 600, marginBottom: 4 },

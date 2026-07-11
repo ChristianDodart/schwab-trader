@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { createChart, ColorType, type IChartApi } from "lightweight-charts";
+import { useChartColors, withAlpha } from "./chartTheme";
+
+// Benchmark reference line: a muted gold, distinct from the account's accent.
+// Categorical (not semantic), so it's a constant across themes.
+const BENCH_COLOR = "#c9a227";
 
 type Point = { day: string; balance: number; capital_gains: number };
 type BenchPoint = { day: string; value: number };
@@ -37,6 +42,7 @@ export function EquityCurve({
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [range, setRange] = useState<RangeKey>(readRange);
+  const c = useChartColors(); // live theme colors
   useEffect(() => { try { localStorage.setItem(LS_RANGE, range); } catch { /* private mode */ } }, [range]);
   const allPoints = (series || []).filter((p) => p.balance != null && p.balance > 0);
   const points = sliceByRange(allPoints, RANGES[range]);
@@ -49,27 +55,27 @@ export function EquityCurve({
       height: 220,
       autoSize: true,
       layout: {
-        // canvas can't read var() — literal hex matched to the design tokens.
+        // canvas can't read var() — colors come from the live theme (chartTheme).
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#9a9aa0",              // --text-dim
+        textColor: c.text,
         fontFamily: "system-ui, sans-serif",
       },
-      grid: { vertLines: { color: "#242428" }, horzLines: { color: "#242428" } }, // --border-hairline
-      timeScale: { borderColor: "#2c2c33" },      // --border
-      rightPriceScale: { borderColor: "#2c2c33" },
+      grid: { vertLines: { color: c.grid }, horzLines: { color: c.grid } },
+      timeScale: { borderColor: c.border },
+      rightPriceScale: { borderColor: c.border },
       crosshair: { mode: 0 },
     });
     const area = chart.addAreaSeries({
-      lineColor: "#4a90e2",                        // --accent
-      topColor: "rgba(74,144,226,0.28)",
-      bottomColor: "rgba(74,144,226,0.02)",
+      lineColor: c.accent,
+      topColor: withAlpha(c.accent, 0.28),
+      bottomColor: withAlpha(c.accent, 0.02),
       lineWidth: 2,
       priceFormat: { type: "price", precision: 2, minMove: 0.01 },
     });
     area.setData(points.map((p) => ({ time: p.day, value: p.balance })));
     if (showBench) {
       const line = chart.addLineSeries({
-        color: "#c9a227",                          // muted gold — a reference, distinct from the account's blue
+        color: BENCH_COLOR,                        // muted gold — a reference, distinct from the account line
         lineWidth: 2,
         lineStyle: 2,                              // dashed
         priceFormat: { type: "price", precision: 2, minMove: 0.01 },
@@ -78,7 +84,7 @@ export function EquityCurve({
     }
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [range, points.length, points[0]?.day, points[points.length - 1]?.day, showBench, bench.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [range, points.length, points[0]?.day, points[points.length - 1]?.day, showBench, bench.length, c]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (allPoints.length < 2) {
     return <p style={{ color: "var(--text-faint)", fontSize: "var(--fs-sm)", margin: 0 }}>
@@ -89,16 +95,16 @@ export function EquityCurve({
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
         <div style={{ display: "flex", gap: 16, fontSize: "var(--fs-xs)", color: "var(--text-dim)" }}>
-          <Legend color="#4a90e2" label="Your account" />
-          {showBench && <Legend color="#c9a227" label={`${benchmarkLabel || "Benchmark"} (same deposits)`} dashed />}
+          <Legend color={c.accent} label="Your account" />
+          {showBench && <Legend color={BENCH_COLOR} label={`${benchmarkLabel || "Benchmark"} (same deposits)`} dashed />}
         </div>
         <span role="group" aria-label="Range" style={{ display: "flex", gap: 4 }}>
           {(Object.keys(RANGES) as RangeKey[]).map((k) => (
             <button key={k} className="btn btn-sm" aria-pressed={range === k}
               style={{ padding: "2px 9px", fontSize: "var(--fs-xs)",
-                background: range === k ? "var(--accent)" : "transparent",
-                color: range === k ? "#fff" : "var(--text-muted)",
-                borderColor: range === k ? "var(--accent)" : "var(--border)" }}
+                background: range === k ? "var(--accent-fill)" : "transparent",
+                color: range === k ? "var(--on-accent)" : "var(--text-muted)",
+                borderColor: range === k ? "var(--accent-fill)" : "var(--border)" }}
               onClick={() => setRange(k)}>{k}</button>
           ))}
         </span>

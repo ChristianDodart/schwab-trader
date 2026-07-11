@@ -91,10 +91,11 @@ export function PLCalendar({ onDayClick }: { onDayClick?: (iso: string) => void 
             const p = c?.profit ?? 0;
             const traded = !!c && (c.sells > 0 || c.bought > 0 || p !== 0);
             const alpha = c ? Math.min(0.85, 0.12 + 0.73 * (Math.abs(p) / maxAbs)) : 0;
-            // Alpha tints of the theme's --pos (#5dcaa5) / --neg (#f0997b).
+            // Alpha tints of the live theme's --pos / --neg (color-mix keeps it themeable).
+            const pct = (alpha * 100).toFixed(0);
             const bg = !c || p === 0 ? "var(--panel-2)"
-              : p > 0 ? `rgba(93, 202, 165, ${alpha.toFixed(2)})`
-              : `rgba(240, 153, 123, ${alpha.toFixed(2)})`;
+              : p > 0 ? `color-mix(in srgb, var(--pos) ${pct}%, transparent)`
+              : `color-mix(in srgb, var(--neg) ${pct}%, transparent)`;
             const tip = c
               ? `${iso} — profit ${p > 0 ? "+" : ""}${usd(p)} · bought ${usd(c.bought)} · sold ${usd(c.sold)}`
               : `${iso} — no recorded trades`;

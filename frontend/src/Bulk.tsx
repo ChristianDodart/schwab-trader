@@ -348,17 +348,17 @@ export function BulkReviewModal({
 
 // Segmented toggle: active = accent (a control), never the profit-green.
 const seg = (active: boolean): React.CSSProperties => ({
-  background: active ? "var(--accent)" : "var(--panel-2)",
-  color: active ? "#fff" : "var(--text-muted)",
-  borderColor: active ? "var(--accent)" : "var(--border-strong)",
+  background: active ? "var(--accent-fill)" : "var(--panel-2)",
+  color: active ? "var(--on-accent)" : "var(--text-muted)",
+  borderColor: active ? "var(--accent-fill)" : "var(--border-strong)",
 });
 
 const S: Record<string, React.CSSProperties> = {
-  liveStrip: { background: "var(--danger-bg)", borderBottom: "1px solid var(--danger)", color: "#f6b7cc", fontSize: "var(--fs-xs)", fontWeight: 700, letterSpacing: "0.03em", padding: "8px 16px", borderTopLeftRadius: "var(--r-lg)", borderTopRightRadius: "var(--r-lg)" },
+  liveStrip: { background: "var(--danger-bg)", borderBottom: "1px solid var(--danger)", color: "var(--danger-text)", fontSize: "var(--fs-xs)", fontWeight: 700, letterSpacing: "0.03em", padding: "8px 16px", borderTopLeftRadius: "var(--r-lg)", borderTopRightRadius: "var(--r-lg)" },
   typeRow: { display: "flex", alignItems: "center", gap: 10, marginTop: 12 },
   typeDesc: { fontSize: "var(--fs-xs)", color: "var(--text-dim)", margin: "6px 0 0", lineHeight: 1.45 },
   numIn: { width: 78, textAlign: "right", padding: "3px 6px", fontSize: "var(--fs-sm)" },
-  newTag: { fontSize: 10, textTransform: "uppercase", color: "var(--accent-quiet)", border: "1px solid #3a4a5a", borderRadius: "var(--r-sm)", padding: "0 5px", marginLeft: 6 },
+  newTag: { fontSize: 10, textTransform: "uppercase", color: "var(--accent-quiet)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-sm)", padding: "0 5px", marginLeft: 6 },
   gearPop: { position: "absolute", top: "calc(100% + 6px)", right: 0, width: 240, background: "var(--pop)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", boxShadow: "var(--shadow-pop)", zIndex: "var(--z-popover)" as unknown as number, padding: 12 },
   gearTitle: { fontSize: "var(--fs-2xs)", textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-dim)", marginBottom: 10 },
   gearRow: { display: "flex", alignItems: "center", gap: 8, fontSize: "var(--fs-sm)", color: "var(--text-muted)" },

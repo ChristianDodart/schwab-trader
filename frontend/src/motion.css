@@ -1,0 +1,74 @@
+/* ============================================================================
+   Schwab Trader — MOTION layer.  (Deliberately separate from tokens.css.)
+
+   THE INVARIANT: motion is theme-independent. Durations, easing curves,
+   keyframes, and reduced-motion handling live HERE, and no `[data-theme]` block
+   anywhere ever defines a `--dur-*` or `--ease-*`. A theme is a pure color/
+   surface swap — it cannot reach these values, so switching a theme can never
+   change how anything *feels*, only how it *looks*. Enforced structurally by
+   this file boundary, not by convention.
+
+   Imported first (main.tsx), before tokens.css and ui.css.
+   ============================================================================ */
+:root {
+  /* --- MOTION: one signature ease-out so everything feels of a piece --- */
+  --dur-fast: 0.14s; --dur-base: 0.22s; --dur-slow: 0.36s;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);      /* decisive settle */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* Standard UI ease for press/hover — fast in, slightly slower settle. */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Theme cross-fade: the ONE motion tied to theming. Global, not per-theme —
+     a theme can't change it because it's declared here, outside the theme layer. */
+  --dur-theme: 0.28s;
+}
+
+/* ============================================================================
+   Shared keyframes (component primitives in ui.css reference these).
+   ============================================================================ */
+@keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* Feel-pass keyframes (v0.41 uses these; defined here so all motion lives in one
+   place). A brief, calm highlight on a row/cell whose data just changed. */
+@keyframes cell-flash {
+  0%   { background-color: var(--flash-tint, transparent); }
+  100% { background-color: transparent; }
+}
+@keyframes pulse-once {
+  0%   { box-shadow: 0 0 0 0 var(--pulse-color, transparent); }
+  70%  { box-shadow: 0 0 0 6px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* ============================================================================
+   Theme swap.  Chromium keeps a *transitioned* property stale when only its
+   var() input changes — e.g. `.btn { transition: background }` won't repaint when
+   a themed --accent-fill changes, because the specified value (`var(--accent-fill)`)
+   is textually unchanged. So theme.ts stamps `.theme-freeze` on <html> to drop
+   ALL transitions for one frame while it swaps `data-theme`, guaranteeing every
+   property jumps cleanly to the new theme. The tasteful part — a brief opacity
+   cross-dissolve of #root — is done in JS on opacity, which isn't themed and so
+   is immune to that bug.
+   ============================================================================ */
+html.theme-freeze,
+html.theme-freeze *,
+html.theme-freeze *::before,
+html.theme-freeze *::after {
+  transition: none !important;
+}
+
+/* ============================================================================
+   prefers-reduced-motion: keep every bit of INFORMATION, drop the movement.
+   Highlights become instant, count-ups become instant sets, the theme swap is
+   an instant cut. Lives in the motion layer because it *is* a motion concern.
+   ============================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}

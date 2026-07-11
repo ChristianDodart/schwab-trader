@@ -139,7 +139,7 @@ const S: Record<string, React.CSSProperties> = {
   gear: { fontSize: "var(--fs-sm)", padding: "0 4px", color: "var(--text-dim)" },
   pop: { position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50, minWidth: 190,
     background: "var(--pop, var(--panel))", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)",
-    padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.4)", display: "flex", flexDirection: "column", gap: 2 },
+    padding: 8, boxShadow: "var(--shadow-pop)", display: "flex", flexDirection: "column", gap: 2 },
   popHead: { fontSize: "var(--fs-2xs)", textTransform: "uppercase", letterSpacing: "0.05em",
     color: "var(--text-faint)", padding: "2px 6px 4px" },
   row: { display: "flex", alignItems: "center", gap: 8, padding: "4px 6px", borderRadius: "var(--r-sm)",

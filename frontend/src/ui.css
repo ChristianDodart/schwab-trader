@@ -41,8 +41,8 @@
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: 0.45; cursor: default; box-shadow: none !important; transform: none !important; }
 
-.btn-primary { background: var(--btn-sheen), var(--accent); color: #fff; box-shadow: var(--elev-1), inset 0 1px 0 var(--surface-hi-strong); }
-.btn-primary:not(:disabled):hover { background: var(--btn-sheen), var(--accent-hover); box-shadow: var(--elev-2), inset 0 1px 0 var(--surface-hi-strong); transform: translateY(-1px); }
+.btn-primary { background: var(--btn-sheen), var(--accent-fill); color: var(--on-accent); box-shadow: var(--elev-1), inset 0 1px 0 var(--surface-hi-strong); }
+.btn-primary:not(:disabled):hover { background: var(--btn-sheen), var(--accent-fill-hover); box-shadow: var(--elev-2), inset 0 1px 0 var(--surface-hi-strong); transform: translateY(-1px); }
 .btn-primary:not(:disabled):active { transform: translateY(0); box-shadow: var(--elev-1); }
 
 .btn-secondary { background: var(--panel-2); color: var(--text-muted); border-color: var(--border-strong); }
@@ -51,14 +51,14 @@
 .btn-ghost { background: transparent; color: var(--text-muted); border-color: var(--border-strong); }
 .btn-ghost:not(:disabled):hover { background: var(--panel-2); color: var(--text); border-color: var(--text-faint); }
 
-.btn-buy { background: var(--btn-sheen), var(--pos-strong); color: #fff; box-shadow: var(--elev-1), inset 0 1px 0 var(--surface-hi-strong); }
+.btn-buy { background: var(--btn-sheen), var(--pos-strong); color: var(--on-emphasis); box-shadow: var(--elev-1), inset 0 1px 0 var(--surface-hi-strong); }
 .btn-buy:not(:disabled):hover { background: var(--btn-sheen), color-mix(in srgb, var(--pos-strong) 86%, white); box-shadow: var(--elev-2), inset 0 1px 0 var(--surface-hi-strong); transform: translateY(-1px); }
 .btn-buy:not(:disabled):active { transform: translateY(0); box-shadow: var(--elev-1); }
 
-.btn-sell { background: transparent; color: var(--neg-strong); border-color: #5a2a3c; }
+.btn-sell { background: transparent; color: var(--neg-strong); border-color: var(--neg-border); }
 .btn-sell:not(:disabled):hover { background: var(--neg-bg); border-color: var(--neg-strong); }
 
-.btn-danger { background: var(--btn-sheen), var(--danger); color: #fff; font-weight: var(--fw-bold); box-shadow: var(--elev-1), inset 0 1px 0 var(--surface-hi-strong); }
+.btn-danger { background: var(--btn-sheen), var(--danger); color: var(--on-emphasis); font-weight: var(--fw-bold); box-shadow: var(--elev-1), inset 0 1px 0 var(--surface-hi-strong); }
 .btn-danger:not(:disabled):hover { background: var(--btn-sheen), color-mix(in srgb, var(--danger) 88%, white); box-shadow: var(--elev-2), inset 0 1px 0 var(--surface-hi-strong); transform: translateY(-1px); }
 .btn-danger:not(:disabled):active { transform: translateY(0); box-shadow: var(--elev-1); }
 
@@ -92,7 +92,7 @@
 }
 .navtab:hover { color: var(--text-muted); background: var(--panel-2); }
 .navtab[aria-current="page"], .navtab.active {
-  background: var(--panel-2); color: #fff; border-color: var(--border-strong);
+  background: var(--panel-2); color: var(--text); border-color: var(--border-strong);
   box-shadow: inset 0 1px 0 var(--surface-hi);
 }
 
@@ -159,7 +159,7 @@ select.field { height: auto !important; min-height: 30px; padding-top: 3px; padd
 /* --- chips / pills / tags --- */
 .chip {
   display: inline-flex; align-items: center; gap: 3px; font-size: var(--fs-2xs);
-  font-weight: var(--fw-bold); color: #fff; padding: 2px 8px; border-radius: var(--r-sm); line-height: 1.3;
+  font-weight: var(--fw-bold); color: var(--on-emphasis); padding: 2px 8px; border-radius: var(--r-sm); line-height: 1.3;
   box-shadow: inset 0 1px 0 var(--surface-hi-strong);
 }
 .chip-buy { background: var(--pos-strong); }

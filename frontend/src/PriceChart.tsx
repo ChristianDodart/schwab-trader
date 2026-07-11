@@ -4,6 +4,7 @@ import {
   type IChartApi, type ISeriesApi, type IPriceLine, type CandlestickData,
 } from "lightweight-charts";
 import { API } from "./api";
+import { useChartColors } from "./chartTheme";
 
 const RANGES = ["1D", "5D", "1M", "6M", "1Y"] as const;
 type Range = (typeof RANGES)[number];
@@ -22,6 +23,7 @@ export function PriceChart({
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const [range, setRange] = useState<Range>("6M");
   const [chartGen, setChartGen] = useState(0); // bumps each (re)build so the overlay redraws
+  const c = useChartColors(); // live theme colors; changes rebuild the chart
 
   useEffect(() => {
     if (!container.current) return;
@@ -30,23 +32,22 @@ export function PriceChart({
       height: 260,
       autoSize: true,
       layout: {
-        // lightweight-charts renders on <canvas>; CSS var() cannot resolve here,
-        // so these are literal hex values matched to the design tokens.
+        // canvas can't resolve var(); colors come from the live theme tokens (chartTheme).
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#9a9aa0", // --text-dim
+        textColor: c.text,
         fontFamily: "system-ui, sans-serif",
       },
-      grid: { vertLines: { color: "#242428" }, horzLines: { color: "#242428" } }, // --border-hairline
-      timeScale: { timeVisible: intraday, borderColor: "#2c2c33" }, // --border
-      rightPriceScale: { borderColor: "#2c2c33" }, // --border
+      grid: { vertLines: { color: c.grid }, horzLines: { color: c.grid } },
+      timeScale: { timeVisible: intraday, borderColor: c.border },
+      rightPriceScale: { borderColor: c.border },
       crosshair: { mode: 0 },
     });
     const series = chart.addCandlestickSeries({
-      upColor: "#5dcaa5", // --pos
-      downColor: "#f0997b", // --neg
+      upColor: c.pos,
+      downColor: c.neg,
       borderVisible: false,
-      wickUpColor: "#5dcaa5",
-      wickDownColor: "#f0997b",
+      wickUpColor: c.pos,
+      wickDownColor: c.neg,
     });
     seriesRef.current = series;
     setChartGen((n) => n + 1); // let the overlay effect (re)draw its price lines
@@ -75,7 +76,7 @@ export function PriceChart({
       chart.remove();
       seriesRef.current = null;
     };
-  }, [symbol, range]);
+  }, [symbol, range, c]);
 
   // Overlay: buy-rung triggers (dashed blue) + 52wk avg/median (dotted grey) as
   // horizontal price lines. Managed apart from the candle stream so the parent's
@@ -88,22 +89,22 @@ export function PriceChart({
     for (const price of rungs) {
       if (price > 0)
         lines.push(series.createPriceLine({
-          price, color: "#4a6fa5", lineWidth: 1, lineStyle: LineStyle.Dashed,
+          price, color: c.accent, lineWidth: 1, lineStyle: LineStyle.Dashed,
           axisLabelVisible: true, title: "buy",
         }));
     }
     if (avg52 != null)
       lines.push(series.createPriceLine({
-        price: avg52, color: "#7a7a82", lineWidth: 1, lineStyle: LineStyle.Dotted,
+        price: avg52, color: c.ref1, lineWidth: 1, lineStyle: LineStyle.Dotted,
         axisLabelVisible: true, title: "52w avg",
       }));
     if (median52 != null)
       lines.push(series.createPriceLine({
-        price: median52, color: "#5c5c63", lineWidth: 1, lineStyle: LineStyle.Dotted,
+        price: median52, color: c.ref2, lineWidth: 1, lineStyle: LineStyle.Dotted,
         axisLabelVisible: true, title: "52w med",
       }));
     return () => { for (const l of lines) { try { series.removePriceLine(l); } catch { /* chart gone */ } } };
-  }, [chartGen, rungs.join(","), avg52, median52]);
+  }, [chartGen, rungs.join(","), avg52, median52, c]);
 
   return (
     <div style={S.wrap}>

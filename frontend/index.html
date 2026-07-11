@@ -4,6 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Schwab Trader</title>
+    <!-- Set the theme BEFORE first paint so there's no flash of the default theme.
+         Mirrors theme.ts (kept tiny + dependency-free on purpose). -->
+    <script>
+      (function () {
+        try {
+          var ids = ["midnight","terminal","catppuccin","nord","gruvbox","tokyonight","rosepine","solarized-dark","solarized-light","institutional","high-contrast"];
+          var v = localStorage.getItem("ui.theme.v1");
+          var id;
+          if (v && ids.indexOf(v) !== -1) { id = v; }
+          else { // unset or "system": follow the OS scheme
+            var dark = !window.matchMedia || window.matchMedia("(prefers-color-scheme: dark)").matches;
+            id = dark ? "midnight" : "institutional";
+          }
+          document.documentElement.setAttribute("data-theme", id);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "midnight");
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

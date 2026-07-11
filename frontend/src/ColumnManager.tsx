@@ -100,7 +100,7 @@ const S: Record<string, React.CSSProperties> = {
   grip: { color: "var(--text-faint)", fontSize: 13, cursor: "grab", userSelect: "none" },
   itemLabel: { flex: 1, fontSize: "var(--fs-sm)", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   mv: { padding: "1px 6px", lineHeight: 1.4 },
-  rm: { color: "var(--neg-strong)", borderColor: "#5a2a3c", padding: "1px 7px" },
+  rm: { color: "var(--neg-strong)", borderColor: "var(--neg-border)", padding: "1px 7px" },
   empty: { color: "var(--text-faint)", fontSize: "var(--fs-xs)", padding: "6px 2px" },
   addRow: { display: "flex", gap: 6, paddingTop: 8, borderTop: "1px solid var(--border-hairline)" },
   select: { flex: 1, minWidth: 0 },

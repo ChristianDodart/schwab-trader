@@ -342,11 +342,11 @@ export function MarketHoursBadge() {
 }
 
 const SESSION: Record<string, { label: string; color: string }> = {
-  pre: { label: "Pre-market", color: "#e0a83e" },
-  regular: { label: "Market open", color: "#5dcaa5" },
-  post: { label: "After-hours", color: "#e0a83e" },
-  closed: { label: "Market closed", color: "#9a9aa0" },
-  unknown: { label: "Hours n/a", color: "#9a9aa0" },
+  pre: { label: "Pre-market", color: "var(--warn)" },
+  regular: { label: "Market open", color: "var(--pos)" },
+  post: { label: "After-hours", color: "var(--warn)" },
+  closed: { label: "Market closed", color: "var(--text-dim)" },
+  unknown: { label: "Hours n/a", color: "var(--text-dim)" },
 };
 function hint(mh: MarketHours): string {
   if (!mh.next_change) return mh.session;
@@ -465,9 +465,9 @@ function FilterChips({ f }: { f: NonNullable<CandidateScreen["filters"]> }) {
 
 // Active toggle uses the ACCENT (blue = "a control"), never the profit-green.
 const pill = (active: boolean): React.CSSProperties => ({
-  background: active ? "var(--accent)" : "var(--panel-2)",
-  color: active ? "#fff" : "var(--text-muted)",
-  borderColor: active ? "var(--accent)" : "var(--border-strong)",
+  background: active ? "var(--accent-fill)" : "var(--panel-2)",
+  color: active ? "var(--on-accent)" : "var(--text-muted)",
+  borderColor: active ? "var(--accent-fill)" : "var(--border-strong)",
 });
 const badge = (status: string): React.CSSProperties => ({
   fontSize: 10,

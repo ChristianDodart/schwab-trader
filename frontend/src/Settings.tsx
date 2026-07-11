@@ -6,6 +6,7 @@ import { useToast } from "./Toast";
 import { API } from "./api";
 
 import { AccountSection } from "./settings/AccountSection";
+import { Appearance } from "./settings/Appearance";
 import { Backups } from "./settings/Backups";
 import { BenchmarkPicker } from "./settings/BenchmarkPicker";
 import { DataHealth } from "./settings/DataHealth";
@@ -73,6 +74,10 @@ export function Settings({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) =
         Account settings for the selected account. Your buy/sell rules now live in the
         {" "}<b>Rules</b> tab. Tip: press <kbd style={{ fontFamily: "monospace", border: "1px solid var(--border-strong)", borderRadius: "var(--r-sm)", padding: "0 5px" }}>?</kbd> anywhere for keyboard shortcuts.
       </p>
+
+      <Section title="Appearance" info="Pick a color theme for the app. Themes change color only — layout, spacing, and motion are identical across all of them, and every theme meets WCAG AA contrast. 'Follow system' tracks your OS light/dark setting; an explicit pick always wins. Your choice is saved on this install and applies before the window even paints.">
+        <Appearance />
+      </Section>
 
       <Section title="Schwab API credentials" info="Your Schwab developer-app key + secret (from developer.schwab.com) and callback URL. Stored on THIS install (overrides .env), so each person/install uses their own app. Set these first, then connect each profile under Schwab connection.">
         <SchwabCreds />
@@ -149,7 +154,7 @@ const S: Record<string, React.CSSProperties> = {
   scope: { color: "var(--text-dim)", fontSize: "var(--fs-sm)", marginBottom: 8 },
   section: { background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", padding: 16, marginTop: 12 },
   h3: { margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 },
-  infoIcon: { fontSize: "var(--fs-2xs)", color: "var(--accent-quiet)", border: "1px solid #3a4a5a", borderRadius: "var(--r-pill)", padding: "0 5px", cursor: "help", textTransform: "none", letterSpacing: 0 },
+  infoIcon: { fontSize: "var(--fs-2xs)", color: "var(--accent-quiet)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-pill)", padding: "0 5px", cursor: "help", textTransform: "none", letterSpacing: 0 },
   actions: { display: "flex", alignItems: "center", gap: 12, marginTop: 16 },
   savedMsg: { color: "var(--pos)", fontSize: "var(--fs-md)" },
   dirtyMsg: { color: "var(--warn)", fontSize: "var(--fs-sm)", fontWeight: 600 },
