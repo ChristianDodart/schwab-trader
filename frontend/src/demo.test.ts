@@ -4,7 +4,7 @@ import { fillSig } from "./anim";
 import type { Dashboard, DashboardRow } from "./types";
 
 const row = (p: Partial<DashboardRow> & { symbol: string }): DashboardRow => ({
-  symbol: p.symbol, name: null, sector: null, is_watch: false, positions: 1, shares: 100,
+  name: null, sector: null, is_watch: false, positions: 1, shares: 100,
   invested: 4000, basis_per_share: 40, price: 42, current_value: 4200, unrealized: 200,
   day_change: 10, lilo_pct: -2, avg_52wk: 45, median_52wk: 44, pct_of_high: 0.8,
   portfolio_pct: 10, year_high: 52, year_low: 30, next_buy_price: 38, buy_mark: false,
