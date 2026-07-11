@@ -3,6 +3,21 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.35.0 — "Layout refresh + leaner columns"
+
+- **Nav moved to the right.** The tab bar (Dashboard / Screen / Ledger / …) now sits on
+  the right of the top bar; the live-status pills, KPI glance, and alerts bell moved to
+  the left next to the title.
+- **Leaner default columns.** The dashboard now shows just Price, Last Pos P/L, LILO %,
+  and % of 52wk High by default. Every other column is folded away and one click from
+  the **Columns** button (nothing lost — just tidier). Already-customized layouts are
+  kept; use Columns → Reset to adopt the new lean default.
+- **Sector exposure on the Ledger.** The sector-exposure bar now appears on the Ledger
+  too, so you get the "where's my money concentrated" glance there as well.
+
+(Still coming: moving profile/account selection out of the sub-bar into its own place —
+held back so it can be done without disturbing account switching.)
+
 ## v0.34.0 — "Simple view"
 
 A one-click **Simple view** for the dashboard — for anyone who wants their holdings and

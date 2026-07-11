@@ -294,26 +294,10 @@ export function App() {
     <main className="app-main">
       <div className="app-container">
         <header style={S.header}>
+          {/* Left cluster: brand + live status + KPI glance + alerts (moved from the
+              right per the layout request). Nav tabs now sit on the right. */}
           <div style={S.brandZone}>
             <h1 style={S.h1}>Schwab Trader</h1>
-            <nav style={S.nav} aria-label="Primary">
-              {NAV.map((t) => (
-                <button
-                  key={t.id}
-                  className="navtab"
-                  aria-current={view === t.id ? "page" : undefined}
-                  onClick={() => guardedNav(() => { if (t.id === "orders") setOrdersFilter(null); setView(t.id); })}
-                >
-                  {t.label}
-                  {t.id === "orders" && workingOrders > 0 && (
-                    <span style={S.navBadge} title={`${workingOrders} working order${workingOrders === 1 ? "" : "s"}`}>{workingOrders}</span>
-                  )}
-                </button>
-              ))}
-            </nav>
-          </div>
-
-          <div style={S.rightZone}>
             <div style={S.statusZone}>
               <ConnDot connected={connected} />
               <FeedTag mode={mode} />
@@ -340,6 +324,22 @@ export function App() {
             })()}
             <NotificationsBell onOpen={() => guardedNav(() => setView("notifications"))} />
           </div>
+
+          <nav style={S.nav} aria-label="Primary">
+            {NAV.map((t) => (
+              <button
+                key={t.id}
+                className="navtab"
+                aria-current={view === t.id ? "page" : undefined}
+                onClick={() => guardedNav(() => { if (t.id === "orders") setOrdersFilter(null); setView(t.id); })}
+              >
+                {t.label}
+                {t.id === "orders" && workingOrders > 0 && (
+                  <span style={S.navBadge} title={`${workingOrders} working order${workingOrders === 1 ? "" : "s"}`}>{workingOrders}</span>
+                )}
+              </button>
+            ))}
+          </nav>
         </header>
 
         <UpdateBanner />
@@ -439,7 +439,10 @@ export function App() {
         ) : view === "screen" ? (
           <Screener />
         ) : view === "ledger" ? (
-          <Ledger key={acctKey} />
+          <>
+            {data && <SectorStrip rows={data.rows} />}
+            <Ledger key={acctKey} />
+          </>
         ) : view === "orders" ? (
           <Orders key={`${acctKey}:${ordersFilter ?? ""}`} initialFilter={ordersFilter ?? undefined} />
         ) : (
@@ -732,7 +735,7 @@ export const pct = (n: number | null | undefined) =>
 
 const S: Record<string, React.CSSProperties> = {
   header: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, rowGap: 12, flexWrap: "wrap" },
-  brandZone: { display: "flex", alignItems: "center", gap: 14, minWidth: 0 },
+  brandZone: { display: "flex", alignItems: "center", gap: 14, minWidth: 0, flexWrap: "wrap", rowGap: 10 },
   h1: { fontSize: "var(--fs-xl)", fontWeight: 700, margin: 0, letterSpacing: "-0.01em", whiteSpace: "nowrap" },
   nav: { display: "flex", gap: 4 },
   navBadge: { marginLeft: 6, background: "var(--warn)", color: "#1a1a1a", fontSize: "var(--fs-2xs)", fontWeight: 700, borderRadius: "var(--r-pill)", padding: "0 6px", lineHeight: 1.6 },
