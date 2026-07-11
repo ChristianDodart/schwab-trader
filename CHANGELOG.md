@@ -3,6 +3,15 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.39.3 — "Held ETFs count as holdings"
+
+- **An ETF you hold no longer hides in the watchlist just because you only watch its
+  underlying.** When you own a leveraged ETF (e.g. a 2x fund) but only track the stock it
+  follows, that group now sorts up among your holdings — placed by the ETF's own P/L —
+  instead of being buried below the "Watchlist" divider. It still nests visually under its
+  underlying for direction context. A group only drops to the watchlist when you hold
+  nothing in it.
+
 ## v0.39.2 — "Watchlist grouping"
 
 - **A clear "Watchlist" divider** now separates your held positions from the tickers you're

@@ -37,20 +37,68 @@ function sortRows(rows: DashboardRow[], sort: SortState): DashboardRow[] {
   });
 }
 
-// Default order (no explicit column sort): rank by Last Pos P/L — profits first
-// (biggest gain at the top, descending), then losses (biggest loss first, descending
-// in magnitude), then flat/no-P/L, and finally watchlist rows at the very bottom.
-function defaultCompare(a: DashboardRow, b: DashboardRow): number {
-  const wa = a.is_watch ? 1 : 0, wb = b.is_watch ? 1 : 0;
-  if (wa !== wb) return wa - wb;              // watch rows sink to the bottom
-  if (a.is_watch) return a.symbol.localeCompare(b.symbol);  // watch group: alphabetical
-  const pa = a.last_pos_profit ?? 0, pb = b.last_pos_profit ?? 0;
-  const ga = pa > 0 ? 0 : pa < 0 ? 1 : 2;      // 0 profit · 1 loss · 2 flat
-  const gb = pb > 0 ? 0 : pb < 0 ? 1 : 2;
-  if (ga !== gb) return ga - gb;
-  if (ga === 0) return pb - pa;                // profits: highest first
-  if (ga === 1) return pa - pb;                // losses: biggest loss first, then up
-  return 0;
+// ---- ETF-aware default ordering --------------------------------------------
+// An ETF child nests under its underlying for context, but you may hold the ETF while
+// only WATCHING the underlying. So a parent+children GROUP counts as a holding if you
+// hold the parent OR any child — it shouldn't get buried in the watchlist just because
+// its underlying is watch-only. The group's placement uses the held member's P/L.
+function buildKids(rows: DashboardRow[]) {
+  const bySym = new Map(rows.map((r) => [r.symbol, r]));
+  const kidsOf = new Map<string, DashboardRow[]>();
+  const childSyms = new Set<string>();
+  for (const r of rows) {
+    const u = r.underlying;
+    if (u && u !== r.symbol && bySym.has(u)) {
+      const arr = kidsOf.get(u);
+      if (arr) arr.push(r); else kidsOf.set(u, [r]);
+      childSyms.add(r.symbol);
+    }
+  }
+  return { bySym, kidsOf, childSyms };
+}
+// Effective status of a top-level group: watch only if the parent AND every child are
+// watch; otherwise it's a holding, placed by the held member's (largest) P/L.
+function groupStatus(parent: DashboardRow, children: DashboardRow[]): { watch: boolean; pl: number } {
+  if (!parent.is_watch) return { watch: false, pl: parent.last_pos_profit ?? 0 };
+  const held = children.filter((k) => !k.is_watch);
+  if (held.length) {
+    const primary = held.reduce((m, k) =>
+      (Math.abs(k.last_pos_profit ?? 0) > Math.abs(m.last_pos_profit ?? 0) ? k : m));
+    return { watch: false, pl: primary.last_pos_profit ?? 0 };
+  }
+  return { watch: true, pl: 0 };
+}
+// Sort rows so top-level GROUPS rank by effective status: profits first (biggest gain
+// descending), then losses (biggest loss first), then watchlist groups alphabetical.
+// Children inherit their parent's rank so they stay adjacent; nestRows regroups after.
+export function defaultOrder(rows: DashboardRow[]): DashboardRow[] {
+  const { bySym, kidsOf } = buildKids(rows);
+  const rankOf = (r: DashboardRow) => {
+    const parent = (r.underlying && r.underlying !== r.symbol && bySym.get(r.underlying)) || r;
+    const g = groupStatus(parent, kidsOf.get(parent.symbol) ?? []);
+    return { watch: g.watch, pl: g.pl, sym: parent.symbol };
+  };
+  const cmp = (a: { watch: boolean; pl: number; sym: string }, b: { watch: boolean; pl: number; sym: string }) => {
+    if (a.watch !== b.watch) return a.watch ? 1 : -1;   // watch groups sink to the bottom
+    if (a.watch) return a.sym.localeCompare(b.sym);      // watchlist: alphabetical
+    const ga = a.pl > 0 ? 0 : a.pl < 0 ? 1 : 2;          // 0 profit · 1 loss · 2 flat
+    const gb = b.pl > 0 ? 0 : b.pl < 0 ? 1 : 2;
+    if (ga !== gb) return ga - gb;
+    if (ga === 0) return b.pl - a.pl;                    // profits: highest first
+    if (ga === 1) return a.pl - b.pl;                    // losses: biggest loss first
+    return 0;
+  };
+  return [...rows].sort((a, b) => cmp(rankOf(a), rankOf(b)));
+}
+// Top-level symbols that are watchlist GROUPS (nothing held) — for the "Watchlist" divider.
+export function watchGroupSet(rows: DashboardRow[]): Set<string> {
+  const { kidsOf, childSyms } = buildKids(rows);
+  const set = new Set<string>();
+  for (const r of rows) {
+    if (childSyms.has(r.symbol)) continue;               // only top-level parents
+    if (groupStatus(r, kidsOf.get(r.symbol) ?? []).watch) set.add(r.symbol);
+  }
+  return set;
 }
 
 // ETF grouping: order the rows so each linked leveraged ETF sits directly under its
@@ -181,14 +229,18 @@ export function DashboardTable({
       </th>
     );
   };
-  const displayRows = sort ? sortRows(rows, sort) : [...rows].sort(defaultCompare);
+  const displayRows = sort ? sortRows(rows, sort) : defaultOrder(rows);
   // Bulk mode stays flat (nesting would muddle selection); otherwise nest ETFs.
   const dispRows = bulk
     ? displayRows.map((r) => ({ row: r, depth: 0, parent: null, childCount: 0 } as DispRow))
     : nestRows(displayRows);
-  // In the default (unsorted) view, watch rows are grouped at the bottom — mark where
-  // that group starts so a subtle "Watchlist" divider can separate it from holdings.
-  const firstWatchIdx = (!bulk && !sort) ? dispRows.findIndex((d) => d.row.is_watch && d.depth === 0) : -1;
+  // In the default (unsorted) view, watchlist GROUPS (nothing held in them) sit at the
+  // bottom — mark where that group starts so a subtle "Watchlist" divider separates it
+  // from holdings. A held ETF under a watch-only underlying counts as a holding.
+  const watchGroups = (!bulk && !sort) ? watchGroupSet(rows) : null;
+  const firstWatchIdx = watchGroups
+    ? dispRows.findIndex((d) => d.depth === 0 && watchGroups.has(d.row.symbol))
+    : -1;
 
   return (
     <div>
