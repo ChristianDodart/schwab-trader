@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { usd, pct } from "./App";
-import { DASH_COLUMNS, PINNED_DASH, rowSignalChips, tickerRiskColor, RISK_LABEL, ProvenanceLegend, CalcMark } from "./columns";
+import { DASH_COLUMNS, PINNED_DASH, ESSENTIAL_DASH_IDS, rowSignalChips, tickerRiskColor, RISK_LABEL, ProvenanceLegend, CalcMark } from "./columns";
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
 import type { SignalRule } from "./signals";
@@ -124,6 +124,21 @@ export function DashboardTable({
   // Simple mode pins only Price (drops the always-on Last Pos P/L) for a 4-column grid.
   const pinned = simple ? PINNED_DASH.filter((c) => c.id === "price") : PINNED_DASH;
   const colSpan = 1 /* ticker */ + pinned.length + defs.length + (bulk ? 1 : 0);
+
+  // Column folding: the essential columns always show; the rest roll in/out inline via
+  // a toggle (default folded, so the resting table stays lean for less technical users).
+  // Simple mode disables folding — its short column set is all essential.
+  const essIds = new Set(ESSENTIAL_DASH_IDS);
+  const essDefs = simple ? defs : defs.filter((c) => essIds.has(c.id));
+  const foldDefs = simple ? [] : defs.filter((c) => !essIds.has(c.id));
+  const [folded, setFolded] = useState<boolean>(() => {
+    try { return localStorage.getItem("dash.fold.v1") !== "0"; } catch { return true; }
+  });
+  const toggleFold = () => setFolded((f) => {
+    const n = !f;
+    try { localStorage.setItem("dash.fold.v1", n ? "1" : "0"); } catch { /* private mode */ }
+    return n;
+  });
   const cellFor = (c: DashCol, r: DashboardRow) =>
     c.watchNA && r.is_watch ? <span style={{ color: "var(--text-faint)" }}>—</span> : c.render(r);
 
@@ -138,16 +153,18 @@ export function DashboardTable({
   const clickSort = (id: string) =>
     setSort((s) => (s?.id !== id ? { id, dir: -1 } : s.dir === -1 ? { id, dir: 1 } : null));
   const sortMark = (id: string) => (sort?.id === id ? (sort.dir === -1 ? " ▼" : " ▲") : "");
-  const Th = ({ id, label, align, prov }: { id: string; label: string; align?: string; prov?: DashCol["prov"] }) => {
+  const Th = ({ id, label, align, prov, fold }: { id: string; label: string; align?: string; prov?: DashCol["prov"]; fold?: boolean }) => {
     const computed = prov == null;   // undefined = app-calculated → ƒ mark on the header
+    const cls = [align === "left" ? "left" : "", fold ? "foldcol" + (folded ? " folded" : "") : ""].filter(Boolean).join(" ");
+    const inner = <>{label}{computed && !simple && <CalcMark />}{sortMark(id)}</>;
     return (
-      <th scope="col" className={align === "left" ? "left" : ""}
+      <th scope="col" className={cls || undefined}
         aria-sort={sort?.id === id ? (sort.dir === -1 ? "descending" : "ascending") : undefined}
         style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
         title={(prov === "schwab" ? "Provided by Schwab. " : "")
           + `Sort by ${label} (click again to flip, third click resets)`}
         onClick={() => clickSort(id)}>
-        {label}{computed && !simple && <CalcMark />}{sortMark(id)}
+        {fold ? <span className="foldwrap">{inner}</span> : inner}
       </th>
     );
   };
@@ -156,23 +173,34 @@ export function DashboardTable({
   // Totals over HELD positions only (watchlist rows have no position). Shown as a
   // footer band; only summable money columns get a value, the rest stay blank.
   const held = rows.filter((r) => !r.is_watch);
-  const totalCell = (id: string, align: DashCol["align"]) => {
+  const totalCell = (id: string, align: DashCol["align"], fold = false) => {
+    const cls = fold ? "foldcol" + (folded ? " folded" : "") : undefined;
+    const wrap = (content: React.ReactNode) => (fold ? <span className="foldwrap">{content}</span> : content);
     const kind = MONEY_SUM[id];
-    if (!kind) return <td key={id} style={{ textAlign: align }} />;
+    if (!kind) return <td key={id} className={cls} style={{ textAlign: align }} />;
     const vals = held.map((r) => (r as unknown as Record<string, number | null>)[id]).filter((v): v is number => v != null);
-    if (!vals.length) return <td key={id} style={{ textAlign: align }}>—</td>;
+    if (!vals.length) return <td key={id} className={cls} style={{ textAlign: align }}>{wrap("—")}</td>;
     const sum = vals.reduce((a, b) => a + b, 0);
     const color = kind === "signed" ? (sum >= 0 ? "var(--pos)" : "var(--neg)") : "var(--text)";
     return (
-      <td key={id} style={{ textAlign: align, color, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-        {kind === "signed" && sum > 0 ? "+" : ""}{usd(sum)}
+      <td key={id} className={cls} style={{ textAlign: align, color, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+        {wrap(<>{kind === "signed" && sum > 0 ? "+" : ""}{usd(sum)}</>)}
       </td>
     );
   };
 
   return (
     <div>
-      {!bulk && <p style={S.hint}>Click a ticker to open its buy ladder.</p>}
+      <div style={S.hintRow}>
+        {!bulk ? <p style={S.hint}>Click a ticker to open its buy ladder.</p> : <span />}
+        {!simple && foldDefs.length > 0 && (
+          <button className="btn btn-ghost btn-sm" style={S.foldBtn} aria-expanded={!folded}
+            title={folded ? "Roll out the rest of the columns" : "Roll the extra columns back in"}
+            onClick={toggleFold}>
+            {folded ? `+ ${foldDefs.length} more column${foldDefs.length === 1 ? "" : "s"}` : "− fewer columns"}
+          </button>
+        )}
+      </div>
       <div style={{ overflowX: "auto" }}>
         <table className="tbl">
           <thead>
@@ -185,7 +213,8 @@ export function DashboardTable({
               )}
               <Th id="symbol" label="Ticker" align="left" prov="text" />
               {pinned.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
-              {defs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
+              {essDefs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
+              {foldDefs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} fold />)}
             </tr>
           </thead>
           <tbody>
@@ -289,8 +318,13 @@ export function DashboardTable({
                   {pinned.map((c) => (
                     <td key={c.id} style={{ textAlign: c.align }}>{cellFor(c, r)}</td>
                   ))}
-                  {defs.map((c) => (
+                  {essDefs.map((c) => (
                     <td key={c.id} style={{ textAlign: c.align }}>{cellFor(c, r)}</td>
+                  ))}
+                  {foldDefs.map((c) => (
+                    <td key={c.id} className={"foldcol" + (folded ? " folded" : "")} style={{ textAlign: c.align }}>
+                      <span className="foldwrap">{cellFor(c, r)}</span>
+                    </td>
                   ))}
                 </tr>
                 {isOpen && renderDetail && (
@@ -309,7 +343,8 @@ export function DashboardTable({
                   Totals <span style={S.totalsSub}>· {held.length} held</span>
                 </td>
                 {pinned.map((c) => totalCell(c.id, c.align))}
-                {defs.map((c) => totalCell(c.id, c.align))}
+                {essDefs.map((c) => totalCell(c.id, c.align))}
+                {foldDefs.map((c) => totalCell(c.id, c.align, true))}
               </tr>
             </tfoot>
           )}
@@ -337,7 +372,9 @@ function NoteDot({ preview }: { preview?: string | null }) {
 }
 
 const S: Record<string, React.CSSProperties> = {
-  hint: { color: "var(--text-dim)", fontSize: "var(--fs-xs)", margin: "0 0 10px" },
+  hint: { color: "var(--text-dim)", fontSize: "var(--fs-xs)", margin: 0 },
+  hintRow: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, margin: "0 0 10px", minHeight: 26 },
+  foldBtn: { flexShrink: 0 },
   noteTip: { position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 30, width: 260,
     background: "var(--pop)", color: "var(--text)", border: "1px solid var(--border)",
     borderRadius: "var(--r-md)", boxShadow: "var(--shadow-pop)", padding: "8px 10px",

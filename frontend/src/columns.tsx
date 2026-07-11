@@ -178,11 +178,16 @@ export const PINNED_DASH: DashCol[] = [
   { id: "price", label: "Price", align: "left", prov: "schwab", render: (r) => <b>{usd(r.price)}</b> },
   { id: "last_pos_profit", label: "Last Pos P/L", align: "left", watchNA: true, render: (r) => <b><Colored v={usd(r.last_pos_profit)} n={r.last_pos_profit} /></b> },
 ];
+// Columns always shown (never folded): Price + Last Pos P/L (pinned) plus these two.
+export const ESSENTIAL_DASH_IDS = ["lilo_pct", "pct_of_high"];
 // Default customizable layout (ticker + PINNED_DASH [Price, Last Pos P/L] render before
-// these). Lean by default — Price, Last Pos P/L, LILO %, % 52wk High are shown; every
-// other column is "folded" and one click away under the Columns menu.
+// these). The first two are essential (always shown); the rest are FOLDED by default and
+// roll out inline via the table's fold toggle. All remain customizable under Columns.
 export const DEFAULT_DASH_COLS = [
-  "lilo_pct", "pct_of_high",
+  "lilo_pct", "pct_of_high",                                   // essential — always shown
+  "current_value", "unrealized", "day_change", "invested",     // the rest fold in by default
+  "basis_per_share", "portfolio_pct", "avg_52wk", "median_52wk",
+  "last_pos_cost", "year_profit", "avg_monthly", "year_trades",
 ];
 
 // ---- ticker drill-down columns (operate on a lot) ----

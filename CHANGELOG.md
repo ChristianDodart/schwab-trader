@@ -3,6 +3,15 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.35.1 — "Columns that roll in and out"
+
+- **The extra columns now roll open in place.** Instead of being hidden away behind the
+  Columns menu, the folded columns stay right where they belong on the table — a
+  "+ N more columns" toggle above the grid rolls them open (and "− fewer columns" rolls
+  them back in) with a smooth slide. The four essentials — Price, Last Pos P/L, LILO %,
+  and % of 52wk High — are always shown; everything else tucks in by default and is one
+  click away, without leaving the table.
+
 ## v0.35.0 — "Layout refresh + leaner columns"
 
 - **Nav moved to the right.** The tab bar (Dashboard / Screen / Ledger / …) now sits on
