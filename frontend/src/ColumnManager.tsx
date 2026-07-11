@@ -8,10 +8,12 @@ export function ColumnManager({
   prefs,
   labelOf,
   align = "left",
+  onReset,
 }: {
   prefs: ColumnPrefs;
   labelOf: (id: string) => string;
   align?: "left" | "right";
+  onReset?: () => void;   // extra side-effect when Reset is pressed (e.g. re-collapse folds)
 }) {
   const [open, setOpen] = useState(false);
   const [toAdd, setToAdd] = useState("");
@@ -44,7 +46,7 @@ export function ColumnManager({
           onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); close(); } }}>
           <div style={S.head}>
             <span style={S.title}>Columns</span>
-            <button className="btn btn-ghost btn-sm" style={S.reset} onClick={prefs.reset} title="restore default layout">Reset</button>
+            <button className="btn btn-ghost btn-sm" style={S.reset} onClick={() => { prefs.reset(); onReset?.(); }} title="restore default layout">Reset</button>
             <button className="btn btn-ghost btn-sm" style={S.close} onClick={close} aria-label="close column manager"><IconClose /></button>
           </div>
 

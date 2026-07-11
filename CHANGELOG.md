@@ -3,6 +3,20 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.36.3 — "Dashboard tidy-up, round 2"
+
+- **Profile / account chip moved to the top-right corner**, right above the tabs, out of
+  the toolbar under the header.
+- **Sector exposure is no longer on the Ledger** — it lives on the Screen tab now.
+- **Add a ticker right from the table.** The word "Ticker" at the top of the first column
+  is now the add box: type a symbol there and press Enter. The other column headers stay
+  as normal text.
+- **Columns menu no longer opens off-screen.** The "Columns" popover now opens leftward so
+  it never forces a sideways scroll.
+- **Reset keeps the expand chevron.** Clicking Reset in the Columns menu now also
+  re-collapses the extra columns, so the ▸ expand arrow stays put instead of scrolling
+  off the right edge.
+
 ## v0.36.2 — "Dashboard tidy-up"
 
 - **Sector exposure moved to the Screen tab.** The concentration bar now lives on Screen

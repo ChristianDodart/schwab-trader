@@ -71,6 +71,17 @@ export function App() {
     try { localStorage.setItem("dash.simple.v1", n ? "1" : "0"); } catch { /* private mode */ }
     return n;
   });
+  // Column-fold state lives here (not in DashboardTable) so a Columns → Reset can also
+  // re-collapse the extra columns — otherwise Reset can leave the chevron scrolled off
+  // the right edge of a wide, expanded table.
+  const [dashFolded, setDashFolded] = useState<boolean>(() => {
+    try { return localStorage.getItem("dash.fold.v1") !== "0"; } catch { return true; }
+  });
+  const setFold = (v: boolean) => {
+    setDashFolded(v);
+    try { localStorage.setItem("dash.fold.v1", v ? "1" : "0"); } catch { /* private mode */ }
+  };
+  const toggleDashFold = () => setFold(!dashFolded);
   const kpiPrefs = useKpiPrefs();
   const toast = useToast();
   const [settingsDirty, setSettingsDirty] = useState(false);
@@ -334,21 +345,26 @@ export function App() {
             <NotificationsBell onOpen={() => guardedNav(() => setView("notifications"))} />
           </div>
 
-          <nav style={S.nav} aria-label="Primary">
-            {NAV.map((t) => (
-              <button
-                key={t.id}
-                className="navtab"
-                aria-current={view === t.id ? "page" : undefined}
-                onClick={() => guardedNav(() => { if (t.id === "orders") setOrdersFilter(null); setView(t.id); })}
-              >
-                {t.label}
-                {t.id === "orders" && workingOrders > 0 && (
-                  <span style={S.navBadge} title={`${workingOrders} working order${workingOrders === 1 ? "" : "s"}`}>{workingOrders}</span>
-                )}
-              </button>
-            ))}
-          </nav>
+          {/* Right cluster: the profile/account chip sits in the very top-right corner,
+              with the primary nav tabs directly beneath it. */}
+          <div style={S.headerRight}>
+            <ContextChip acctKey={acctKey} onOpen={() => guardedNav(() => setView("profile"))} />
+            <nav style={S.nav} aria-label="Primary">
+              {NAV.map((t) => (
+                <button
+                  key={t.id}
+                  className="navtab"
+                  aria-current={view === t.id ? "page" : undefined}
+                  onClick={() => guardedNav(() => { if (t.id === "orders") setOrdersFilter(null); setView(t.id); })}
+                >
+                  {t.label}
+                  {t.id === "orders" && workingOrders > 0 && (
+                    <span style={S.navBadge} title={`${workingOrders} working order${workingOrders === 1 ? "" : "s"}`}>{workingOrders}</span>
+                  )}
+                </button>
+              ))}
+            </nav>
+          </div>
         </header>
 
         <UpdateBanner />
@@ -377,9 +393,9 @@ export function App() {
 
         {view === "dashboard" && <FirstRun nav={(v) => guardedNav(() => setView(v as View))} />}
 
+        {view === "dashboard" && (
         <div style={S.subbar}>
-          <ContextChip acctKey={acctKey} onOpen={() => guardedNav(() => setView("profile"))} />
-          {view === "dashboard" && (bulk.kind ? (
+          {(bulk.kind ? (
             <span style={S.bulkBar}>
               {bulk.loading ? (
                 <span style={S.note}>Loading {bulk.kind === "sell" ? "profitable positions" : bulk.kind === "exit" ? "open positions" : "dip candidates"}…</span>
@@ -412,7 +428,7 @@ export function App() {
               {/* Add ticker + Columns moved down next to the table (see the filter bar);
                   the subbar keeps account-level actions only. */}
               <button className="btn btn-secondary" onClick={syncFromSchwab} disabled={syncing}
-                title="Refresh this account's holdings from Schwab">
+                title="Force a full refresh of THIS account now — refetch fills from Schwab, rebuild the ladder, and reconcile to Schwab's current positions. Prices and new trades already update on their own; use this after a CSV import, for a non-trading account, or whenever a number looks off.">
                 {syncing ? "Syncing…" : <><IconRefresh /> Sync from Schwab</>}
               </button>
               <span style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
@@ -449,6 +465,7 @@ export function App() {
             </>
           ))}
         </div>
+        )}
 
         {mode === "demo" && (
           <div style={S.demoChip} role="status">
@@ -474,10 +491,7 @@ export function App() {
             <Screener />
           </>
         ) : view === "ledger" ? (
-          <>
-            {data && <SectorStrip rows={data.rows} />}
-            <Ledger key={acctKey} />
-          </>
+          <Ledger key={acctKey} />
         ) : view === "orders" ? (
           <Orders key={`${acctKey}:${ordersFilter ?? ""}`} initialFilter={ordersFilter ?? undefined} />
         ) : (
@@ -506,24 +520,16 @@ export function App() {
                   <>
                     {!simple && dashSub === "all" && (
                       <div style={S.filterBar}>
-                        <span style={S.addWrap}>
-                          <input
-                            className="field"
-                            style={{ width: 130, height: 30 }}
-                            placeholder="Add ticker — Enter"
-                            aria-label="Add ticker symbol — press Enter to add"
-                            value={addSym}
-                            onChange={(e) => setAddSym(e.target.value.toUpperCase())}
-                            onKeyDown={(e) => e.key === "Enter" && addTicker()}
-                          />
-                        </span>
                         {symQuery && (
                           <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-xs)" }}>
                             showing {dashRows.length} of {data.rows.length} · <b style={{ color: "var(--text-muted)" }}>“{symQuery}”</b>
                           </span>
                         )}
                         <span style={{ marginLeft: "auto" }}>
-                          <ColumnManager prefs={dashCols} labelOf={(id) => DASH_COLUMNS[id]?.label ?? id} />
+                          {/* align right so the popover opens leftward (never off-screen);
+                              Reset also re-collapses the extra columns so the chevron stays visible. */}
+                          <ColumnManager prefs={dashCols} labelOf={(id) => DASH_COLUMNS[id]?.label ?? id}
+                            align="right" onReset={() => setFold(true)} />
                         </span>
                       </div>
                     )}
@@ -539,6 +545,11 @@ export function App() {
                         rows={simple ? holdingsRows : (dashSub === "todo" ? todoRows : dashRows)}
                         cols={simple ? SIMPLE_COLS : dashCols.ids}
                         simple={simple}
+                        folded={dashFolded}
+                        onToggleFold={toggleDashFold}
+                        tickerAdder={!simple && dashSub === "all" && !bulk.kind
+                          ? { value: addSym, onChange: setAddSym, onSubmit: addTicker }
+                          : undefined}
                         selected={selected}
                         onSelect={(sym) => setSelected(sym === selected ? null : sym)}
                         onRemoveTicker={removeTicker}
@@ -751,7 +762,8 @@ const S: Record<string, React.CSSProperties> = {
   header: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, rowGap: 12, flexWrap: "wrap" },
   brandZone: { display: "flex", alignItems: "center", gap: 14, minWidth: 0, flexWrap: "wrap", rowGap: 10 },
   h1: { fontSize: "var(--fs-xl)", fontWeight: 700, margin: 0, letterSpacing: "-0.01em", whiteSpace: "nowrap" },
-  nav: { display: "flex", gap: 4 },
+  headerRight: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 },
+  nav: { display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" },
   navBadge: { marginLeft: 6, background: "var(--warn)", color: "#1a1a1a", fontSize: "var(--fs-2xs)", fontWeight: 700, borderRadius: "var(--r-pill)", padding: "0 6px", lineHeight: 1.6 },
   rightZone: { display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", justifyContent: "flex-end" },
   statusZone: { display: "flex", alignItems: "center", gap: 10 },

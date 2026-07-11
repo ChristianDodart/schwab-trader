@@ -105,6 +105,9 @@ export function DashboardTable({
   working,
   onShowOrders,
   simple = false,
+  folded = true,
+  onToggleFold,
+  tickerAdder,
 }: {
   rows: DashboardRow[];
   cols: string[];
@@ -119,6 +122,9 @@ export function DashboardTable({
   working?: Record<string, number>;        // symbol → count of resting orders
   onShowOrders?: (symbol: string) => void; // open the Orders tab filtered to it
   simple?: boolean;                        // decluttered view: only Price pinned, no ƒ marks / legend
+  folded?: boolean;                        // are the extra (foldable) columns collapsed?
+  onToggleFold?: () => void;               // flip the fold (owned by the parent so Reset can re-collapse)
+  tickerAdder?: { value: string; onChange: (v: string) => void; onSubmit: () => void }; // inline add-ticker box in the Ticker header
 }) {
   const defs = cols.map((id) => DASH_COLUMNS[id]).filter(Boolean);
   // Simple mode pins only Price (drops the always-on Last Pos P/L) for a 4-column grid.
@@ -133,14 +139,7 @@ export function DashboardTable({
   const foldDefs = simple ? [] : defs.filter((c) => !essIds.has(c.id));
   const showFoldToggle = !simple && foldDefs.length > 0;
   const colSpan = 1 /* ticker */ + pinned.length + defs.length + (bulk ? 1 : 0) + (showFoldToggle ? 1 : 0);
-  const [folded, setFolded] = useState<boolean>(() => {
-    try { return localStorage.getItem("dash.fold.v1") !== "0"; } catch { return true; }
-  });
-  const toggleFold = () => setFolded((f) => {
-    const n = !f;
-    try { localStorage.setItem("dash.fold.v1", n ? "1" : "0"); } catch { /* private mode */ }
-    return n;
-  });
+  const toggleFold = () => onToggleFold?.();
   // The chevron header cell (rendered after the fold columns so it hugs the right edge:
   // when folded the fold columns are 0-width, so it lands right after the essentials).
   const FoldToggleTh = () => (
@@ -215,7 +214,19 @@ export function DashboardTable({
                     aria-label="Select all candidates" />
                 </th>
               )}
-              <Th id="symbol" label="Ticker" align="left" prov="text" />
+              {tickerAdder && !bulk ? (
+                <th scope="col" className="left" style={{ verticalAlign: "middle" }}>
+                  <input className="field" style={S.tickerAdd} placeholder="+ Add ticker"
+                    aria-label="Add ticker symbol — press Enter to add"
+                    title="Type a symbol and press Enter to add it to your watchlist"
+                    value={tickerAdder.value}
+                    onChange={(e) => tickerAdder.onChange(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => { if (e.key === "Enter") tickerAdder.onSubmit(); }}
+                    onClick={(e) => e.stopPropagation()} />
+                </th>
+              ) : (
+                <Th id="symbol" label="Ticker" align="left" prov="text" />
+              )}
               {pinned.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
               {essDefs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} />)}
               {foldDefs.map((c) => <Th key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} fold />)}
@@ -382,6 +393,10 @@ const S: Record<string, React.CSSProperties> = {
   // Fold chevron column: narrow, centered, and non-sortable (a plain handle, not a header).
   foldToggleTh: { width: 34, padding: "4px 4px", textAlign: "center", cursor: "default" },
   foldToggleBtn: { padding: "2px 6px", minHeight: 24, color: "var(--text-dim)" },
+  // Inline add-ticker box that replaces the "Ticker" header word (normal case, not the
+  // uppercase header styling); the rest of the header cells stay as text.
+  tickerAdd: { width: 150, maxWidth: "100%", height: 28, textTransform: "none", letterSpacing: 0,
+    fontWeight: 400, fontSize: "var(--fs-sm)" },
   noteTip: { position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 30, width: 260,
     background: "var(--pop)", color: "var(--text)", border: "1px solid var(--border)",
     borderRadius: "var(--r-md)", boxShadow: "var(--shadow-pop)", padding: "8px 10px",
