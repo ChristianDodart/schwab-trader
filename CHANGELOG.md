@@ -3,6 +3,15 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.42.0 — "Demo mode"
+
+- **A "Demo" button in the header** (next to the market-hours badge) brings the dashboard to
+  life when the market is closed. Turn it on and it simulates gentle price ticks and the
+  occasional fill on your real positions — so you can see the themes, the rolling header
+  figures, and the green/rose row flashes in motion even on a weekend when nothing is trading.
+  A clear DEMO banner shows while it's on, with a one-click "Turn off." It is purely visual:
+  nothing is live, no orders are ever placed, and a reload turns it off.
+
 ## v0.41.0 — "Feel"
 
 - **Rows flash when a position changes.** The moment a fill lands — a buy-down rung firing, a

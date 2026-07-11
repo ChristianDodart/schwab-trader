@@ -12,6 +12,7 @@ import { ConfirmDialog } from "./Modal";
 import { DASH_COLUMNS, DASH_COLUMN_LIST, DEFAULT_DASH_COLS, useColumnPrefs } from "./columns";
 import { KpiPicker, useKpiPrefs, visibleKpis } from "./kpis";
 import { CountUp } from "./anim";
+import { useDemoFeed } from "./demo";
 import { DashboardTable } from "./DashboardTable";
 import { tickerRiskColor } from "./columns";
 import { Ledger } from "./Ledger";
@@ -92,18 +93,23 @@ export function App() {
   const [ordersFilter, setOrdersFilter] = useState<string | null>(null);
   const bulk = useBulk(data?.rows, data?.mode, toast);
   const live = useLiveness();
+  // Demo/showcase feed: when on, drives the dashboard display with simulated ticks +
+  // fills so the themes/motion come alive on a closed market. Display-only, in-memory
+  // (a reload turns it off), and it never touches the order path — bulk stays on `data`.
+  const [demoOn, setDemoOn] = useState(false);
+  const shown = useDemoFeed(data, demoOn);
   // Prices are stale only when we're MEANT to be live (not demo) but Schwab isn't
   // answering — then dim the table + explain, so a frozen quote isn't mistaken for a real move.
-  const pricesStale = data?.mode !== "demo" && live === false;
+  const pricesStale = !demoOn && data?.mode !== "demo" && live === false;
   // Dashboard table rows after the Ctrl+F ticker filter. Bulk keeps the FULL row set.
-  const dashRows = (data?.rows ?? []).filter((r) =>
+  const dashRows = (shown?.rows ?? []).filter((r) =>
     !symQuery || r.symbol.toUpperCase().includes(symQuery));
   // To-Do: held positions meeting a BUY or SELL signal (built-in mark OR a custom rule).
-  const todoRows = (data?.rows ?? []).filter((r) =>
+  const todoRows = (shown?.rows ?? []).filter((r) =>
     !r.is_watch && (r.buy_mark || r.sell_mark || signalRules.some((rule) => matchesRule(rule, r))));
   // Simple mode shows real holdings only (no watchlist rows) and a fixed essentials
   // column set. Ticker + Price are always rendered; these are the extra columns.
-  const holdingsRows = (data?.rows ?? []).filter((r) => !r.is_watch);
+  const holdingsRows = (shown?.rows ?? []).filter((r) => !r.is_watch);
   const SIMPLE_COLS = ["unrealized", "current_value"];
 
   // One-time "you just updated" toast: compare the running version to the last one we saw.
@@ -329,9 +335,10 @@ export function App() {
               <FeedTag mode={mode} />
               <LiveStatusPill />
               <MarketHoursBadge />
+              <DemoToggle on={demoOn} onToggle={() => setDemoOn((v) => !v)} />
             </div>
             {data && (() => {
-              const kpis = visibleKpis(kpiPrefs.ids, data, cashInfo);
+              const kpis = visibleKpis(kpiPrefs.ids, shown ?? data, cashInfo);
               return (
                 <div style={S.kpiZone}>
                   {kpis.length > 0 && (
@@ -375,6 +382,7 @@ export function App() {
 
         <UpdateBanner />
         <AuthBanner />
+        {demoOn && <DemoBanner onOff={() => setDemoOn(false)} />}
 
         {/* Browser-style find bar: hidden until Ctrl/Cmd+F, floats at the top-right,
             filters the dashboard by ticker, and closes on Esc — just like a browser. */}
@@ -390,7 +398,7 @@ export function App() {
             <span style={S.findCount}>
               {symQuery
                 ? `${dashRows.length} match${dashRows.length === 1 ? "" : "es"}`
-                : `${data?.rows.length ?? 0} tickers`}
+                : `${shown?.rows.length ?? 0} tickers`}
             </span>
             <button className="btn btn-ghost btn-sm" aria-label="Close find (Esc)" title="Close (Esc)"
               onClick={() => { setSymQuery(""); setFindOpen(false); }}><IconClose /></button>
@@ -512,14 +520,14 @@ export function App() {
                   </div>
                 )}
                 {dashSub === "top" && !simple ? (
-                  <Top10 rows={data.rows} onSelect={(sym) => setSelected(sym === selected ? null : sym)} />
+                  <Top10 rows={shown?.rows ?? data.rows} onSelect={(sym) => setSelected(sym === selected ? null : sym)} />
                 ) : (
                   <>
                     {!simple && dashSub === "all" && (
                       <div style={S.filterBar}>
                         {symQuery && (
                           <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-xs)" }}>
-                            showing {dashRows.length} of {data.rows.length} · <b style={{ color: "var(--text-muted)" }}>“{symQuery}”</b>
+                            showing {dashRows.length} of {shown?.rows.length ?? 0} · <b style={{ color: "var(--text-muted)" }}>“{symQuery}”</b>
                           </span>
                         )}
                         <span style={{ marginLeft: "auto" }}>
@@ -689,6 +697,41 @@ function KPI({ label, value, raw, n, color, first, hint }: { label: string; valu
         {/* Roll the figure on a meaningful change (a fill, a deposit); snap on ticks. */}
         {raw != null ? <CountUp value={raw} format={usd} aria-hidden="true" /> : value}
       </div>
+    </div>
+  );
+}
+
+// Demo/showcase toggle: turns the header dashboard into a self-animating demo (simulated
+// ticks + fills) so the themes/motion have something to show when the market is closed.
+// Purely visual, in-memory (a reload turns it off), and it never places an order.
+function DemoToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <button
+      className="btn btn-sm"
+      onClick={onToggle}
+      aria-pressed={on}
+      title={on
+        ? "Demo mode is on — simulated activity for showcasing. Click to stop."
+        : "Demo: simulate live ticks + fills to show the app off (no orders are placed)"}
+      style={on
+        ? { background: "var(--warn)", color: "var(--on-bright)", borderColor: "var(--warn)", fontWeight: 700 }
+        : { background: "transparent", color: "var(--text-dim)", borderColor: "var(--border-strong)" }}
+    >
+      {on ? "● Demo" : "Demo"}
+    </button>
+  );
+}
+
+function DemoBanner({ onOff }: { onOff: () => void }) {
+  return (
+    <div role="status" style={{
+      display: "flex", alignItems: "center", gap: 10, margin: "10px 0", padding: "8px 14px",
+      background: "var(--warn-bg)", border: "1px solid var(--warn-border)", borderRadius: "var(--r-md)",
+      color: "var(--text-muted)", fontSize: "var(--fs-sm)",
+    }}>
+      <span style={{ fontWeight: 700, letterSpacing: "0.04em", color: "var(--warn)" }}>DEMO</span>
+      <span>Prices and fills are simulated to show the app off — nothing here is live, and no orders are placed.</span>
+      <button className="btn btn-ghost btn-sm" style={{ marginLeft: "auto" }} onClick={onOff}>Turn off</button>
     </div>
   );
 }
