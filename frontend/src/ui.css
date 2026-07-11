@@ -93,6 +93,11 @@
 }
 .gear-host:not(:hover) .gear-reveal:not([aria-expanded="true"]) { transition-delay: 0s; }
 
+/* --- KPI widgets: the hovered one lifts subtly; hovering the zone reveals its gear
+   (the zone is a .gear-host). --- */
+.kpi-box { transition: background var(--dur-fast) var(--ease-out); }
+.kpi-box:hover { background: color-mix(in srgb, var(--panel-2) 60%, transparent); }
+
 /* --- custom tooltip (Tip.tsx): an on-theme description bubble that fades in above
    its trigger after a 0.5s dwell (same delay as the gear reveal) and hides instantly.
    Pure-CSS timing, so reduced-motion turns it into an instant show/hide. --- */

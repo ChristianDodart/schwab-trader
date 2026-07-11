@@ -3,6 +3,21 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.44.0 — "Dashboard polish"
+
+- **The ETF underlying's % of 52-week high** is now a quiet faint aside on the "% of 52wk High"
+  cell (matching Price's "sold $x"), instead of a boxed pill that looked out of place.
+- **A clearer Watchlist separator** — a stronger divider band between your holdings and the
+  watchlist below.
+- **Fixed the table's hover tooltips.** The "ƒ" mark's description no longer gets clipped by the
+  table's scroll edge or double up with the column's sort tooltip. The soft fade-in bubble stays
+  on the "(i)" info descriptions where it belongs.
+- **KPI hover.** Hovering the header figures now highlights the one you're pointing at and slides
+  out the gear to customize them (kept out while you reach for it), instead of the gear always
+  sitting there.
+- **No more "—" for blank cells** — the last stray dash placeholders (e.g. a watch ticker with no
+  52-week figure) are now simply empty.
+
 ## v0.43.0 — "Columns, your way"
 
 - **The Columns manager now controls folding.** Each column has a chevron toggle — fold it behind

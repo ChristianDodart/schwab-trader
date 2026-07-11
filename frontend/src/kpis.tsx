@@ -92,8 +92,9 @@ export function visibleKpis(ids: string[], d: Dashboard, cash: KpiCash): Visible
 }
 
 // Gear button + popover of checkboxes to choose which KPI boxes show.
-export function KpiPicker({ ids, toggle, reset }: {
+export function KpiPicker({ ids, toggle, reset, revealClass }: {
   ids: string[]; toggle: (id: string) => void; reset: () => void;
+  revealClass?: string; // when set, the gear hides until its .gear-host is hovered
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -112,7 +113,7 @@ export function KpiPicker({ ids, toggle, reset }: {
 
   return (
     <div ref={wrapRef} style={S.wrap}>
-      <button ref={btnRef} className="btn btn-ghost btn-sm" style={S.gear}
+      <button ref={btnRef} className={`btn btn-ghost btn-sm${revealClass ? " " + revealClass : ""}`} style={S.gear}
         aria-label="Choose dashboard metrics" aria-expanded={open}
         title="Choose which metrics show here" onClick={() => setOpen((o) => !o)}>
         <IconSettings />
@@ -136,7 +137,8 @@ export function KpiPicker({ ids, toggle, reset }: {
 
 const S: Record<string, React.CSSProperties> = {
   wrap: { position: "relative", display: "flex", alignItems: "center", paddingLeft: 4, paddingRight: 4 },
-  gear: { fontSize: "var(--fs-sm)", padding: "0 4px", color: "var(--text-dim)" },
+  // No inline padding — the .gear-reveal collapse controls padding (inline would override it).
+  gear: { fontSize: "var(--fs-sm)", color: "var(--text-dim)" },
   pop: { position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50, minWidth: 190,
     background: "var(--pop, var(--panel))", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)",
     padding: 8, boxShadow: "var(--shadow-pop)", display: "flex", flexDirection: "column", gap: 2 },

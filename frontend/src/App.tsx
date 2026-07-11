@@ -350,7 +350,7 @@ export function App() {
             {data && (() => {
               const kpis = visibleKpis(kpiPrefs.ids, shown ?? data, cashInfo);
               return (
-                <div style={S.kpiZone}>
+                <div className="gear-host" style={S.kpiZone}>
                   {kpis.length > 0 && (
                     <div style={S.kpiCluster}>
                       {kpis.map((k, i) => (
@@ -359,9 +359,9 @@ export function App() {
                       ))}
                     </div>
                   )}
-                  {/* Gear lives OUTSIDE the cluster — the cluster clips its rounded corners
-                      with overflow:hidden, which would also clip the picker popover. */}
-                  <KpiPicker ids={kpiPrefs.ids} toggle={kpiPrefs.toggle} reset={kpiPrefs.reset} />
+                  {/* Gear lives OUTSIDE the cluster (which clips its rounded corners) and hides
+                      until you hover the KPI zone, then slides out — like the bulk-button gears. */}
+                  <KpiPicker ids={kpiPrefs.ids} toggle={kpiPrefs.toggle} reset={kpiPrefs.reset} revealClass="gear-reveal" />
                 </div>
               );
             })()}
@@ -698,7 +698,7 @@ function KPI({ label, value, raw, n, color, first, hint }: { label: string; valu
   // `color` (explicit) wins; otherwise derive from the sign of `n` (▲/▼ signed metric).
   const c = color ?? (n == null || n === 0 ? "var(--text)" : n > 0 ? "var(--pos)" : "var(--neg)");
   return (
-    <div style={{ ...S.kpi, ...(first ? { borderLeft: "none" } : null), ...(hint ? { cursor: "help" } : null) }} title={hint}>
+    <div className="kpi-box" style={{ ...S.kpi, ...(first ? { borderLeft: "none" } : null), ...(hint ? { cursor: "help" } : null) }} title={hint}>
       <div style={S.kpiLabel}>{label}</div>
       <div style={{ ...S.kpiVal, color: c }} aria-label={value}>
         {n != null && n !== 0 && <span aria-hidden="true" style={{ fontSize: "0.68em", marginRight: 3 }}>{n > 0 ? "▲" : "▼"}</span>}

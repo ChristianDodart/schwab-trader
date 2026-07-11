@@ -5,7 +5,6 @@ import { matchesRule, type SignalRule } from "./signals";
 
 import { API } from "./api";
 import { IconWarning } from "./Icon";
-import { Tip } from "./Tip";
 
 // ============================================================================
 // Customizable columns. Each view (dashboard, ticker drill-down) has its own
@@ -42,10 +41,12 @@ export type DetailCol = {
 // color). Schwab-provided figures carry no mark. One primitive shared by every table
 // header and stat card so provenance reads the same everywhere.
 export function CalcMark({ title }: { title?: string } = {}) {
+  // Native title here (not the custom Tip): these live in scrollable table headers
+  // where an absolutely-positioned bubble gets clipped and double-stacks with the
+  // header's own sort tooltip. The custom Tip is used for the (i) info descriptions.
   return (
-    <Tip text={title ?? "Calculated by the app (from your fills and/or Schwab data) — not a raw Schwab number"}>
-      <sup style={{ color: "var(--accent-quiet)", fontSize: "0.66em", fontWeight: 700, marginLeft: 2, cursor: "help" }}>ƒ</sup>
-    </Tip>
+    <sup style={{ color: "var(--accent-quiet)", fontSize: "0.66em", fontWeight: 700, marginLeft: 2, cursor: "help" }}
+      title={title ?? "Calculated by the app (from your fills and/or Schwab data) — not a raw Schwab number"}>ƒ</sup>
   );
 }
 // Renders a label followed by the ƒ mark when `computed`. Convenience for stat cards.
@@ -76,6 +77,9 @@ const num = (n: number | null | undefined) =>
   n == null ? "" : n.toLocaleString("en-US");
 // Empty values render empty (no "—" placeholder).
 const Dash = () => null;
+// Null-safe money/percent for dashboard cells: empty instead of the global "—".
+const usd0 = (n: number | null | undefined) => (n == null ? null : usd(n));
+const pct0 = (n: number | null | undefined) => (n == null ? null : pct(n));
 
 // RULE 10 from the sheet: keep every stock under 5% of the portfolio. Flag any
 // held position at/over this so over-concentration is visible at a glance.
@@ -143,23 +147,23 @@ export const DASH_COLUMN_LIST: DashCol[] = [
   // lead the default layout, so the resting table looks exactly as before.
   { id: "price", label: "Price", align: "left", prov: "schwab", render: (r) => (
       r.is_watch && r.last_held != null
-        ? <span style={{ whiteSpace: "nowrap" }}><b>{usd(r.price)}</b>
+        ? <span style={{ whiteSpace: "nowrap" }}><b>{usd0(r.price)}</b>
             <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-2xs)", marginLeft: 6 }}
               title="The price you last sold this at — watching for a re-entry below it">sold {usd(r.last_held)}</span>
           </span>
-        : <b>{usd(r.price)}</b>
+        : <b>{usd0(r.price)}</b>
     ) },
   { id: "last_pos_profit", label: "Last Pos P/L", align: "left", watchNA: true, render: (r) => <b><Colored v={usd(r.last_pos_profit)} n={r.last_pos_profit} /></b> },
   // Mean of the daily closes over the past year — "where the stock spends most of
   // its time." Compare against the pinned Price: below = historical discount
   // (lean buy), above = rich (lean sell). Dim vs. the price so it reads as a
   // reference line, not a live number.
-  { id: "avg_52wk", label: "52wk Avg", align: "right", render: (r) => <span style={{ color: "var(--text-muted)" }}>{usd(r.avg_52wk)}</span> },
+  { id: "avg_52wk", label: "52wk Avg", align: "right", render: (r) => <span style={{ color: "var(--text-muted)" }}>{usd0(r.avg_52wk)}</span> },
   // Median daily close over the past year — the middle price, unmoved by outlier
   // spikes (often the truer "typical" level for a choppy name). Same dim reference
   // treatment as the average.
-  { id: "median_52wk", label: "52wk Med", align: "right", render: (r) => <span style={{ color: "var(--text-muted)" }}>{usd(r.median_52wk)}</span> },
-  { id: "pct_of_high", label: "% of 52wk High", align: "right", render: (r) => pct(r.pct_of_high) },
+  { id: "median_52wk", label: "52wk Med", align: "right", render: (r) => <span style={{ color: "var(--text-muted)" }}>{usd0(r.median_52wk)}</span> },
+  { id: "pct_of_high", label: "% of 52wk High", align: "right", render: (r) => pct0(r.pct_of_high) },
   { id: "lilo_pct", label: "LILO %", align: "right", watchNA: true, render: (r) => <Colored v={pct(r.lilo_pct)} n={r.lilo_pct} /> },
   { id: "last_pos_cost", label: "Last Pos Cost", align: "right", watchNA: true, render: (r) => usd(r.last_pos_cost) },
   { id: "invested", label: "Invested", align: "right", watchNA: true, render: (r) => usd(r.invested) },
@@ -180,8 +184,8 @@ export const DASH_COLUMN_LIST: DashCol[] = [
   { id: "total_return", label: "Total Return", align: "right", watchNA: true, render: (r) => <Colored v={usd(r.total_return)} n={r.total_return} /> },
   { id: "trades", label: "Trades (all-time)", align: "right", watchNA: true, render: (r) => num(r.trades) },
   { id: "next_buy_price", label: "Next Buy Trigger", align: "right", watchNA: true, render: (r) => usd(r.next_buy_price) },
-  { id: "year_high", label: "52wk High", align: "right", prov: "schwab", render: (r) => usd(r.year_high) },
-  { id: "year_low", label: "52wk Low", align: "right", prov: "schwab", render: (r) => usd(r.year_low) },
+  { id: "year_high", label: "52wk High", align: "right", prov: "schwab", render: (r) => usd0(r.year_high) },
+  { id: "year_low", label: "52wk Low", align: "right", prov: "schwab", render: (r) => usd0(r.year_low) },
 ];
 export const DASH_COLUMNS: Record<string, DashCol> = Object.fromEntries(
   DASH_COLUMN_LIST.map((c) => [c.id, c]),

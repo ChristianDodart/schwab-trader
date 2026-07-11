@@ -452,14 +452,15 @@ const S: Record<string, React.CSSProperties> = {
   tickerLine: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" },
   name: { fontSize: "var(--fs-2xs)", color: "var(--text-dim)", marginTop: 2 },
   // Subtle section header between held positions and the watchlist group.
-  watchDivider: { padding: "16px 12px 5px", fontSize: "var(--fs-2xs)", textTransform: "uppercase",
-    letterSpacing: "0.07em", color: "var(--text-dim)", fontWeight: 600,
-    borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border-hairline)" },
+  // A clear section break between holdings and the watchlist below it.
+  watchDivider: { padding: "20px 12px 8px", fontSize: "var(--fs-xs)", textTransform: "uppercase",
+    letterSpacing: "0.09em", color: "var(--text-muted)", fontWeight: 700,
+    borderTop: "2px solid var(--border-strong)",
+    background: "color-mix(in srgb, var(--panel-2) 55%, transparent)" },
   childArrow: { color: "var(--text-faint)", fontSize: "var(--fs-sm)", marginRight: -2 },
-  // ETF underlying context: a compact chip (parent + its % of 52wk high) inline in the
-  // ticker cell, replacing the old full-sentence line under the row.
-  underlyingChip: { fontSize: "var(--fs-2xs)", color: "var(--text-faint)", background: "var(--panel-2)",
-    border: "1px solid var(--border)", borderRadius: "var(--r-sm)", padding: "0 6px", lineHeight: 1.6,
+  // ETF underlying context: the parent's % of 52wk high as a plain faint aside on the
+  // "% of 52wk High" cell — same quiet treatment as Price's "sold $x", not a pill.
+  underlyingChip: { fontSize: "var(--fs-2xs)", color: "var(--text-faint)", marginLeft: 6,
     whiteSpace: "nowrap", cursor: "help", fontVariantNumeric: "tabular-nums" },
   noteDot: { color: "var(--accent-quiet)", fontSize: 8, cursor: "help", lineHeight: 1 },
   rulesDot: { color: "var(--warn)", fontSize: 8, cursor: "help", lineHeight: 1 },
