@@ -147,6 +147,42 @@ async def set_pref(key: str, body: PrefBody) -> dict:
     return {"ok": True}
 
 
+# --- GLOBAL appearance (theme + font size) -------------------------------------
+# Deliberately NOT profile-scoped (unlike /api/prefs): a display choice shouldn't
+# flip when you switch profiles. And it MUST live in the DB, not localStorage — the
+# packaged app binds a fresh random port each launch, so the renderer's origin (and
+# thus its localStorage) changes every session; localStorage-only prefs reset every
+# time. This is the same reason column layouts are DB-backed.
+_APPEARANCE_THEME_KEY = "ui:appearance:theme"
+_APPEARANCE_FONTSIZE_KEY = "ui:appearance:fontsize"
+
+
+@router.get("/api/appearance")
+async def get_appearance() -> dict:
+    """The saved theme + font size (global). Null when never set — the client keeps
+    its own default (Follow system / Small)."""
+    return {
+        "theme": await accounts_svc.get_setting(_APPEARANCE_THEME_KEY) or None,
+        "fontsize": await accounts_svc.get_setting(_APPEARANCE_FONTSIZE_KEY) or None,
+    }
+
+
+class AppearanceBody(BaseModel):
+    theme: str | None = None
+    fontsize: str | None = None
+
+
+@router.post("/api/appearance")
+async def set_appearance(body: AppearanceBody) -> dict:
+    """Persist theme and/or font size. Each field is optional so the UI can save just
+    the one that changed. Values are stored verbatim; the client validates on read."""
+    if body.theme is not None:
+        await accounts_svc.set_setting(_APPEARANCE_THEME_KEY, body.theme)
+    if body.fontsize is not None:
+        await accounts_svc.set_setting(_APPEARANCE_FONTSIZE_KEY, body.fontsize)
+    return {"ok": True}
+
+
 @router.get("/api/signal-rules")
 async def get_signal_rules() -> dict:
     """User-defined extra signal rules for the selected account."""

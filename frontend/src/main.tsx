@@ -6,13 +6,16 @@ import "./ui.css";
 import { App } from "./App";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { ToastProvider } from "./Toast";
-import { applyFontSize, applyTheme, initThemeRuntime, storedChoice, storedFontSize } from "./theme";
+import { applyFontSize, applyTheme, initThemeRuntime, storedChoice, storedFontSize, syncAppearanceFromServer } from "./theme";
 
 // The <head> boot script already set data-theme + data-fontsize before first paint
 // (no FOUC). Re-assert from the stored prefs (idempotent) and keep "Follow system" live.
 applyTheme(storedChoice());
 applyFontSize(storedFontSize());
 initThemeRuntime();
+// Then reconcile with the durable DB copy — localStorage resets each launch in the
+// packaged app (new origin per port), so the server is the real source of truth.
+syncAppearanceFromServer();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

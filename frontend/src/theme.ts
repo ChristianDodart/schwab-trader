@@ -12,6 +12,8 @@
 // tokens). Keep them in sync with tokens.css.
 // ============================================================================
 
+import { API } from "./api";
+
 export type ThemeId =
   | "midnight" | "terminal" | "catppuccin" | "nord" | "gruvbox"
   | "tokyonight" | "rosepine" | "solarized-dark" | "solarized-light"
@@ -145,10 +147,46 @@ export function applyTheme(choice: ThemeChoice, opts: { animate?: boolean } = {}
   }, 130);
 }
 
-/** Persist + apply an explicit user choice (or "system"). */
+/** Persist + apply an explicit user choice (or "system"). localStorage is the instant
+ * cache; the DB (via /api/appearance) is the durable home — the packaged app's origin
+ * changes each launch, so localStorage alone would reset every session. */
 export function setThemeChoice(choice: ThemeChoice): void {
   try { localStorage.setItem(LS_KEY, choice); } catch { /* private mode */ }
   applyTheme(choice, { animate: true });
+  saveAppearance({ theme: choice });
+}
+
+function saveAppearance(body: { theme?: string; fontsize?: string }): void {
+  fetch(`${API}/appearance`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).catch(() => { /* offline — the localStorage cache still holds it for this session */ });
+}
+
+/**
+ * Reconcile with the durable server copy on boot. localStorage gives the instant
+ * (possibly stale/empty) first paint; this pulls the saved theme + font size from the
+ * DB and applies them if they differ, writing the cache and notifying the UI. Failure
+ * (offline / server not ready) silently keeps whatever the boot already applied.
+ */
+export async function syncAppearanceFromServer(): Promise<void> {
+  let d: { theme?: string | null; fontsize?: string | null };
+  try {
+    d = await (await fetch(`${API}/appearance`)).json();
+  } catch {
+    return;
+  }
+  if (d?.theme && VALID.has(d.theme) && d.theme !== storedChoice()) {
+    try { localStorage.setItem(LS_KEY, d.theme); } catch { /* private mode */ }
+    applyTheme(d.theme as ThemeChoice, { animate: false });
+    try { window.dispatchEvent(new CustomEvent("themechange", { detail: { choice: d.theme } })); } catch { /* no window */ }
+  }
+  if ((d?.fontsize === "small" || d?.fontsize === "medium" || d?.fontsize === "large") && d.fontsize !== storedFontSize()) {
+    try { localStorage.setItem(FS_KEY, d.fontsize); } catch { /* private mode */ }
+    applyFontSize(d.fontsize);
+    try { window.dispatchEvent(new CustomEvent("fontsizechange", { detail: { size: d.fontsize } })); } catch { /* no window */ }
+  }
 }
 
 // ============================================================================
@@ -174,6 +212,7 @@ export function applyFontSize(size: FontSize): void {
 export function setFontSize(size: FontSize): void {
   try { localStorage.setItem(FS_KEY, size); } catch { /* private mode */ }
   applyFontSize(size);
+  saveAppearance({ fontsize: size });
   try { window.dispatchEvent(new CustomEvent("fontsizechange", { detail: { size } })); } catch { /* no window */ }
 }
 

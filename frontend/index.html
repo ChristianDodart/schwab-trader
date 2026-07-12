@@ -23,6 +23,26 @@
         } catch (e) {
           document.documentElement.setAttribute("data-theme", "midnight");
         }
+        // The durable copy lives in the DB (the packaged app's port — and thus the
+        // localStorage origin — changes each launch, so localStorage alone resets).
+        // Fetch it here, before the app bundle loads, to apply the saved look ASAP and
+        // avoid a flash of the default theme. Same-origin in the packaged app; in dev
+        // this 404s on the Vite server and is ignored (dev localStorage persists).
+        try {
+          fetch("/api/appearance").then(function (r) { return r.json(); }).then(function (d) {
+            if (d && d.theme && ids.indexOf(d.theme) !== -1) {
+              document.documentElement.setAttribute("data-theme", d.theme);
+              try { localStorage.setItem("ui.theme.v1", d.theme); } catch (e) {}
+            }
+            if (d && (d.fontsize === "medium" || d.fontsize === "large")) {
+              document.documentElement.setAttribute("data-fontsize", d.fontsize);
+              try { localStorage.setItem("ui.fontsize.v1", d.fontsize); } catch (e) {}
+            } else if (d && d.fontsize === "small") {
+              document.documentElement.removeAttribute("data-fontsize");
+              try { localStorage.setItem("ui.fontsize.v1", "small"); } catch (e) {}
+            }
+          }).catch(function () {});
+        } catch (e) {}
       })();
     </script>
   </head>

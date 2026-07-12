@@ -3,6 +3,16 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.54.0 — "Your theme sticks"
+
+- **Fixed: the theme and font size now persist across restarts.** They were only saved in the
+  window's local storage, which the app couldn't hold onto between launches (each start uses a fresh
+  internal port, which resets that storage) — so every reopen fell back to the default look. Appearance
+  is now saved in the database, the same durable place your column layouts already live, and is restored
+  the instant the app opens.
+- It's a single global preference (not per-account), so your chosen look holds no matter which profile
+  or account you're viewing.
+
 ## v0.53.0 — "Spring cleaning"
 
 - **Internal code-quality release** — no feature or behavior changes. Nine copy-pasted number
