@@ -548,11 +548,12 @@ async def suggest_buy(symbol: str, account_hash: str) -> dict:
     }
     if raw_qty < 1:  # one share already exceeds the position budget — let the human size it
         out["note"] = f"one share (~${trigger:.0f}) exceeds the ${dollars:.0f} position budget — set quantity manually"
-    # Advisory only: surface available buying power so the ticket can flag an order
-    # that exceeds it. NEVER a hard block — margin/settlement rules are the broker's job.
+    # Advisory only: what you can actually deploy now (tradable_funds — settled/non-
+    # marginable), so the ticket flags an order that exceeds the REAL limit rather than
+    # the looser Reg-T buying power. NEVER a hard block — the broker enforces margin.
     try:
         ms = await accounts_svc.margin_summary(account_hash)
-        bp = ms.get("buying_power") if not ms.get("blocked") else None
+        bp = None if ms.get("blocked") else (ms.get("tradable_funds") or ms.get("buying_power"))
     except Exception:
         bp = None
     out["buying_power"] = bp

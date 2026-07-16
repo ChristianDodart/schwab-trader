@@ -358,7 +358,7 @@ export function OrderTicket({
           {/* Advisory only — the broker enforces margin/settlement. Never blocks placing. */}
           {isBuy && suggestion.buying_power != null && est != null && est > suggestion.buying_power && (
             <p style={S.warnNote}>
-              <IconWarning /> Exceeds available buying power ({usd(suggestion.buying_power)}) — advisory only; the broker
+              <IconWarning /> Exceeds what you can trade with ({usd(suggestion.buying_power)}) — advisory only; the broker
               enforces margin.
             </p>
           )}

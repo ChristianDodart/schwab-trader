@@ -9,7 +9,7 @@ import { IconSettings } from "./Icon";
 // cluster plus a dollar day-change like Schwab's.
 
 export type KpiCash =
-  | { cash: number | null; buying_power: number | null; margin_buying_power: number | null }
+  | { cash: number | null; buying_power: number | null; margin_buying_power: number | null; tradable_funds: number | null }
   | null;
 
 type Tone = "plain" | "signed" | "positive";
@@ -43,8 +43,16 @@ export const KPI_CATALOG: KpiDef[] = [
   { id: "cash", label: "Cash", tone: "plain",
     hint: "Settled cash in the account.",
     num: (_d, cash) => cash?.cash },
-  { id: "buying_power", label: "Buying power", tone: "plain",
-    hint: "Cash plus available margin — what you can deploy right now. Fluctuates intraday.",
+  { id: "buying_power", label: "Available to trade", tone: "plain",
+    hint: "What you can actually deploy on an order right now — settled cash plus borrowing "
+      + "against fully-paid stock (Schwab's 'Settled Funds' / 'Funds Available to Withdraw'). "
+      + "This is the real limit; orders above it get rejected, so it's usually smaller than "
+      + "the looser Reg-T buying power.",
+    num: (_d, cash) => cash?.tradable_funds ?? cash?.buying_power },
+  { id: "reg_t_buying_power", label: "Reg-T buying power", tone: "plain",
+    hint: "The looser margin buying power (assumes everything is marginable at the 25% "
+      + "maintenance floor). Bigger than 'Available to trade' — but sizing an order to this "
+      + "figure often gets rejected, which is why the app plans against 'Available to trade'.",
     num: (_d, cash) => cash?.buying_power },
 ];
 

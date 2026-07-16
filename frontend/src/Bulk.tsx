@@ -288,12 +288,12 @@ export function BulkReviewModal({
                 ? <>Total proceeds <b>{usd(totalProceeds)}</b> · profit <b style={{ color: totalProfit >= 0 ? "var(--pos)" : "var(--neg)" }}>{totalProfit >= 0 ? "+" : ""}{usd(totalProfit)}</b></>
                 : isExit
                 ? <>Total proceeds if filled <b>{usd(totalProceeds)}</b> · <b>{rows.length}</b> position{rows.length !== 1 ? "s" : ""}</>
-                : <>Total cost <b>{usd(totalCost)}</b>{buyingPower != null && <> · buying power <b>{usd(buyingPower)}</b></>}</>}
+                : <>Total cost <b>{usd(totalCost)}</b>{buyingPower != null && <> · available to trade <b>{usd(buyingPower)}</b></>}</>}
             </div>
             {/* Advisory only — never blocks; the broker enforces margin/settlement. */}
             {!isSell && buyingPower != null && totalCost > buyingPower && (
               <p style={S.warnNote}>
-                <IconWarning /> Selected total exceeds available buying power ({usd(buyingPower)}) — advisory only; the
+                <IconWarning /> Selected total exceeds what you can trade with ({usd(buyingPower)}) — advisory only; the
                 broker enforces margin.
               </p>
             )}

@@ -65,8 +65,14 @@ export type MarginSummary = {
   long_market_value?: number | null;
   cash?: number | null;
   debt?: number | null;               // borrowed against positions ("Debt on Owned")
-  buying_power?: number | null;
+  buying_power?: number | null;       // Reg-T buying power (the loose, marginable figure)
   margin_buying_power?: number | null;
+  tradable_funds?: number | null;     // what you can actually deploy now (settled/non-marginable)
+  available_funds?: number | null;
+  available_funds_non_marginable?: number | null;
+  buying_power_non_marginable?: number | null;
+  day_trading_buying_power?: number | null;
+  sma?: number | null;
   maintenance_requirement?: number | null;
   maint_cushion?: number | null;      // equity above the maintenance floor
   maint_cushion_pct?: number | null;
@@ -81,7 +87,7 @@ export type CashFlowRow = {
 export type LedgerNow = {
   source: "live" | "snapshot" | "unavailable";
   account_value: number | null; cash: number | null; buying_power: number | null;
-  margin_buying_power: number | null; long_market_value: number | null;
+  margin_buying_power: number | null; tradable_funds?: number | null; long_market_value: number | null;
   invested_cost: number; invested_market: number; unrealized_pl: number; open_lots: number;
   as_of_snapshot?: string | null; note?: string | null;
 };

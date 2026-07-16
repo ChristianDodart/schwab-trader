@@ -208,9 +208,9 @@ export function LedgerHistoric() {
           hint="Market value of open lots (cost basis + unrealized P/L). Cost basis for shares older than the fill window is Schwab's average, not the exact entry." />
         <Card label="Cash" value={usd(now.cash)} schwab
           hint="Schwab cashBalance — settled cash. This is the conservative 'free to invest' figure (no margin)." />
-        <Card label="Buying power" value={usd(now.buying_power)} schwab
-          sub={now.buying_power == null ? undefined : now.margin_buying_power != null ? `margin ${usd(now.margin_buying_power)}` : "incl. available margin"}
-          hint="Schwab buyingPower — cash plus available margin. Fluctuates intraday with prices and Reg-T; a live snapshot, not a fixed limit." />
+        <Card label="Available to trade" value={usd(now.tradable_funds ?? now.buying_power)} schwab
+          sub={now.buying_power == null ? undefined : `Reg-T buying power ${usd(now.buying_power)}`}
+          hint="What you can actually deploy on an order right now — settled cash plus borrowing against fully-paid stock (Schwab's 'Settled Funds' / 'Funds Available to Withdraw'). The Reg-T buying power below is larger but sizing an order to it often gets rejected, so the app plans against this figure." />
       </div>
       {now.source !== "live" && (
         <p style={S.warn}>Live balances unavailable{now.note ? ` (${now.note})` : ""} — showing the last saved snapshot. Reconnect under Settings → Schwab connection.</p>
@@ -647,8 +647,10 @@ function MarginPanel({ m }: { m: MarginSummary }) {
         </div>
       )}
       <Row k="Long market value" v={usd(m.long_market_value)} sub="what's in the market right now" />
-      <Row k="Buying power" v={usd(m.buying_power)}
-        sub={m.margin_buying_power != null ? `margin ${usd(m.margin_buying_power)}` : "room left to deploy"} />
+      <Row k="Available to trade" v={usd(m.tradable_funds ?? m.buying_power)}
+        sub="settled cash + borrowing — what an order can actually use" />
+      <Row k="Reg-T buying power" v={usd(m.buying_power)}
+        sub={m.margin_buying_power != null ? `margin ${usd(m.margin_buying_power)}` : "looser margin figure (often rejects if used in full)"} />
       {m.is_margin && (
         <>
           <Row k="Equity (your money)" v={usd(m.equity)} />

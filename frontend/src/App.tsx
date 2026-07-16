@@ -66,7 +66,7 @@ export function App() {
   };
   const symInputRef = useRef<HTMLInputElement>(null);
   const gPending = useRef(false); // "g" prefix for vim-style tab jumps (g then d/s/l/o/r)
-  const [cashInfo, setCashInfo] = useState<{ cash: number | null; buying_power: number | null; margin_buying_power: number | null } | null>(null);
+  const [cashInfo, setCashInfo] = useState<{ cash: number | null; buying_power: number | null; margin_buying_power: number | null; tradable_funds: number | null } | null>(null);
   const [signalRules, setSignalRules] = useState<SignalRule[]>([]);
   const [acctKey, setAcctKey] = useState("");
   const [addSym, setAddSym] = useState("");
@@ -151,7 +151,7 @@ export function App() {
     let alive = true;
     const load = () =>
       fetch(`${API}/account/margin`).then((r) => r.json())
-        .then((j) => { if (alive) setCashInfo(j && !j.blocked ? { cash: j.cash ?? null, buying_power: j.buying_power ?? null, margin_buying_power: j.margin_buying_power ?? null } : null); })
+        .then((j) => { if (alive) setCashInfo(j && !j.blocked ? { cash: j.cash ?? null, buying_power: j.buying_power ?? null, margin_buying_power: j.margin_buying_power ?? null, tradable_funds: j.tradable_funds ?? null } : null); })
         .catch(() => {});
     load();
     const t = setInterval(load, 30_000);

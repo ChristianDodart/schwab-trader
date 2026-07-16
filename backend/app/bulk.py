@@ -177,15 +177,17 @@ async def buy_plan(account_hash: str) -> dict:
         })
     # qualifying dips first (deepest discount first), then everything else by symbol
     cands.sort(key=lambda c: (not c["qualifies"], c["symbol"]))
-    # Advisory: buying power so the review modal can flag when the SELECTED total
-    # exceeds it. Informational — never blocks (margin rules are the broker's job).
+    # Advisory: what you can actually deploy now, so the review modal can flag a SELECTED
+    # total that exceeds it. Uses tradable_funds (settled/non-marginable) — the real
+    # constraint — not Reg-T buying power, which overstates it and gets orders rejected.
+    # Informational only; never blocks (margin rules are the broker's job).
     try:
         from . import accounts as accounts_svc
         ms = await accounts_svc.margin_summary(account_hash)
-        buying_power = ms.get("buying_power") if not ms.get("blocked") else None
+        tradable = None if ms.get("blocked") else (ms.get("tradable_funds") or ms.get("buying_power"))
     except Exception:
-        buying_power = None
-    return {"ok": True, "mode": hub.mode, "buying_power": buying_power,
+        tradable = None
+    return {"ok": True, "mode": hub.mode, "buying_power": tradable,
             "count": sum(1 for c in cands if c["qualifies"]), "candidates": cands}
 
 

@@ -3,6 +3,19 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.55.0 — "Buying power you can actually use"
+
+- **The app now plans against what you can really trade with, not the optimistic margin number.**
+  It was reading Schwab's Reg-T "buying power" (the big number under Funds Available → To Trade),
+  which assumes everything is marginable — so orders sized to it got rejected. It now uses the
+  conservative "settled funds + borrowing" figure (what Schwab shows as "Settled Funds" and "Funds
+  Available to Withdraw"), which is the amount orders actually clear against.
+- **New "Available to trade" figure** on the dashboard KPI, the Ledger, and the buy-review / order
+  tickets — with the looser Reg-T buying power shown alongside so you can see both.
+- **Settings → Diagnostics now lists the live balance fields** (Available to trade, non-marginable
+  availability, Reg-T buying power, day-trading BP, cash, SMA) so the numbers can be matched to your
+  Schwab balances page at a glance.
+
 ## v0.54.0 — "Your theme sticks"
 
 - **Fixed: the theme and font size now persist across restarts.** They were only saved in the

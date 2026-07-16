@@ -104,7 +104,72 @@ export function Diagnostics() {
         <button className="btn btn-secondary btn-sm" onClick={copy}>Copy diagnostics</button>
         <button className="btn btn-secondary btn-sm" onClick={copyBundle} title="Diagnostics plus where to find the log to attach">Copy support bundle</button>
       </div>
+      <BalanceFields />
       <RecentErrors />
+    </div>
+  );
+}
+
+// ---- Live balance fields (v0.55): the raw figures behind "Available to trade", so the
+// mapping to Schwab's account page can be confirmed at a glance. "Available to trade"
+// (tradable_funds) is what the app plans against; if it doesn't match Schwab's "Settled
+// Funds" / "Funds Available to Withdraw", the individual fields here show why. ----
+function BalanceFields() {
+  const [m, setM] = useState<Record<string, number | null> | null>(null);
+  const [blocked, setBlocked] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const load = () => {
+    setBusy(true);
+    fetch(`${API}/account/margin`)
+      .then((r) => r.json())
+      .then((j) => { if (j?.blocked) { setBlocked(true); setM(null); } else { setBlocked(false); setM(j); } })
+      .catch(() => setBlocked(true))
+      .finally(() => setBusy(false));
+  };
+  useEffect(() => { load(); }, []);
+
+  const money = (n: number | null | undefined) =>
+    n == null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+  // Ordered most-conservative → loosest, so the number that matches Schwab's usable
+  // figure is easy to spot. "Available to trade" is what the app actually uses.
+  const fields: [string, keyof NonNullable<typeof m>, boolean][] = [
+    ["Available to trade (used by the app)", "tradable_funds", true],
+    ["Available funds — non-marginable", "available_funds_non_marginable", false],
+    ["Buying power — non-marginable", "buying_power_non_marginable", false],
+    ["Available funds", "available_funds", false],
+    ["Reg-T buying power", "buying_power", false],
+    ["Day-trading buying power", "day_trading_buying_power", false],
+    ["Cash", "cash", false],
+    ["SMA", "sma", false],
+  ];
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={RS.head}>
+        <span style={RS.title}>Balances (live from Schwab)</span>
+        <button className="btn btn-secondary btn-sm" disabled={busy} onClick={load}>{busy ? "…" : "Refresh"}</button>
+      </div>
+      {blocked ? (
+        <p style={SS.credStatus}>Not connected — can't read live balances.</p>
+      ) : !m ? (
+        <p style={SS.credStatus}>Loading…</p>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "3px 14px", fontSize: "var(--fs-sm)" }}>
+          {fields.map(([label, key, strong]) => (
+            <div key={String(key)} style={{ display: "contents" }}>
+              <span style={{ color: strong ? "var(--text)" : "var(--text-muted)", fontWeight: strong ? 600 : 400 }}>{label}</span>
+              <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: strong ? 700 : 400,
+                color: strong ? "var(--accent-quiet)" : "var(--text)" }}>{money(m[key])}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <p style={RS.fine}>
+        "Available to trade" is what buy suggestions and the order ticket size against — it should match
+        Schwab's "Settled Funds" / "Funds Available to Withdraw". If a different row matches instead, tell
+        us which and we'll point the app at it.
+      </p>
     </div>
   );
 }

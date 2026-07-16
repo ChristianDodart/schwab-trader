@@ -217,6 +217,15 @@ async def account_balances(account_hash: str) -> dict:
         "margin_buying_power": bal.get("marginBuyingPower"),
         "long_market_value": bal.get("longMarketValue"),
         "available_funds": bal.get("availableFunds"),
+        # Conservative "what can I actually deploy now" candidates. The NON-marginable
+        # figures are settled-cash + fully-paid-securities borrowing — Schwab's account
+        # page shows these as "Settled Funds" / "Funds Available to Withdraw", and they
+        # are the real trading constraint. Reg-T `buyingPower` overstates it (assumes
+        # everything is marginable at 25% maint), so orders sized to it get rejected.
+        "available_funds_non_marginable": bal.get("availableFundsNonMarginableTrade"),
+        "buying_power_non_marginable": bal.get("buyingPowerNonMarginableTrade"),
+        "day_trading_buying_power": bal.get("dayTradingBuyingPower"),
+        "sma": bal.get("sma"),
         # Margin-account fields (present only when type == MARGIN). marginBalance is the
         # borrowed debit (negative when carrying a loan); equity is the trader's own money.
         "margin_balance": bal.get("marginBalance"),
@@ -243,6 +252,24 @@ async def deployed_pct(account_hash: str) -> float | None:
     val = None if m.get("blocked") else m.get("deployed_pct")
     _deploy_cache[account_hash] = (now, val)
     return val
+
+
+def select_tradable_funds(b: dict) -> float | None:
+    """The amount actually deployable RIGHT NOW, from Schwab's balance fields — pure so
+    it's unit-tested. Prefers the conservative non-marginable-trade availability (settled
+    cash + borrowing against fully-paid stock — what Schwab shows as "Settled Funds" /
+    "Funds Available to Withdraw"), then looser figures, finally Reg-T buying power. This
+    is the real constraint: sizing to Reg-T `buyingPower` on a partly-settled or
+    concentrated account gets the order rejected even though buying power "looks" larger.
+    Returns None only when no figure is available (caller then omits the flag)."""
+    def _n(x):
+        return float(x) if isinstance(x, (int, float)) else None
+    for key in ("available_funds_non_marginable", "buying_power_non_marginable",
+                "available_funds", "buying_power"):
+        v = _n(b.get(key))
+        if v is not None:
+            return round(v, 2)
+    return None
 
 
 async def margin_summary(account_hash: str) -> dict:
@@ -288,8 +315,17 @@ async def margin_summary(account_hash: str) -> dict:
         "long_market_value": lmv,
         "cash": _n(b.get("cash")),
         "debt": debt,                       # "Debt on Owned" — borrowed against positions
-        "buying_power": bp,
+        "buying_power": bp,                 # Reg-T buying power (the loose, marginable figure)
         "margin_buying_power": margin_bp,
+        # The conservative "what I can actually trade with now" figure — see
+        # select_tradable_funds. This is what the app's advisory affordability checks and
+        # the "Available to trade" display should use, NOT buying_power.
+        "tradable_funds": select_tradable_funds(b),
+        "available_funds": _n(b.get("available_funds")),
+        "available_funds_non_marginable": _n(b.get("available_funds_non_marginable")),
+        "buying_power_non_marginable": _n(b.get("buying_power_non_marginable")),
+        "day_trading_buying_power": _n(b.get("day_trading_buying_power")),
+        "sma": _n(b.get("sma")),
         "maintenance_requirement": maint,
         "maint_cushion": maint_cushion,     # equity above the maintenance floor
         "maint_cushion_pct": maint_cushion_pct,

@@ -588,6 +588,7 @@ async def build_historic(account_hash: str, from_date: date | None = None,
             "cash": bals.get("cash"),
             "buying_power": bals.get("buying_power"),
             "margin_buying_power": bals.get("margin_buying_power"),
+            "tradable_funds": accounts_svc.select_tradable_funds(bals),
             "long_market_value": bals.get("long_market_value"),
         })
     else:
@@ -596,7 +597,7 @@ async def build_historic(account_hash: str, from_date: date | None = None,
             "source": "snapshot" if not snap.get("balance_blocked") else "unavailable",
             "account_value": None if snap.get("balance_blocked") else snap.get("balance"),
             "cash": None, "buying_power": None, "margin_buying_power": None,
-            "long_market_value": None,
+            "tradable_funds": None, "long_market_value": None,
             "as_of_snapshot": None if snap.get("balance_blocked") else snap.get("day"),
             "note": bals.get("error"),
         })
