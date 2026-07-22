@@ -6,6 +6,7 @@ import "./ui.css";
 import { App } from "./App";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { ToastProvider } from "./Toast";
+import { GlossaryProvider } from "./GlossaryUI";
 import { applyFontSize, applyTheme, initThemeRuntime, storedChoice, storedFontSize, syncAppearanceFromServer } from "./theme";
 
 // The <head> boot script already set data-theme + data-fontsize before first paint
@@ -21,7 +22,9 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
       <ToastProvider>
-        <App />
+        <GlossaryProvider>
+          <App />
+        </GlossaryProvider>
       </ToastProvider>
     </ErrorBoundary>
   </StrictMode>,

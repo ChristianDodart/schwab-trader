@@ -17,6 +17,7 @@ type KpiDef = {
   id: string;
   label: string;
   hint: string;
+  term?: string;  // glossary id — the label becomes a hoverable <Term> when set
   tone: Tone;
   // Raw value, or null/undefined when unavailable → the box is hidden even if selected
   // (e.g. day change before every holding is priced, or cash before the summary loads).
@@ -25,31 +26,31 @@ type KpiDef = {
 
 // Canonical display order — selection is a membership set, boxes always render in this order.
 export const KPI_CATALOG: KpiDef[] = [
-  { id: "invested", label: "Invested", tone: "plain",
+  { id: "invested", term: "invested", label: "Invested", tone: "plain",
     hint: "Cost basis of every open position (what you paid, excludes cash).",
     num: (d) => d.total_invested },
-  { id: "day_change", label: "Day change", tone: "signed",
+  { id: "day_change", term: "day_change", label: "Day change", tone: "signed",
     hint: "Change in total account value since yesterday's close — matches Schwab's 'Total day change'. Includes trading and any deposits/withdrawals (so moving cash in shows here too).",
     num: (d) => d.total_day_change },
-  { id: "harvestable", label: "Harvestable", tone: "positive",
+  { id: "harvestable", term: "harvestable", label: "Harvestable", tone: "positive",
     hint: "Profit you could lock in right now by selling every profitable last position — equals what the 'Sell profitable' bulk action would realize.",
     num: (d) => d.harvestable },
-  { id: "market_value", label: "Market value", tone: "plain",
+  { id: "market_value", term: "market_value", label: "Market value", tone: "plain",
     hint: "Current market value of every open position.",
     num: (d) => d.total_value },
-  { id: "unrealized", label: "Unrealized P/L", tone: "signed",
+  { id: "unrealized", term: "unrealized_pl", label: "Unrealized P/L", tone: "signed",
     hint: "Open positions' market value minus cost basis — the paper gain or loss across everything you hold.",
     num: (d) => d.total_unrealized },
-  { id: "cash", label: "Cash", tone: "plain",
+  { id: "cash", term: "cash", label: "Cash", tone: "plain",
     hint: "Settled cash in the account.",
     num: (_d, cash) => cash?.cash },
-  { id: "buying_power", label: "Available to trade", tone: "plain",
+  { id: "buying_power", term: "available_to_trade", label: "Available to trade", tone: "plain",
     hint: "What you can actually deploy on an order right now — settled cash plus borrowing "
       + "against fully-paid stock (Schwab's 'Settled Funds' / 'Funds Available to Withdraw'). "
       + "This is the real limit; orders above it get rejected, so it's usually smaller than "
       + "the looser Reg-T buying power.",
     num: (_d, cash) => cash?.tradable_funds ?? cash?.buying_power },
-  { id: "reg_t_buying_power", label: "Reg-T buying power", tone: "plain",
+  { id: "reg_t_buying_power", term: "reg_t_buying_power", label: "Reg-T buying power", tone: "plain",
     hint: "The looser margin buying power (assumes everything is marginable at the 25% "
       + "maintenance floor). Bigger than 'Available to trade' — but sizing an order to this "
       + "figure often gets rejected, which is why the app plans against 'Available to trade'.",
@@ -59,7 +60,7 @@ export const KPI_CATALOG: KpiDef[] = [
 export const DEFAULT_KPIS = ["invested", "day_change", "harvestable", "cash"];
 const KEY = "dash_kpis_v1";
 
-export type VisibleKpi = { id: string; label: string; hint: string; value: string; raw: number; n?: number; color?: string };
+export type VisibleKpi = { id: string; label: string; hint: string; term?: string; value: string; raw: number; n?: number; color?: string };
 
 export function useKpiPrefs() {
   const [ids, setIds] = useState<string[]>(() => {
@@ -91,7 +92,7 @@ export function visibleKpis(ids: string[], d: Dashboard, cash: KpiCash): Visible
     const n = k.num(d, cash);
     if (n == null) continue;
     out.push({
-      id: k.id, label: k.label, hint: k.hint, value: usd(n), raw: n,
+      id: k.id, label: k.label, hint: k.hint, term: k.term, value: usd(n), raw: n,
       n: k.tone === "signed" ? n : undefined,
       color: k.tone === "positive" && n > 0 ? "var(--pos)" : undefined,
     });

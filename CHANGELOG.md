@@ -3,6 +3,18 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.58.0 — "Hover-to-understand glossary"
+
+- **A living glossary.** Key terms now show up in a subtle tint; hover (or focus) one and a definition
+  box explains what it means, how it works, how it's calculated, and whether the number comes straight
+  from Schwab or the app computes it. Definitions link to *related* terms you can click to drill into —
+  with a "← back" breadcrumb — like a little in-app wiki.
+- **Hold Alt to light up every term on screen at once**, so you can see everything that's explained.
+- One canonical definition per concept (edited in a single place), so a term means the same thing
+  everywhere it appears. This starts on the dashboard's header metrics and grows from here; it also
+  begins replacing the old "ƒ" calculated-number mark — provenance now lives in each definition's
+  "Source" line.
+
 ## v0.57.0 — "Deposits & fees, all the way back"
 
 - **The first time the Ledger syncs, the app now pulls your full deposit / dividend / fee /

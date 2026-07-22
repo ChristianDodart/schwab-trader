@@ -12,6 +12,7 @@ import { ColumnManager } from "./ColumnManager";
 import { ConfirmDialog } from "./Modal";
 import { DASH_COLUMNS, DASH_COLUMN_LIST, DEFAULT_DASH_COLS, DEFAULT_DASH_FOLDED, SIMPLE_DASH_COLS, useColumnPrefs, useFoldPrefs } from "./columns";
 import { KpiPicker, useKpiPrefs, visibleKpis } from "./kpis";
+import { Term } from "./GlossaryUI";
 import { CountUp } from "./anim";
 import { useDemoFeed } from "./demo";
 import { DashboardTable } from "./DashboardTable";
@@ -356,7 +357,7 @@ export function App() {
                     <div style={S.kpiCluster}>
                       {kpis.map((k, i) => (
                         <KPI key={k.id} label={k.label} value={k.value} raw={k.raw} n={k.n} color={k.color}
-                          first={i === 0} hint={k.hint} />
+                          first={i === 0} hint={k.hint} term={k.term} />
                       ))}
                     </div>
                   )}
@@ -695,12 +696,14 @@ function FeedTag({ mode }: { mode?: string }) {
   return null;
 }
 
-function KPI({ label, value, raw, n, color, first, hint }: { label: string; value: string; raw?: number; n?: number | null; color?: string; first?: boolean; hint?: string }) {
+function KPI({ label, value, raw, n, color, first, hint, term }: { label: string; value: string; raw?: number; n?: number | null; color?: string; first?: boolean; hint?: string; term?: string }) {
   // `color` (explicit) wins; otherwise derive from the sign of `n` (▲/▼ signed metric).
   const c = color ?? (n == null || n === 0 ? "var(--text)" : n > 0 ? "var(--pos)" : "var(--neg)");
+  // When the metric has a glossary term, the label itself is the hoverable definition —
+  // no native `title` (the Term supplies the explanation). Otherwise keep the tooltip.
   return (
-    <div className="kpi-box" style={{ ...S.kpi, ...(first ? { borderLeft: "none" } : null), ...(hint ? { cursor: "help" } : null) }} title={hint}>
-      <div style={S.kpiLabel}>{label}</div>
+    <div className="kpi-box" style={{ ...S.kpi, ...(first ? { borderLeft: "none" } : null), ...(!term && hint ? { cursor: "help" } : null) }} title={term ? undefined : hint}>
+      <div style={S.kpiLabel}>{term ? <Term id={term}>{label}</Term> : label}</div>
       <div style={{ ...S.kpiVal, color: c }} aria-label={value}>
         {n != null && n !== 0 && <span aria-hidden="true" style={{ fontSize: "0.68em", marginRight: 3 }}>{n > 0 ? "▲" : "▼"}</span>}
         {/* Roll the figure on a meaningful change (a fill, a deposit); snap on ticks. */}
