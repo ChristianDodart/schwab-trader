@@ -338,14 +338,25 @@ async def fetch_transactions_raw(account_hash: str, days: int = 60) -> list | No
     """The raw trailing-window transactions payload — ONE Schwab call that feeds every
     consumer (transfers, dividends, trade fees, margin interest; see ledger.sync_activity).
     Returns the raw list or None on error/no-token (caller treats None as 'unknown' —
-    never wipe a log on it). HARD LIMIT: Schwab serves only the trailing ~60 days."""
+    never wipe a log on it).
+
+    NOTE: the endpoint actually serves history back to the account's thinkorswim/API
+    enablement (max 1 YEAR per request), NOT just 60 days — 60 is the cheap INCREMENTAL
+    window used by the hourly sync. The one-time full-history pull pages 1-year windows
+    via fetch_transactions_window (see ledger.backfill_activity)."""
+    end = datetime.now(timezone.utc)
+    return await fetch_transactions_window(
+        account_hash, end - timedelta(days=min(max(days, 1), 365)), end)
+
+
+async def fetch_transactions_window(account_hash: str, start: datetime, end: datetime) -> list | None:
+    """Raw transactions for an EXPLICIT window (caller must keep it <= 1 year — Schwab
+    400s a wider range). Returns the raw list, or None on error/no-token."""
     client = get_client()
     if client is None or not account_hash:
         return None
 
     def fetch():
-        end = datetime.now(timezone.utc)
-        start = end - timedelta(days=min(max(days, 1), 60))
         r = client.get_transactions(account_hash, start_date=start, end_date=end)
         if r.status_code != 200:
             return None

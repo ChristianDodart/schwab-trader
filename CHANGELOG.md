@@ -3,6 +3,16 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.57.0 — "Deposits & fees, all the way back"
+
+- **The first time the Ledger syncs, the app now pulls your full deposit / dividend / fee /
+  margin-interest history from Schwab** — paged year by year back to when the account was
+  API-enabled — instead of only the trailing 60 days. Older transfers and fees that used to require
+  a CSV import are recovered automatically, so the cash cross-check closes without one (for history
+  within the API's reach; anything predating the account's API-enablement still needs a CSV).
+- After that one-time backfill, syncs stay quick (the usual recent-window refresh). It's idempotent
+  and self-healing — nothing is double-counted, and a hiccup mid-backfill just retries next time.
+
 ## v0.56.0 — "Trades straight from the source of truth"
 
 - **Fills now come from Schwab's transactions record instead of the orders list.** Schwab confirmed

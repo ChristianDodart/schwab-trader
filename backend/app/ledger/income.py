@@ -359,23 +359,94 @@ async def _dedup_transfers_vs_schwab(account_hash: str) -> int:
 
 # ===================== consolidated activity sync =====================
 
-_ACTIVITY_SYNC_KEY = "activity_sync_at:"   # + account_hash → ISO time of last good sync
-_ACTIVITY_SYNC_TTL_S = 3600                # opportunistic syncs at most hourly
+_ACTIVITY_SYNC_KEY = "activity_sync_at:"     # + account_hash → ISO time of last good sync
+_ACTIVITY_SYNC_TTL_S = 3600                  # opportunistic syncs at most hourly
+_BACKFILL_KEY = "activity_backfilled_at:"    # + account_hash → set once full history is pulled
+_BACKFILL_MAX_YEARS = 6                       # upper bound; paging stops early at the account ceiling
 
 
-async def sync_activity(account_hash: str, force: bool = False) -> dict:
-    """ONE Schwab transactions fetch feeding every consumer: transfers → deposit log,
-    dividends → income log, trade fees + margin interest → other-cash log. This is what
-    keeps the cash identity pinned CONTINUOUSLY instead of only at CSV-import time —
-    fees and interest used to arrive solely via CSV, so the identity drifted between
-    imports by exactly the fees of every trade since.
+async def _apply_activity_window(account_hash: str, raw: list, lo_iso: str, hi_iso: str) -> dict:
+    """Feed ONE raw-transactions window to every consumer: transfers → deposit log,
+    dividends → income log, trade fees + margin interest → other-cash. Fees/interest are
+    REPLACE-by-coverage across [lo_iso, hi_iso] (widened to any day the parse produced),
+    so the feed stays authoritative for its window without duplicating CSV rows. The
+    day-level dedup/heal in each consumer makes this idempotent across overlapping calls."""
+    from .. import accounts as accounts_svc
+    from .. import dividends as dividends_mod
 
-    Throttled (hourly) unless ``force`` — the Ledger calls it opportunistically on
-    load, the manual refresh buttons force it. Failure leaves every log untouched."""
+    transfers = await refresh_cashflows_from_schwab(
+        account_hash, transfers=accounts_svc.parse_transfers(raw))
+    divs = await refresh_dividends(account_hash, rows=dividends_mod.parse_dividends(raw))
+
+    fresh = activity_mod.parse_trade_fees(raw) + activity_mod.parse_margin_interest(raw)
+    lo, hi = lo_iso, hi_iso
+    for r in fresh:
+        lo, hi = min(lo, r["day"]), max(hi, r["day"])
+    existing = (await get_other_cash(account_hash))["rows"]
+    n_before = len(existing)
+    merged, net_new = activity_mod.merge_window_rows(existing, fresh, lo, hi)
+    if net_new or len(merged) != n_before:
+        await _save_other_cash(account_hash, merged)
+    return {"transfers_added": transfers.get("added", 0),
+            "dividends_added": divs.get("added", 0), "dividends_total": divs.get("total"),
+            "fees_interest_changed": net_new}
+
+
+async def backfill_activity(account_hash: str, max_years: int = _BACKFILL_MAX_YEARS) -> dict:
+    """One-time FULL-HISTORY activity pull, paged in <=1-year windows back to the
+    account's API ceiling (the first empty window — the transactions endpoint serves back
+    to thinkorswim/API-enablement, not just 60 days). Recovers old deposits/dividends/
+    fees/margin-interest from the API instead of requiring a CSV import. Idempotent (the
+    same per-consumer dedup/heal); aborts on any fetch error WITHOUT marking done, so it
+    retries next time and never wipes a log on a transient failure."""
     from datetime import datetime, timedelta, timezone
 
     from .. import accounts as accounts_svc
-    from .. import dividends as dividends_mod
+
+    end = datetime.now(timezone.utc)
+    horizon = end - timedelta(days=int(max_years * 365.25))
+    win_end = end
+    windows = 0
+    agg = {"transfers_added": 0, "dividends_added": 0}
+    while win_end > horizon:
+        win_start = max(win_end - timedelta(days=364), horizon)
+        raw = await accounts_svc.fetch_transactions_window(account_hash, win_start, win_end)
+        if raw is None:
+            return {"ok": False, "error": "transactions fetch failed", "windows": windows}
+        if not raw:
+            break  # reached the account's API ceiling — older windows are empty too
+        res = await _apply_activity_window(
+            account_hash, raw, win_start.date().isoformat(), win_end.date().isoformat())
+        agg["transfers_added"] += res["transfers_added"]
+        agg["dividends_added"] += res["dividends_added"]
+        windows += 1
+        win_end = win_start
+    return {"ok": True, "windows": windows, **agg}
+
+
+async def sync_activity(account_hash: str, force: bool = False) -> dict:
+    """Keep the cash identity pinned from Schwab's transactions feed. On the FIRST run for
+    an account it does a one-time full-history backfill (see backfill_activity); after
+    that it's a cheap ~60-day incremental window feeding transfers → deposit log,
+    dividends → income log, trade fees + margin interest → other-cash log.
+
+    Throttled (hourly) unless ``force`` — the Ledger calls it opportunistically on load,
+    the manual refresh buttons force it. Failure leaves every log untouched."""
+    from datetime import datetime, timedelta, timezone
+
+    from .. import accounts as accounts_svc
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # One-time full-history backfill covers everything the incremental would AND older
+    # history. If it fails we DON'T mark it done — fall through to the incremental so the
+    # ledger still updates, and retry the backfill next run.
+    if not await accounts_svc.get_setting(_BACKFILL_KEY + account_hash):
+        bf = await backfill_activity(account_hash)
+        if bf.get("ok"):
+            await accounts_svc.set_setting(_BACKFILL_KEY + account_hash, now_iso)
+            await accounts_svc.set_setting(_ACTIVITY_SYNC_KEY + account_hash, now_iso)
+            return {"ok": True, "backfilled": True, "synced_at": now_iso, **bf}
 
     if not force:
         stamp = await accounts_svc.get_setting(_ACTIVITY_SYNC_KEY + account_hash)
@@ -391,33 +462,11 @@ async def sync_activity(account_hash: str, force: bool = False) -> dict:
     if raw is None:
         return {"ok": False, "error": "Couldn't reach Schwab for transactions (or not connected)."}
 
-    transfers = await refresh_cashflows_from_schwab(
-        account_hash, transfers=accounts_svc.parse_transfers(raw))
-    divs = await refresh_dividends(account_hash, rows=dividends_mod.parse_dividends(raw))
-
-    # Fees + margin interest: the feed is authoritative for its trailing window, so
-    # REPLACE those row types across it (see activity.REPLACE_TYPES). The window is
-    # widened to any day the parse actually produced, so an Eastern-shifted boundary
-    # row can never land outside its own replacement range and duplicate a CSV row.
-    fresh = activity_mod.parse_trade_fees(raw) + activity_mod.parse_margin_interest(raw)
     today = _today()
-    lo, hi = (today - timedelta(days=60)).isoformat(), today.isoformat()
-    for r in fresh:
-        lo, hi = min(lo, r["day"]), max(hi, r["day"])
-    existing = (await get_other_cash(account_hash))["rows"]
-    n_before = len(existing)
-    merged, net_new = activity_mod.merge_window_rows(existing, fresh, lo, hi)
-    if net_new or len(merged) != n_before:
-        await _save_other_cash(account_hash, merged)
-
-    now_iso = datetime.now(timezone.utc).isoformat()
+    res = await _apply_activity_window(
+        account_hash, raw, (today - timedelta(days=60)).isoformat(), today.isoformat())
     await accounts_svc.set_setting(_ACTIVITY_SYNC_KEY + account_hash, now_iso)
-    return {"ok": True, "synced_at": now_iso,
-            "transfers_added": transfers.get("added", 0),
-            "dividends_added": divs.get("added", 0),
-            "dividends_total": divs.get("total"),
-            "fees_interest_changed": net_new,
-            "window_days": 60}
+    return {"ok": True, "synced_at": now_iso, "window_days": 60, **res}
 
 
 # ----- CSV import (Schwab "Transactions" export) -----
