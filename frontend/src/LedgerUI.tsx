@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { usd } from "./format";
 import { API } from "./api";
 import { Tip } from "./Tip";
-import { CalcMark } from "./columns";
+import { Term } from "./GlossaryUI";
 
 // The selected account + active profile, resolved for print headers so a saved/
 // printed page identifies WHOSE account it is. Fetched once; degrades to a plain
@@ -141,17 +141,16 @@ export function PeriodSelector({ value, onChange, year }: {
 }
 
 // ---- cards / rows / panels ----
-export function Card({ label, value, sub, big, accent, hint, schwab }: {
+export function Card({ label, value, sub, big, accent, hint, term }: {
   label: string; value: string; sub?: string; big?: boolean; accent?: string; hint?: string;
-  schwab?: boolean;   // a raw Schwab balance (no ƒ mark); everything else here is app-calculated
+  term?: string;   // glossary id — the label becomes a hover-to-define Term (preferred over `hint`)
 }) {
-  const calc = !schwab;
-  // ƒ marks an app-calculated figure (explained once by the legend up top — no ⓘ, no
-  // "calculated by the app" on hover). Hovering the label shows only what the figure means.
-  const inner = <>{label}{calc && <CalcMark />}</>;
+  // A glossary term defines the figure (and its provenance) on hover; falls back to a
+  // plain sort/info Tip when there's no term, or bare text when there's neither.
+  const inner = term ? <Term id={term}>{label}</Term> : label;
   return (
     <div className="panel" style={S.card}>
-      <div style={S.cardLabel}>{hint ? <Tip text={hint}>{inner}</Tip> : inner}</div>
+      <div style={S.cardLabel}>{!term && hint ? <Tip text={hint}>{inner}</Tip> : inner}</div>
       <div style={{ ...S.cardValue, fontSize: big ? "var(--fs-2xl)" : "var(--fs-xl)", color: accent ?? "var(--text)" }}>{value}</div>
       {sub && <div style={S.cardSub}>{sub}</div>}
     </div>
@@ -170,13 +169,14 @@ export function Panel({ title, children, right }: { title: string; children: Rea
   );
 }
 
-export function Row({ k, v, hi, dim, accent, sub }: {
+export function Row({ k, v, hi, dim, accent, sub, term }: {
   k: string; v: string; hi?: boolean; dim?: boolean; accent?: string; sub?: string;
+  term?: string;   // glossary id — the key becomes a hover-to-define Term
 }) {
   return (
     <div style={S.row}>
       <span style={{ color: dim ? "var(--text-faint)" : "var(--text-muted)" }}>
-        {k}{sub && <span style={S.rowSub}> · {sub}</span>}
+        {term ? <Term id={term}>{k}</Term> : k}{sub && <span style={S.rowSub}> · {sub}</span>}
       </span>
       <span style={{ fontWeight: hi ? 700 : 500, color: accent ?? (hi ? "var(--pos)" : dim ? "var(--text-dim)" : "var(--text)"), fontVariantNumeric: "tabular-nums" }}>{v}</span>
     </div>

@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
-import { DASH_COLUMNS, rowSignalChips, tickerRiskColor, RISK_LABEL, ProvenanceLegend, CalcMark } from "./columns";
+import { DASH_COLUMNS, rowSignalChips, tickerRiskColor, RISK_LABEL } from "./columns";
+import { Term } from "./GlossaryUI";
 import type { DashCol } from "./columns";
 import type { DashboardRow } from "./types";
 import type { SignalRule } from "./signals";
@@ -11,24 +12,28 @@ import { IconChildArrow, IconBell, IconClose, IconChevronRight, IconChevronLeft 
 // portals out of the table's scroll box. Top-level + stable so its tooltip state isn't
 // reset by the table's 2s data refreshes.
 function HeaderCell({
-  id, label, align, prov, fold, collapsed, simple, sort, onSort,
+  id, label, align, term, fold, collapsed, simple, sort, onSort,
 }: {
-  id: string; label: string; align?: string; prov?: DashCol["prov"]; fold?: boolean;
+  id: string; label: string; align?: string; term?: string; fold?: boolean;
   collapsed: boolean; simple: boolean; sort: SortState; onSort: (id: string) => void;
 }) {
-  const computed = prov == null; // undefined = app-calculated → ƒ mark on the header
   const cls = [align === "left" ? "left" : "", fold ? "foldcol" + (collapsed ? " folded" : "") : ""].filter(Boolean).join(" ");
   const mark = sort?.id === id ? (sort.dir === -1 ? " ▼" : " ▲") : "";
-  const inner = <>{label}{computed && !simple && <CalcMark />}{mark}</>;
-  // One hover target for the header — explains the SORT action only (ƒ provenance is
-  // explained once by the legend, not repeated on every hover).
-  const tip = <Tip text={`Sort by ${label} — click to flip, third click resets`} focusable={false}>{inner}</Tip>;
+  // When the column maps to a glossary term, the header text itself defines the column
+  // on hover (a hover-only Term, so the click still sorts). Otherwise fall back to the
+  // sort-hint tooltip. Either way there's exactly one hover popover per header.
+  const useTerm = term && !simple;
+  const labelNode = useTerm ? <Term id={term} hoverOnly>{label}</Term> : label;
+  const inner = <>{labelNode}{mark}</>;
+  const content = useTerm
+    ? inner
+    : <Tip text={`Sort by ${label} — click to flip, third click resets`} focusable={false}>{inner}</Tip>;
   return (
     <th scope="col" className={cls || undefined}
       aria-sort={sort?.id === id ? (sort.dir === -1 ? "descending" : "ascending") : undefined}
       style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
       onClick={() => onSort(id)}>
-      {fold ? <span className="foldwrap">{tip}</span> : tip}
+      {fold ? <span className="foldwrap">{content}</span> : content}
     </th>
   );
 }
@@ -280,10 +285,10 @@ export function DashboardTable({
                     onClick={(e) => e.stopPropagation()} />
                 </th>
               ) : (
-                <HeaderCell id="symbol" label="Ticker" align="left" prov="text" {...hProps} />
+                <HeaderCell id="symbol" label="Ticker" align="left" {...hProps} />
               )}
-              {shownDefs.map((c) => <HeaderCell key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} {...hProps} />)}
-              {foldDefs.map((c) => <HeaderCell key={c.id} id={c.id} label={c.label} align={c.align} prov={c.prov} fold {...hProps} />)}
+              {shownDefs.map((c) => <HeaderCell key={c.id} id={c.id} label={c.label} align={c.align} term={c.term} {...hProps} />)}
+              {foldDefs.map((c) => <HeaderCell key={c.id} id={c.id} label={c.label} align={c.align} term={c.term} fold {...hProps} />)}
               {showFoldToggle && <FoldToggleTh />}
             </tr>
           </thead>
@@ -407,7 +412,6 @@ export function DashboardTable({
           </tbody>
         </table>
       </div>
-      {!simple && <ProvenanceLegend />}
     </div>
   );
 }

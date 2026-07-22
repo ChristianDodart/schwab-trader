@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { usd, pct } from "./format";
 import { ColumnManager } from "./ColumnManager";
-import { DETAIL_COLUMNS, DETAIL_COLUMN_LIST, DEFAULT_DETAIL_COLS, useColumnPrefs, tickerRiskColor, RISK_LABEL, ProvenanceLegend, CalcMark } from "./columns";
+import { DETAIL_COLUMNS, DETAIL_COLUMN_LIST, DEFAULT_DETAIL_COLS, useColumnPrefs, tickerRiskColor, RISK_LABEL } from "./columns";
+import { Term } from "./GlossaryUI";
 import { OrderTicket } from "./OrderTicket";
 import { PriceChart } from "./PriceChart";
 import { SkeletonPanel } from "./Skeleton";
@@ -84,22 +85,22 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
       {d.is_watch ? (
         <div style={S.stats}>
           <Stat label="Price" value={usd(d.price)} />
-          {d.last_held != null && <Stat label="Last held" value={usd(d.last_held)} computed />}
-          {d.realized !== 0 && <Stat label="Realized" value={usd(d.realized)} color={signColor(d.realized)} computed />}
-          {d.dividends > 0 && <Stat label="Dividends" value={usd(d.dividends)} color="var(--pos)" computed />}
+          {d.last_held != null && <Stat label="Last held" value={usd(d.last_held)} />}
+          {d.realized !== 0 && <Stat label="Realized" value={usd(d.realized)} color={signColor(d.realized)} term="realized_pl" />}
+          {d.dividends > 0 && <Stat label="Dividends" value={usd(d.dividends)} color="var(--pos)" />}
         </div>
       ) : (
         <div style={S.stats}>
           <Stat label="Price" value={usd(d.price)} />
-          <Stat label="Positions" value={String(d.positions)} computed />
+          <Stat label="Positions" value={String(d.positions)} />
           <Stat label="Shares" value={d.shares.toLocaleString()} />
-          <Stat label="Invested" value={usd(d.invested)} computed />
-          <Stat label="Basis / Share" value={usd(d.basis_per_share)} computed />
-          <Stat label="LILO %" value={pct(d.lilo_pct)} color={signColor(d.lilo_pct)} computed />
-          <Stat label="Unrealized" value={d.unrealized == null ? "—" : usd(d.unrealized)} color={signColor(d.unrealized)} computed />
-          <Stat label="Realized" value={usd(d.realized)} color={signColor(d.realized)} computed />
-          {d.dividends > 0 && <Stat label="Dividends" value={usd(d.dividends)} color="var(--pos)" computed />}
-          <Stat label="Total return" value={usd(d.total_return)} color={signColor(d.total_return)} computed />
+          <Stat label="Invested" value={usd(d.invested)} term="invested" />
+          <Stat label="Basis / Share" value={usd(d.basis_per_share)} term="cost_basis" />
+          <Stat label="LILO %" value={pct(d.lilo_pct)} color={signColor(d.lilo_pct)} />
+          <Stat label="Unrealized" value={d.unrealized == null ? "—" : usd(d.unrealized)} color={signColor(d.unrealized)} term="unrealized_pl" />
+          <Stat label="Realized" value={usd(d.realized)} color={signColor(d.realized)} term="realized_pl" />
+          {d.dividends > 0 && <Stat label="Dividends" value={usd(d.dividends)} color="var(--pos)" />}
+          <Stat label="Total return" value={usd(d.total_return)} color={signColor(d.total_return)} />
         </div>
       )}
 
@@ -144,9 +145,8 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
             <tr>
               <th scope="col" className="left">Position</th>
               {defs.map((c) => (
-                <th scope="col" key={c.id} className={c.align === "left" ? "left" : ""}
-                  title={c.prov === "schwab" ? "Provided by Schwab" : undefined}>
-                  {c.label}{c.prov == null && <CalcMark />}
+                <th scope="col" key={c.id} className={c.align === "left" ? "left" : ""}>
+                  {c.term ? <Term id={c.term}>{c.label}</Term> : c.label}
                 </th>
               ))}
               <th scope="col"></th>
@@ -174,8 +174,6 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
           </tbody>
         </table>
       </div>
-
-      <ProvenanceLegend />
 
       <LifoSell d={d} busy={busy} onReview={openLifoSell} />
 
@@ -556,10 +554,10 @@ const LS: Record<string, React.CSSProperties> = {
 const signColor = (n: number | null | undefined) =>
   n == null ? undefined : n >= 0 ? "var(--pos)" : "var(--neg)";
 
-function Stat({ label, value, color, computed }: { label: string; value: string; color?: string; computed?: boolean }) {
+function Stat({ label, value, color, term }: { label: string; value: string; color?: string; term?: string }) {
   return (
     <div style={S.stat}>
-      <div style={S.statLabel}>{label}{computed && <CalcMark />}</div>
+      <div style={S.statLabel}>{term ? <Term id={term}>{label}</Term> : label}</div>
       <div style={{ ...S.statValue, color: color ?? "var(--text)" }}>{value}</div>
     </div>
   );

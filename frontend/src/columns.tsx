@@ -25,6 +25,7 @@ export type DashCol = {
   label: string;
   align: ColAlign;
   prov?: Provenance;
+  term?: string;                           // glossary id — header becomes a hoverable <Term>
   watchNA?: boolean;                       // render "—" on watch rows (no position)
   render: (r: DashboardRow) => React.ReactNode;
 };
@@ -33,34 +34,13 @@ export type DetailCol = {
   label: string;
   align: ColAlign;
   prov?: Provenance;
+  term?: string;                           // glossary id — header becomes a hoverable <Term>
   render: (l: Lot) => React.ReactNode;
 };
 
-// The "calculated" mark: a small superscript ƒ placed after the LABEL/HEADER of an
-// app-computed figure (never on the value itself, so it can't clash with gain/loss
-// color). Schwab-provided figures carry no mark. One primitive shared by every table
-// header and stat card so provenance reads the same everywhere.
-export function CalcMark() {
-  // Just the glyph. What ƒ means is explained once by <ProvenanceLegend>, never on
-  // hover — a hover shows only the specific figure's meaning, not the provenance.
-  return (
-    <sup style={{ color: "var(--accent-quiet)", fontSize: "0.66em", fontWeight: 700, marginLeft: 2 }}>ƒ</sup>
-  );
-}
-// Renders a label followed by the ƒ mark when `computed`. Convenience for stat cards.
-export function Labeled({ label, computed }: { label: string; computed?: boolean }) {
-  return <>{label}{computed && <CalcMark />}</>;
-}
-
-// One-line legend for the provenance mark — the single place ƒ is explained.
-export function ProvenanceLegend() {
-  return (
-    <p style={{ fontSize: "var(--fs-2xs)", color: "var(--text-dim)", margin: "6px 0 0" }}>
-      <span style={{ color: "var(--accent-quiet)", fontWeight: 700 }}>ƒ</span> (a formula) marks a figure the
-      app calculates from your fills and/or Schwab data; everything else comes straight from Schwab.
-    </p>
-  );
-}
+// Provenance ("is this from Schwab or computed?") now lives in each glossary term's
+// "Source" line — the old superscript ƒ mark + its legend were retired in v0.59 in
+// favor of hover-to-define terms.
 
 const sign = (n: number | null | undefined) =>
   n == null ? undefined : n >= 0 ? "var(--pos)" : "var(--neg)";
@@ -151,7 +131,7 @@ export const DASH_COLUMN_LIST: DashCol[] = [
           </span>
         : <b>{usd0(r.price)}</b>
     ) },
-  { id: "last_pos_profit", label: "Last Pos P/L", align: "left", watchNA: true, render: (r) => <b><Colored v={usd(r.last_pos_profit)} n={r.last_pos_profit} /></b> },
+  { id: "last_pos_profit", label: "Last Pos P/L", align: "left", term: "last_position", watchNA: true, render: (r) => <b><Colored v={usd(r.last_pos_profit)} n={r.last_pos_profit} /></b> },
   // Mean of the daily closes over the past year — "where the stock spends most of
   // its time." Compare against the pinned Price: below = historical discount
   // (lean buy), above = rich (lean sell). Dim vs. the price so it reads as a
@@ -161,11 +141,11 @@ export const DASH_COLUMN_LIST: DashCol[] = [
   // spikes (often the truer "typical" level for a choppy name). Same dim reference
   // treatment as the average.
   { id: "median_52wk", label: "52wk Med", align: "right", render: (r) => <span style={{ color: "var(--text-muted)" }}>{usd0(r.median_52wk)}</span> },
-  { id: "pct_of_high", label: "% of 52wk High", align: "right", render: (r) => pct0(r.pct_of_high) },
+  { id: "pct_of_high", label: "% of 52wk High", align: "right", term: "52wk_high_pct", render: (r) => pct0(r.pct_of_high) },
   { id: "lilo_pct", label: "LILO %", align: "right", watchNA: true, render: (r) => <Colored v={pct(r.lilo_pct)} n={r.lilo_pct} /> },
-  { id: "last_pos_cost", label: "Last Pos Cost", align: "right", watchNA: true, render: (r) => usd(r.last_pos_cost) },
-  { id: "invested", label: "Invested", align: "right", watchNA: true, render: (r) => usd(r.invested) },
-  { id: "year_profit", label: "Profit (YTD)", align: "right", watchNA: true, render: (r) => <Colored v={usd(r.year_profit)} n={r.year_profit} /> },
+  { id: "last_pos_cost", label: "Last Pos Cost", align: "right", term: "cost_basis", watchNA: true, render: (r) => usd(r.last_pos_cost) },
+  { id: "invested", label: "Invested", align: "right", term: "invested", watchNA: true, render: (r) => usd(r.invested) },
+  { id: "year_profit", label: "Profit (YTD)", align: "right", term: "realized_pl", watchNA: true, render: (r) => <Colored v={usd(r.year_profit)} n={r.year_profit} /> },
   { id: "avg_monthly", label: "Avg Monthly", align: "right", watchNA: true, render: (r) => <Colored v={usd(r.avg_monthly)} n={r.avg_monthly} /> },
   { id: "year_trades", label: "Trades (YTD)", align: "right", watchNA: true, render: (r) => num(r.year_trades) },
   { id: "portfolio_pct", label: "Portfolio %", align: "right", watchNA: true, render: (r) => <PortfolioPct r={r} /> },
@@ -173,15 +153,15 @@ export const DASH_COLUMN_LIST: DashCol[] = [
   // additional available columns (not in the default layout)
   { id: "positions", label: "Positions", align: "right", watchNA: true, render: (r) => num(r.positions) },
   { id: "shares", label: "Shares", align: "right", prov: "schwab", watchNA: true, render: (r) => num(r.shares) },
-  { id: "current_value", label: "Market Value", align: "right", watchNA: true, render: (r) => usd(r.current_value) },
-  { id: "unrealized", label: "Unrealized P/L", align: "right", watchNA: true, render: (r) => <Colored v={usd(r.unrealized)} n={r.unrealized} /> },
-  { id: "day_change", label: "Day P/L", align: "right", prov: "schwab", watchNA: true, render: (r) => <Colored v={usd(r.day_change)} n={r.day_change} /> },
-  { id: "basis_per_share", label: "Basis / Share", align: "right", watchNA: true, render: (r) => usd(r.basis_per_share) },
-  { id: "log_profit", label: "Profit (all-time)", align: "right", watchNA: true, render: (r) => <Colored v={usd(r.log_profit)} n={r.log_profit} /> },
+  { id: "current_value", label: "Market Value", align: "right", term: "market_value", watchNA: true, render: (r) => usd(r.current_value) },
+  { id: "unrealized", label: "Unrealized P/L", align: "right", term: "unrealized_pl", watchNA: true, render: (r) => <Colored v={usd(r.unrealized)} n={r.unrealized} /> },
+  { id: "day_change", label: "Day P/L", align: "right", prov: "schwab", term: "day_change", watchNA: true, render: (r) => <Colored v={usd(r.day_change)} n={r.day_change} /> },
+  { id: "basis_per_share", label: "Basis / Share", align: "right", term: "cost_basis", watchNA: true, render: (r) => usd(r.basis_per_share) },
+  { id: "log_profit", label: "Profit (all-time)", align: "right", term: "realized_pl", watchNA: true, render: (r) => <Colored v={usd(r.log_profit)} n={r.log_profit} /> },
   { id: "dividends", label: "Dividends", align: "right", watchNA: true, render: (r) => (r.dividends ? <span style={{ color: "var(--pos)" }}>{usd(r.dividends)}</span> : <Dash />) },
   { id: "total_return", label: "Total Return", align: "right", watchNA: true, render: (r) => <Colored v={usd(r.total_return)} n={r.total_return} /> },
   { id: "trades", label: "Trades (all-time)", align: "right", watchNA: true, render: (r) => num(r.trades) },
-  { id: "next_buy_price", label: "Next Buy Trigger", align: "right", watchNA: true, render: (r) => usd(r.next_buy_price) },
+  { id: "next_buy_price", label: "Next Buy Trigger", align: "right", term: "buy_dip", watchNA: true, render: (r) => usd(r.next_buy_price) },
   { id: "year_high", label: "52wk High", align: "right", prov: "schwab", render: (r) => usd0(r.year_high) },
   { id: "year_low", label: "52wk Low", align: "right", prov: "schwab", render: (r) => usd0(r.year_low) },
 ];
@@ -212,11 +192,11 @@ export const SIMPLE_DASH_COLS = ["price", "unrealized", "current_value"];
 // ---- ticker drill-down columns (operate on a lot) ----
 export const DETAIL_COLUMN_LIST: DetailCol[] = [
   { id: "buy_date", label: "Buy Date", align: "left", prov: "text", render: (l) => l.buy_date ?? "—" },
-  { id: "age_days", label: "Age", align: "right", render: (l) => (l.age_days == null ? "—" : `${l.age_days}d`) },
+  { id: "age_days", label: "Age", align: "right", term: "hold_days", render: (l) => (l.age_days == null ? "—" : `${l.age_days}d`) },
   { id: "shares", label: "Shares", align: "right", render: (l) => num(l.shares) },
   { id: "buy_price", label: "Buy", align: "right", render: (l) => usd(l.buy_price) },
   { id: "amount", label: "Amount", align: "right", render: (l) => usd(l.amount) },
-  { id: "pct_down_from_prev", label: "% Down", align: "right", render: (l) => {
+  { id: "pct_down_from_prev", label: "% Down", align: "right", term: "ladder_rung", render: (l) => {
       // "% Down" is the dip depth vs the previous rung. A rung bought at/above the prior
       // isn't a dip (e.g. averaging up, or an old cheap "prior" backfill lot below a
       // recent buy) — showing a huge negative "down" reads as broken, so show "—".
@@ -226,11 +206,11 @@ export const DETAIL_COLUMN_LIST: DetailCol[] = [
           style={{ color: "var(--text-faint)" }}>—</span>;
       return pct(v);
     } },
-  { id: "sell_target", label: "Sell Target", align: "right", render: (l) => usd(l.sell_target) },
+  { id: "sell_target", label: "Sell Target", align: "right", term: "sell_target", render: (l) => usd(l.sell_target) },
   { id: "sell_mode", label: "Sell Mode", align: "left", prov: "text", render: (l) => l.sell_mode },
   { id: "proj_profit", label: "Proj. Profit", align: "right", render: (l) => <Colored v={usd(l.proj_profit)} n={l.proj_profit} /> },
-  { id: "pl_now", label: "P/L Now", align: "right", render: (l) => <Colored v={usd(l.pl_now)} n={l.pl_now} /> },
-  { id: "next_buy_sug", label: "Next Buy Sug", align: "right", render: (l) => <span style={{ color: "var(--accent-quiet)" }}>{usd(l.next_buy_sug)}</span> },
+  { id: "pl_now", label: "P/L Now", align: "right", term: "unrealized_pl", render: (l) => <Colored v={usd(l.pl_now)} n={l.pl_now} /> },
+  { id: "next_buy_sug", label: "Next Buy Sug", align: "right", term: "buy_dip", render: (l) => <span style={{ color: "var(--accent-quiet)" }}>{usd(l.next_buy_sug)}</span> },
 ];
 export const DETAIL_COLUMNS: Record<string, DetailCol> = Object.fromEntries(
   DETAIL_COLUMN_LIST.map((c) => [c.id, c]),

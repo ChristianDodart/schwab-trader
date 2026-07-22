@@ -7,7 +7,7 @@
 // once (the Path-of-Exile move). Definitions come from the central registry (glossary.ts).
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { GLOSSARY, SOURCE_LABEL, type GlossaryEntry } from "./glossary";
+import { GLOSSARY, SOURCE_LABEL, type GlossaryEntry, type GlossaryFigures } from "./glossary";
 
 type Anchor = { x: number; y: number; above: boolean };
 type Ctx = {
@@ -15,8 +15,14 @@ type Ctx = {
   hoverClose: () => void;
   pinOpen: (id: string, el: HTMLElement | null) => void;
   push: (id: string) => void;
+  setFigures: (f: GlossaryFigures | null) => void;
 };
 const GlossaryCtx = createContext<Ctx | null>(null);
+
+/** Feed the selected account's live figures to the glossary (for worked examples). */
+export function useGlossaryFigures(): (f: GlossaryFigures | null) => void {
+  return useContext(GlossaryCtx)?.setFigures ?? (() => {});
+}
 
 const OPEN_DELAY_MS = 380;   // dwell before a hover opens (0 while Alt held — "show me everything")
 const CLOSE_GRACE_MS = 140;  // grace to travel from the term into the popover
@@ -32,6 +38,7 @@ export function GlossaryProvider({ children }: { children: React.ReactNode }) {
   const [stack, setStack] = useState<string[]>([]);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [sticky, setSticky] = useState(false);
+  const [figures, setFigures] = useState<GlossaryFigures | null>(null);
   const openT = useRef<ReturnType<typeof setTimeout>>(undefined);
   const closeT = useRef<ReturnType<typeof setTimeout>>(undefined);
   const altRef = useRef(false);
@@ -106,7 +113,7 @@ export function GlossaryProvider({ children }: { children: React.ReactNode }) {
     };
   }, [anchor, sticky, close]);
 
-  const ctx: Ctx = { hoverOpen, hoverClose, pinOpen, push };
+  const ctx: Ctx = { hoverOpen, hoverClose, pinOpen, push, setFigures };
   const id = stack[stack.length - 1];
   const entry = id ? GLOSSARY[id] : null;
 
@@ -119,7 +126,7 @@ export function GlossaryProvider({ children }: { children: React.ReactNode }) {
           onMouseEnter={() => clearTimeout(closeT.current)}
           onMouseLeave={hoverClose}
         >
-          <DefinitionCard entry={entry} canBack={stack.length > 1} onBack={goBack} onClose={close}
+          <DefinitionCard entry={entry} figures={figures} canBack={stack.length > 1} onBack={goBack} onClose={close}
             onRelated={push} />
         </div>,
         document.body,
@@ -128,10 +135,12 @@ export function GlossaryProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-function DefinitionCard({ entry, canBack, onBack, onClose, onRelated }: {
-  entry: GlossaryEntry; canBack: boolean; onBack: () => void; onClose: () => void;
-  onRelated: (id: string) => void;
+function DefinitionCard({ entry, figures, canBack, onBack, onClose, onRelated }: {
+  entry: GlossaryEntry; figures: GlossaryFigures | null; canBack: boolean;
+  onBack: () => void; onClose: () => void; onRelated: (id: string) => void;
 }) {
+  // The formula worked out on the SELECTED account's live numbers, when we have them.
+  const worked = entry.example && figures ? entry.example(figures) : null;
   return (
     <div className={`gloss-pop`} role="dialog" aria-label={`${entry.term} definition`}>
       <div className="gloss-head">
@@ -147,6 +156,12 @@ function DefinitionCard({ entry, canBack, onBack, onClose, onRelated }: {
       )}
       {entry.howCalculated && (
         <div className="gloss-sec"><span className="gloss-lbl">How it's calculated</span><p>{entry.howCalculated}</p></div>
+      )}
+      {worked && (
+        <div className="gloss-calc">
+          <span className="gloss-lbl">On this account now</span>
+          <code>{worked}</code>
+        </div>
       )}
       <div className="gloss-source" data-source={entry.source}>{SOURCE_LABEL[entry.source]}</div>
       {entry.related && entry.related.length > 0 && (
@@ -167,13 +182,25 @@ function DefinitionCard({ entry, canBack, onBack, onClose, onRelated }: {
 
 // A term: tinted at rest, lit on hover/focus/Alt. Hover shows the definition; click pins.
 // An unknown id degrades to its children (never a broken control). Inline by design.
-export function Term({ id, children }: { id: string; children?: React.ReactNode }) {
+//
+// `hoverOnly` is for terms living inside another control (a sortable table header): it
+// keeps the tint + hover-to-define but drops the button role, focus, and click-to-pin so
+// the click bubbles to the parent (the header still sorts). Everywhere else, prefer the
+// full interactive term.
+export function Term({ id, children, hoverOnly }: { id: string; children?: React.ReactNode; hoverOnly?: boolean }) {
   const ctx = useContext(GlossaryCtx);
   const ref = useRef<HTMLSpanElement>(null);
   const entry = GLOSSARY[id];
   if (!entry || !ctx) return <>{children ?? entry?.term ?? id}</>;
   const label = children ?? entry.term;
   const open = () => ctx.hoverOpen(id, ref.current);
+  if (hoverOnly) {
+    return (
+      <span ref={ref} className="gloss" onMouseEnter={open} onMouseLeave={ctx.hoverClose}>
+        {label}
+      </span>
+    );
+  }
   return (
     <span
       ref={ref}

@@ -3,6 +3,20 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.59.0 — "Glossary everywhere + live worked examples"
+
+- **The glossary now reaches the whole app.** Ledger cards, capital & margin rows, position-detail
+  stats, and sortable table headers are all hoverable terms now — hover (or hold Alt) to see what a
+  number means, how it's figured, and whether it comes straight from Schwab. Column headers still sort
+  on click exactly as before; the definition only shows on hover.
+- **Definitions now show the math on your actual account.** When a figure is calculated, its definition
+  box includes an "On this account now" line that works the formula on the selected account's live
+  numbers — e.g. Leverage shows your own long value ÷ equity, Deployed % shows the division, Unrealized
+  shows market value minus cost. It updates as the account does.
+- **The old "ƒ" calculated-number mark is fully retired.** Provenance ("from Schwab" vs. "the app
+  calculates this") now lives in each term's "Source" line, so there's one consistent way to ask what a
+  number is instead of a mark plus a legend.
+
 ## v0.58.0 — "Hover-to-understand glossary"
 
 - **A living glossary.** Key terms now show up in a subtle tint; hover (or focus) one and a definition

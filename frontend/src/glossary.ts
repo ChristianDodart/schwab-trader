@@ -12,16 +12,47 @@
 // computes it), then `source`, then `related` cross-links (which are themselves terms
 // you can drill into).
 
+import { usd } from "./format";
+
 export type TermSource = "schwab" | "computed" | "hybrid";
+
+// A snapshot of the SELECTED account's live figures, fed to the glossary so a
+// definition can show its formula worked out on real numbers ("on your account now").
+// All optional/nullable — an example() returns null when the pieces it needs aren't in.
+export interface GlossaryFigures {
+  accountValue?: number | null;
+  cash?: number | null;
+  invested?: number | null;        // open-lot cost basis
+  marketValue?: number | null;     // open-lot market value
+  unrealized?: number | null;
+  longMarketValue?: number | null;
+  equity?: number | null;
+  deployedPct?: number | null;
+  leverage?: number | null;
+  marginDebt?: number | null;
+  maintenance?: number | null;
+  maintCushion?: number | null;
+  tradableFunds?: number | null;
+  buyingPower?: number | null;
+  harvestable?: number | null;
+  dayChange?: number | null;
+}
 
 export interface GlossaryEntry {
   term: string; // canonical display label
   oneLiner: string; // plain-English, one sentence
   howItWorks?: string;
   howCalculated?: string; // present when source involves app computation
+  // A live worked example on the selected account, e.g. "$5,048 ÷ $4,678 × 100 = 108%".
+  // Return null when the needed figures aren't available (never throw).
+  example?: (f: GlossaryFigures) => string | null;
   source: TermSource;
   related?: string[]; // other term ids
 }
+
+// helpers for example() strings
+const has = (...xs: (number | null | undefined)[]) => xs.every((x) => typeof x === "number" && isFinite(x));
+const signed = (n: number) => (n >= 0 ? "+" : "") + usd(n);
 
 export const SOURCE_LABEL: Record<TermSource, string> = {
   schwab: "Straight from Schwab",
@@ -72,7 +103,9 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   market_value: {
     term: "Market value",
     oneLiner: "What your open positions are worth at the current price.",
-    howCalculated: "Sum over open lots of shares × the latest quote.",
+    howCalculated: "Sum over open lots of shares × the latest quote (= cost basis + unrealized P/L).",
+    example: (f) => has(f.invested, f.unrealized, f.marketValue)
+      ? `${usd(f.invested)} cost ${signed(f.unrealized!)} = ${usd(f.marketValue)}` : null,
     source: "hybrid",
     related: ["invested", "unrealized_pl"],
   },
@@ -81,6 +114,8 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     oneLiner: "The paper gain or loss on positions you still hold.",
     howItWorks: "Not locked in until you sell — it moves with the price.",
     howCalculated: "Market value − cost basis, across everything you hold.",
+    example: (f) => has(f.marketValue, f.invested, f.unrealized)
+      ? `${usd(f.marketValue)} − ${usd(f.invested)} = ${signed(f.unrealized!)}` : null,
     source: "computed",
     related: ["invested", "market_value", "realized_pl"],
   },
@@ -121,6 +156,8 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     oneLiner: "How far your market exposure exceeds your own money.",
     howItWorks: "1.0× means unlevered (all your own cash); above 1.0× means you're using margin to hold more than you funded.",
     howCalculated: "Long market value ÷ equity (your own money).",
+    example: (f) => has(f.longMarketValue, f.equity, f.leverage) && f.equity
+      ? `${usd(f.longMarketValue)} ÷ ${usd(f.equity)} = ${f.leverage!.toFixed(2)}×` : null,
     source: "computed",
     related: ["margin_debt", "deployed_pct"],
   },
@@ -129,6 +166,8 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     oneLiner: "How much of your own capital is currently in the market.",
     howItWorks: "Measured against your equity, NOT counting margin — so fully invested reads ~100%, and using margin to buy more pushes it OVER 100%. It's the 'am I stretched?' signal.",
     howCalculated: "Long market value ÷ equity × 100.",
+    example: (f) => has(f.longMarketValue, f.equity, f.deployedPct) && f.equity
+      ? `${usd(f.longMarketValue)} ÷ ${usd(f.equity)} × 100 = ${f.deployedPct!.toFixed(1)}%` : null,
     source: "computed",
     related: ["leverage", "margin_debt"],
   },
@@ -137,6 +176,8 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     oneLiner: "How much your equity sits above the margin-call floor.",
     howItWorks: "If it hits zero you'd face a maintenance call. The bigger the cushion, the more room prices have to fall before that happens.",
     howCalculated: "Equity − Schwab's maintenance requirement.",
+    example: (f) => has(f.equity, f.maintenance, f.maintCushion)
+      ? `${usd(f.equity)} − ${usd(f.maintenance)} = ${usd(f.maintCushion)}` : null,
     source: "computed",
     related: ["margin_debt", "leverage"],
   },

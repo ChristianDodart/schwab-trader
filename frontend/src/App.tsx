@@ -12,7 +12,7 @@ import { ColumnManager } from "./ColumnManager";
 import { ConfirmDialog } from "./Modal";
 import { DASH_COLUMNS, DASH_COLUMN_LIST, DEFAULT_DASH_COLS, DEFAULT_DASH_FOLDED, SIMPLE_DASH_COLS, useColumnPrefs, useFoldPrefs } from "./columns";
 import { KpiPicker, useKpiPrefs, visibleKpis } from "./kpis";
-import { Term } from "./GlossaryUI";
+import { Term, useGlossaryFigures } from "./GlossaryUI";
 import { CountUp } from "./anim";
 import { useDemoFeed } from "./demo";
 import { DashboardTable } from "./DashboardTable";
@@ -68,6 +68,8 @@ export function App() {
   const symInputRef = useRef<HTMLInputElement>(null);
   const gPending = useRef(false); // "g" prefix for vim-style tab jumps (g then d/s/l/o/r)
   const [cashInfo, setCashInfo] = useState<{ cash: number | null; buying_power: number | null; margin_buying_power: number | null; tradable_funds: number | null } | null>(null);
+  const [margin, setMargin] = useState<Record<string, number | null> | null>(null); // full margin summary → glossary live figures
+  const setGlossFigures = useGlossaryFigures();
   const [signalRules, setSignalRules] = useState<SignalRule[]>([]);
   const [acctKey, setAcctKey] = useState("");
   const [addSym, setAddSym] = useState("");
@@ -152,12 +154,40 @@ export function App() {
     let alive = true;
     const load = () =>
       fetch(`${API}/account/margin`).then((r) => r.json())
-        .then((j) => { if (alive) setCashInfo(j && !j.blocked ? { cash: j.cash ?? null, buying_power: j.buying_power ?? null, margin_buying_power: j.margin_buying_power ?? null, tradable_funds: j.tradable_funds ?? null } : null); })
+        .then((j) => {
+          if (!alive) return;
+          const m = j && !j.blocked ? j : null;
+          setCashInfo(m ? { cash: m.cash ?? null, buying_power: m.buying_power ?? null, margin_buying_power: m.margin_buying_power ?? null, tradable_funds: m.tradable_funds ?? null } : null);
+          setMargin(m);
+        })
         .catch(() => {});
     load();
     const t = setInterval(load, 30_000);
     return () => { alive = false; clearInterval(t); };
   }, [acctKey]);
+
+  // Feed the selected account's live figures to the glossary so definitions can show
+  // their formula worked out on real numbers ("on this account now").
+  useEffect(() => {
+    setGlossFigures({
+      accountValue: margin?.account_value ?? null,
+      cash: margin?.cash ?? null,
+      invested: data?.total_invested ?? null,
+      marketValue: data?.total_value ?? null,
+      unrealized: data?.total_unrealized ?? null,
+      longMarketValue: margin?.long_market_value ?? null,
+      equity: margin?.equity ?? null,
+      deployedPct: margin?.deployed_pct ?? null,
+      leverage: margin?.leverage ?? null,
+      marginDebt: margin?.debt ?? null,
+      maintenance: margin?.maintenance_requirement ?? null,
+      maintCushion: margin?.maint_cushion ?? null,
+      tradableFunds: margin?.tradable_funds ?? null,
+      buyingPower: margin?.buying_power ?? null,
+      harvestable: data?.harvestable ?? null,
+      dayChange: data?.total_day_change ?? null,
+    });
+  }, [data, margin, setGlossFigures]);
 
   // Ambient working orders (per selected account): total for the nav badge +
   // per-symbol counts for the dashboard row markers. Refetch on account switch

@@ -7,7 +7,7 @@ import {
   AccountStamp, ALL_TIME, Card, Panel, PeriodSelector, Row, S, moneyColor, type Period,
 } from "./LedgerUI";
 import { IconUpload, IconDownload, IconRefresh, IconClose } from "./Icon";
-import { ProvenanceLegend } from "./columns";
+import { Term } from "./GlossaryUI";
 import type { CashFlowRow, LedgerHistoric as Historic, MarginSummary } from "./types";
 
 import { API } from "./api";
@@ -187,8 +187,6 @@ export function LedgerHistoric() {
       {/* ---- Printable one-pager (hidden on screen; only the .print-only block prints) ---- */}
       <PrintSummary h={h} bench={bench} div={div} />
 
-      <ProvenanceLegend />
-
       <ReconciliationCard />
 
       {/* ---- Right now (live, point-in-time) ---- */}
@@ -201,16 +199,12 @@ export function LedgerHistoric() {
         </span>
       </div>
       <div style={S.cards}>
-        <Card label="Account value" value={usd(now.account_value)} big schwab
-          hint="Schwab liquidationValue — what the account is worth if fully liquidated right now (point-in-time, mark-to-market)." />
-        <Card label="Invested" value={usd(now.invested_market)}
-          sub={`cost ${usd(now.invested_cost)} · unreal ${usd(now.unrealized_pl)}`}
-          hint="Market value of open lots (cost basis + unrealized P/L). Cost basis for shares older than the fill window is Schwab's average, not the exact entry." />
-        <Card label="Cash" value={usd(now.cash)} schwab
-          hint="Schwab cashBalance — settled cash. This is the conservative 'free to invest' figure (no margin)." />
-        <Card label="Available to trade" value={usd(now.tradable_funds ?? now.buying_power)} schwab
-          sub={now.buying_power == null ? undefined : `Reg-T buying power ${usd(now.buying_power)}`}
-          hint="What you can actually deploy on an order right now — settled cash plus borrowing against fully-paid stock (Schwab's 'Settled Funds' / 'Funds Available to Withdraw'). The Reg-T buying power below is larger but sizing an order to it often gets rejected, so the app plans against this figure." />
+        <Card label="Account value" value={usd(now.account_value)} big term="account_value" />
+        <Card label="Invested" value={usd(now.invested_market)} term="invested"
+          sub={`cost ${usd(now.invested_cost)} · unreal ${usd(now.unrealized_pl)}`} />
+        <Card label="Cash" value={usd(now.cash)} term="cash" />
+        <Card label="Available to trade" value={usd(now.tradable_funds ?? now.buying_power)} term="available_to_trade"
+          sub={now.buying_power == null ? undefined : `Reg-T buying power ${usd(now.buying_power)}`} />
       </div>
       {now.source !== "live" && (
         <p style={S.warn}>Live balances unavailable{now.note ? ` (${now.note})` : ""} — showing the last saved snapshot. Reconnect under Settings → Schwab connection.</p>
@@ -226,17 +220,14 @@ export function LedgerHistoric() {
             <Card label="Peak capital" value={usd(h.peak_net_contributed ?? h.deposited_all_time)}
               sub={h.deposited_all_time !== (h.peak_net_contributed ?? h.deposited_all_time) ? `${usd(h.deposited_all_time)} gross deposited` : undefined}
               hint="The most of YOUR money that was ever in the account at once (running net of deposits and withdrawals, at its highest). This is the return base — cycling money out and back in doesn't inflate it." />
-            <Card label="Current value" value={usd(now.account_value)} schwab
-              sub={h.withdrawn_all_time < 0 ? `+ ${usd(-h.withdrawn_all_time)} already withdrawn` : undefined}
-              hint="What the account is worth right now (live liquidation value)." />
-            <Card label="Total gain" value={usd(h.gain_vs_contributed)} accent={moneyColor(h.gain_vs_contributed)}
-              sub={h.roi_pct != null ? `${h.roi_pct > 0 ? "+" : ""}${h.roi_pct}% on peak capital` : undefined}
-              hint="Value now + everything withdrawn − everything deposited. The % divides that by your peak capital at risk (out-and-back-in money doesn't skew it); XIRR next door adds timing." />
-            <Card label="Annualized (XIRR)"
+            <Card label="Current value" value={usd(now.account_value)} term="account_value"
+              sub={h.withdrawn_all_time < 0 ? `+ ${usd(-h.withdrawn_all_time)} already withdrawn` : undefined} />
+            <Card label="Total gain" value={usd(h.gain_vs_contributed)} accent={moneyColor(h.gain_vs_contributed)} term="roi"
+              sub={h.roi_pct != null ? `${h.roi_pct > 0 ? "+" : ""}${h.roi_pct}% on peak capital` : undefined} />
+            <Card label="Annualized (XIRR)" term="xirr"
               value={h.xirr_pct != null ? `${h.xirr_pct > 0 ? "+" : ""}${h.xirr_pct}%` : "—"}
               accent={h.xirr_pct != null ? moneyColor(h.xirr_pct) : undefined}
-              sub={h.xirr_pct != null ? "per year, money-weighted" : "needs ~1 month of history"}
-              hint="Money-weighted annual return: the single rate that values every dated deposit/withdrawal plus today's balance to zero. Unlike simple ROI, it accounts for WHEN money went in — the fair way to compare against a benchmark." />
+              sub={h.xirr_pct != null ? "per year, money-weighted" : "needs ~1 month of history"} />
             {bench?.available && bench.benchmark_value != null && <BenchmarkCard b={bench} />}
           </div>
           {bench?.available && bench.benchmark_value != null && (
@@ -254,19 +245,19 @@ export function LedgerHistoric() {
 
       {/* ---- Realized + contributions, scoped ---- */}
       <Panel title="Realized & capital" right={<PeriodSelector value={scope} onChange={setScope} year={year} />}>
-        <Row k={`Realized capital gains${scoped ? "" : " (all time)"}`} v={usd(r.cap_gains)} hi
+        <Row k={`Realized capital gains${scoped ? "" : " (all time)"}`} v={usd(r.cap_gains)} hi term="realized_pl"
           accent={moneyColor(r.cap_gains)} sub={scope.label} />
         <Row k="Trades" v={String(r.trade_count)} sub={`${r.day_trade_count} day-trades`} />
         <Row k="Gross proceeds" v={usd(r.gross_proceeds)} />
-        <Row k="Cost basis" v={usd(r.cost_basis)} />
-        <Row k="Deposited (all time)" v={usd(h.deposited_all_time)}
+        <Row k="Cost basis" v={usd(r.cost_basis)} term="cost_basis" />
+        <Row k="Deposited (all time)" v={usd(h.deposited_all_time)} term="net_deposits"
           sub={`${h.contributions_recorded} entr${h.contributions_recorded === 1 ? "y" : "ies"} · the ROI base`} />
         {h.withdrawn_all_time < 0 && (
           <Row k="Withdrawn (all time)" v={usd(h.withdrawn_all_time)}
             sub="returned capital — shown for reference, doesn't reduce the deposited base" />
         )}
         {h.gain_vs_contributed != null && (
-          <Row k="Total gain vs. deposited" v={usd(h.gain_vs_contributed)} hi accent={moneyColor(h.gain_vs_contributed)}
+          <Row k="Total gain vs. deposited" v={usd(h.gain_vs_contributed)} hi accent={moneyColor(h.gain_vs_contributed)} term="roi"
             sub={[
               h.roi_pct != null ? `${h.roi_pct > 0 ? "+" : ""}${h.roi_pct}% on deposits` : null,
               h.withdrawn_all_time < 0 ? `incl. ${usd(-h.withdrawn_all_time)} withdrawn added back` : null,
@@ -533,9 +524,8 @@ function BenchmarkCard({ b }: { b: Benchmark }) {
     `you're ${ahead ? "ahead" : "behind"} by ${usd(Math.abs(diff))}`,
   ].filter(Boolean).join(" · ");
   return (
-    <Card label={`If it were all ${b.symbol}`} value={usd(idx)}
-      accent={ahead ? "var(--pos)" : "var(--neg)"} sub={sub}
-      hint={`What your exact deposits (same dates, same amounts) would be worth today in ${b.symbol} buy-and-hold. Colored by whether your active strategy is ahead of (green) or behind (red) just holding the index.`} />
+    <Card label={`If it were all ${b.symbol}`} value={usd(idx)} term="benchmark"
+      accent={ahead ? "var(--pos)" : "var(--neg)"} sub={sub} />
   );
 }
 
@@ -638,7 +628,7 @@ function MarginPanel({ m }: { m: MarginSummary }) {
       {dep != null && (
         <div style={{ margin: "2px 0 12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--fs-sm)", marginBottom: 5 }}>
-            <span style={{ color: "var(--text-muted)" }} title="Long market value divided by your own equity — margin buying power is NOT counted, so over 100% means you're holding more than your own capital (using margin).">Deployed — market value vs. your capital {dep != null && dep > 100 ? "(on margin)" : ""}</span>
+            <span style={{ color: "var(--text-muted)" }}><Term id="deployed_pct">Deployed — market value vs. your capital</Term>{dep != null && dep > 100 ? " (on margin)" : ""}</span>
             <b style={{ color: depColor, fontVariantNumeric: "tabular-nums" }}>{pct(dep)}</b>
           </div>
           <div style={{ background: "var(--border-hairline)", borderRadius: "var(--r-sm)", height: 10, overflow: "hidden" }}>
@@ -647,19 +637,19 @@ function MarginPanel({ m }: { m: MarginSummary }) {
         </div>
       )}
       <Row k="Long market value" v={usd(m.long_market_value)} sub="what's in the market right now" />
-      <Row k="Available to trade" v={usd(m.tradable_funds ?? m.buying_power)}
+      <Row k="Available to trade" v={usd(m.tradable_funds ?? m.buying_power)} term="available_to_trade"
         sub="settled cash + borrowing — what an order can actually use" />
-      <Row k="Reg-T buying power" v={usd(m.buying_power)}
+      <Row k="Reg-T buying power" v={usd(m.buying_power)} term="reg_t_buying_power"
         sub={m.margin_buying_power != null ? `margin ${usd(m.margin_buying_power)}` : "looser margin figure (often rejects if used in full)"} />
       {m.is_margin && (
         <>
           <Row k="Equity (your money)" v={usd(m.equity)} />
-          <Row k="Debt (borrowed)" v={usd(m.debt)} accent={m.debt ? "var(--neg)" : undefined}
+          <Row k="Debt (borrowed)" v={usd(m.debt)} accent={m.debt ? "var(--neg)" : undefined} term="margin_debt"
             sub={m.debt ? "margin loan carried against positions" : "no margin loan"} />
-          <Row k="Leverage" v={m.leverage == null ? "—" : `${m.leverage.toFixed(2)}×`}
+          <Row k="Leverage" v={m.leverage == null ? "—" : `${m.leverage.toFixed(2)}×`} term="leverage"
             accent={m.leverage != null && m.leverage > 1.5 ? "var(--warn)" : undefined}
             sub="long exposure ÷ equity (1.0× = unlevered)" />
-          <Row k="Maintenance cushion" v={usd(m.maint_cushion)} accent={cushionLow ? "var(--neg)" : undefined}
+          <Row k="Maintenance cushion" v={usd(m.maint_cushion)} accent={cushionLow ? "var(--neg)" : undefined} term="maintenance_cushion"
             sub={m.maint_cushion_pct != null ? `${pct(m.maint_cushion_pct)} above the maintenance floor` : "equity above Schwab's maintenance requirement"} />
           {cushionLow && <p style={S.warn}>Maintenance cushion is thin — a further drop could trigger a margin call. Consider trimming leverage.</p>}
         </>

@@ -35,4 +35,22 @@ describe("glossary registry", () => {
       expect(e.related ?? [], `${id} self-link`).not.toContain(id);
     }
   });
+
+  it("example() works the formula on live figures and returns null when data is missing", () => {
+    const f = { longMarketValue: 5048.1, equity: 4677.55, deployedPct: 107.9,
+                marketValue: 5200, invested: 5048.1, unrealized: 151.9 };
+    const dep = GLOSSARY.deployed_pct.example!(f);
+    expect(dep).toContain("÷");
+    expect(dep).toContain("107.9%");
+    const un = GLOSSARY.unrealized_pl.example!(f);
+    expect(un).toContain("−");
+    expect(un).toContain("+");        // positive unrealized gets a leading +
+    // missing pieces → null, never a broken/NaN string
+    expect(GLOSSARY.deployed_pct.example!({})).toBeNull();
+    expect(GLOSSARY.leverage.example!({ longMarketValue: 100 })).toBeNull(); // no equity
+  });
+
+  it("example() guards divide-by-zero equity", () => {
+    expect(GLOSSARY.deployed_pct.example!({ longMarketValue: 100, equity: 0, deployedPct: 0 })).toBeNull();
+  });
 });
