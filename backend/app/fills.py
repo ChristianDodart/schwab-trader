@@ -1,12 +1,23 @@
 """Fetch executed fills for one account from the Schwab REST API and map them to
-`reconstruct.Fill`s. Orders (status=FILLED) are the authoritative source — the
-true per-share execution price lives in orderActivityCollection[].executionLegs,
-NOT the top-level (limit/working) `price`.
+`reconstruct.Fill`s.
 
-Schwab caps each orders query at 60 days, so to reconstruct a complete LIFO
-history (a lot may be held for months) we PAGE backward in 60-day windows up to
-`_MAX_LOOKBACK_DAYS`. Reconstruction needs the full buy history — a truncated
-window would erase old held lots and fabricate "oversold" sells.
+SOURCE: the TRANSACTIONS endpoint (type=TRADE), which Schwab confirms is the
+authoritative record of executions — the orders endpoint includes canceled/rejected
+orders AND misses fills from GTC orders entered before the query window. Validated on
+a live account (2026-07): transactions reproduced 100% of the orders-derived fills
+byte-for-byte AND recovered 2 fills the orders endpoint had dropped. The orders path
+(`_fetch_from_orders`) is kept as a resilience fallback.
+
+Each TRADE record's security leg (transferItems entry whose instrument.assetType is
+not CURRENCY / not a fee leg) carries: `amount` (shares, SIGNED), `price`, and
+`positionEffect` (OPENING/CLOSING). Side = (+amount & OPENING)→BUY,
+(-amount & CLOSING)→SELL; short opens/covers are skipped (long-only ladder), matching
+the orders path. The derived `fill_key` (order_id + execution time + price + shares +
+side) is IDENTICAL to the orders-derived one, so switching source is idempotent — a
+resync re-inserts nothing and simply adds any fills orders had been missing.
+
+Transactions cap each query at 1 YEAR, so we PAGE backward in <=1-year windows to the
+lookback horizon (or until a window is empty = the account's tOS-enablement ceiling).
 
 Account-scoped: always takes an explicit account hash (never "selected"). Read-only.
 """
@@ -22,9 +33,11 @@ from .util import _f
 
 log = logging.getLogger(__name__)
 
-_WINDOW_DAYS = 60          # Schwab's hard per-query cap
-_DEFAULT_LOOKBACK_DAYS = 366   # default history horizon (override via the 'fills_lookback_days' setting)
-_MAX_LOOKBACK_DAYS = 1830      # hard cap (~5y). Positions-reconciliation backfills anything older.
+_WINDOW_DAYS = 60          # orders endpoint per-query cap (fallback path)
+_TXN_WINDOW_DAYS = 365     # transactions endpoint per-query cap (Schwab 400s beyond 1 year)
+_DEFAULT_LOOKBACK_DAYS = 1830  # default horizon (~5y). Paging stops early at the account's
+                               # tOS ceiling (first empty window), so this is just an upper bound.
+_MAX_LOOKBACK_DAYS = 3660      # hard cap (~10y). Positions-reconciliation backfills anything older.
 
 
 async def _lookback_days() -> int:
@@ -118,15 +131,112 @@ def _fills_from_order(o: dict) -> list[Fill]:
     return out
 
 
+def _txn_security_leg(t: dict) -> dict | None:
+    """The traded-security leg of a TRADE transaction: the transferItems entry whose
+    instrument is a real security (not CURRENCY) and isn't a fee leg (feeType)."""
+    for it in t.get("transferItems") or []:
+        inst = it.get("instrument") or {}
+        if inst.get("assetType") not in (None, "CURRENCY") and not it.get("feeType"):
+            return it
+    return None
+
+
+def fills_from_transactions(txns: list[dict]) -> list[Fill]:
+    """Map TRADE transactions → long-only Fills. Pure.
+
+    Side from (amount sign, positionEffect): +/OPENING = BUY, -/CLOSING = SELL. A short
+    open (-/OPENING) or cover (+/CLOSING) is skipped (long-only ladder) — a real short
+    then surfaces as an `oversold` mismatch, which rebuild refuses to commit on, exactly
+    as with the orders path. `at` = the execution `time` (so the derived fill_key matches
+    the orders-derived key). Non-share instruments (option/future/forex) are skipped."""
+    out: list[Fill] = []
+    for t in txns or []:
+        if (t.get("type") or "").upper() != "TRADE":
+            continue
+        leg = _txn_security_leg(t)
+        if not leg:
+            continue
+        inst = leg.get("instrument") or {}
+        symbol, asset = inst.get("symbol"), inst.get("assetType")
+        if not symbol or asset in _SKIP_ASSET_TYPES:
+            if asset in _SKIP_ASSET_TYPES:
+                log.info(f"skipping non-share fill {symbol} ({asset}) — not reconstructable as a share lot")
+            continue
+        amt = _f(leg.get("amount")); pe = (leg.get("positionEffect") or "").upper()
+        if amt > 0 and pe == "OPENING":
+            side = "BUY"
+        elif amt < 0 and pe == "CLOSING":
+            side = "SELL"
+        else:
+            continue  # short open / cover — long-only, skip (surfaces as oversold if real)
+        shares, price = abs(amt), _f(leg.get("price"))
+        at = _parse_dt(t.get("time"))
+        if shares > 0 and price > 0 and at is not None:
+            out.append(Fill(symbol=symbol, side=side, shares=shares, price=price,
+                            at=at, order_type="TRADE", order_id=str(t.get("orderId") or "")))
+    return out
+
+
+def _fetch_from_transactions(client, account_hash: str, lookback_days: int) -> list[Fill]:
+    """Page the transactions endpoint (type=TRADE) in <=1-year windows back to the
+    horizon, stopping early once a window is empty (the account's tOS-enablement
+    ceiling — no point requesting older). Raises on any HTTP error."""
+    end = datetime.now(timezone.utc)
+    horizon = end - timedelta(days=lookback_days)
+    win_end = end
+    txns: list[dict] = []
+    while win_end > horizon:
+        win_start = max(win_end - timedelta(days=_TXN_WINDOW_DAYS), horizon)
+        resp = client.get_transactions(
+            account_hash, start_date=win_start, end_date=win_end,
+            transaction_types=client.Transactions.TransactionType.TRADE,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(f"transactions HTTP {resp.status_code} for {win_start:%Y-%m-%d}..{win_end:%Y-%m-%d}")
+        data = resp.json()
+        window = data if isinstance(data, list) else []
+        txns.extend(window)
+        if not window:
+            break  # reached the account's API ceiling — older windows are empty too
+        win_end = win_start
+    return fills_from_transactions(txns)
+
+
+def _fetch_from_orders(client, account_hash: str, lookback_days: int) -> list[Fill]:
+    """Fallback: the legacy orders-endpoint path (status=FILLED, <=60-day windows)."""
+    by_id: dict = {}
+    end = datetime.now(timezone.utc)
+    horizon = end - timedelta(days=lookback_days)
+    win_end = end
+    while win_end > horizon:
+        win_start = max(win_end - timedelta(days=_WINDOW_DAYS), horizon)
+        resp = client.get_orders_for_account(
+            account_hash, from_entered_datetime=win_start,
+            to_entered_datetime=win_end, status=client.Order.Status.FILLED,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(f"orders HTTP {resp.status_code} for {win_start:%Y-%m-%d}..{win_end:%Y-%m-%d}")
+        data = resp.json()
+        for o in data if isinstance(data, list) else []:
+            if (o or {}).get("status") == "FILLED" and o.get("orderId") is not None:
+                by_id[o["orderId"]] = o
+        win_end = win_start
+    fills: list[Fill] = []
+    for o in by_id.values():
+        fills.extend(_fills_from_order(o))
+    return fills
+
+
 async def fetch_fills(account_hash: str, lookback_days: int | None = None):
-    """All executed fills for the account over the lookback, paged in <=60-day windows.
+    """All executed fills for the account, from the TRANSACTIONS endpoint (authoritative),
+    falling back to ORDERS if transactions can't be fetched.
 
     Returns:
       list[Fill]  — the fills (possibly EMPTY [] = the API succeeded and the account
                     genuinely has no fills in the window);
-      None        — could NOT fetch (no token / API error / any window failed). The
-                    caller MUST distinguish: [] may route to a positions-mirror, but
-                    None means 'unknown' and must never trigger a wipe or a re-route.
+      None        — could NOT fetch from EITHER source. The caller MUST distinguish:
+                    [] may route to a positions-mirror, but None means 'unknown' and
+                    must never trigger a wipe or a re-route.
     """
     if not account_hash:
         return None
@@ -137,33 +247,12 @@ async def fetch_fills(account_hash: str, lookback_days: int | None = None):
         lookback_days = await _lookback_days()
     lookback_days = max(1, min(int(lookback_days), _MAX_LOOKBACK_DAYS))
 
-    def go():
-        by_id: dict = {}  # dedup orders that straddle a window boundary, by orderId
-        end = datetime.now(timezone.utc)
-        horizon = end - timedelta(days=lookback_days)
-        win_end = end
-        while win_end > horizon:
-            win_start = max(win_end - timedelta(days=_WINDOW_DAYS), horizon)
-            resp = client.get_orders_for_account(
-                account_hash, from_entered_datetime=win_start,
-                to_entered_datetime=win_end, status=client.Order.Status.FILLED,
-            )
-            if resp.status_code != 200:
-                raise RuntimeError(f"orders HTTP {resp.status_code} for {win_start:%Y-%m-%d}..{win_end:%Y-%m-%d}")
-            data = resp.json()
-            for o in data if isinstance(data, list) else []:
-                if (o or {}).get("status") == "FILLED" and o.get("orderId") is not None:
-                    by_id[o["orderId"]] = o
-            win_end = win_start
-        return list(by_id.values())
-
     try:
-        orders = await asyncio.to_thread(go)
+        return await asyncio.to_thread(_fetch_from_transactions, client, account_hash, lookback_days)
     except Exception as e:
-        log.warning(f"fetch failed for {account_hash[-4:]}: {e!r}")
-        return None  # could not fetch — caller must NOT treat this as 'no fills'
-
-    fills: list[Fill] = []
-    for o in orders:
-        fills.extend(_fills_from_order(o))
-    return fills
+        log.warning(f"transactions fetch failed for {account_hash[-4:]} ({e!r}) — trying orders fallback")
+    try:
+        return await asyncio.to_thread(_fetch_from_orders, client, account_hash, lookback_days)
+    except Exception as e:
+        log.warning(f"orders fetch also failed for {account_hash[-4:]}: {e!r}")
+        return None  # could not fetch from either — caller must NOT treat as 'no fills'

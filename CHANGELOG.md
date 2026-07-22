@@ -3,6 +3,19 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.56.0 — "Trades straight from the source of truth"
+
+- **Fills now come from Schwab's transactions record instead of the orders list.** Schwab confirmed
+  transactions are the authoritative log of what actually executed — the orders list can omit fills
+  (notably from good-til-canceled orders) and carries canceled/rejected noise. On the connected
+  account this reproduced every existing fill exactly *and* recovered two real fills the orders list
+  had dropped (which previously needed a manual CSV import to recover).
+- **Full trade history is pulled automatically, back to when the account was API-enabled** — no more
+  ~1-year fetch limit. History older than the account's API-enablement (e.g. an account that traded
+  for years before being connected) still needs a one-time CSV import; the API simply doesn't serve it.
+- Under the hood this is idempotent — the switch re-imports nothing and only adds what was missing —
+  and the orders list stays as an automatic fallback if the transactions feed is ever unavailable.
+
 ## v0.55.0 — "Buying power you can actually use"
 
 - **The app now plans against what you can really trade with, not the optimistic margin number.**
