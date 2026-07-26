@@ -2,22 +2,26 @@ import { useState } from "react";
 import type { NotifChannels, NotifPrefs } from "../types";
 import { PhoneNotify } from "../settings/PhoneNotify";
 import { PS } from "./ui";
-import { IconClose } from "../Icon";
+import { IconClose, IconPlay } from "../Icon";
+import { useToast } from "../Toast";
+import { playNotifSound } from "./sound";
 
 // The Settings sub-tab of the Notifications tab: one clear place to decide what
 // interrupts you. A category × channel grid, a global mute, per-symbol mutes, and
 // the phone connection. Muting never loses history — a muted item still lands in the
-// feed, it just doesn't badge, pop, or text you.
+// feed, it just doesn't badge, pop, or text you. Each category has a Preview button
+// that demonstrates exactly what it looks + sounds like.
 
-const CATS: { key: "alert" | "trigger" | "fill"; label: string; desc: string }[] = [
-  { key: "alert", label: "Price alerts", desc: "Your set price thresholds" },
-  { key: "trigger", label: "Strategy triggers", desc: "A position dipped in, or a lot hit its sell target" },
-  { key: "fill", label: "Order fills", desc: "A resting order executed" },
+const CATS: { key: "alert" | "trigger" | "fill"; label: string; desc: string; sample: string }[] = [
+  { key: "alert", label: "Price alerts", desc: "Your set price thresholds", sample: "AAPL crossed above 200 (now 200.14)" },
+  { key: "trigger", label: "Strategy triggers", desc: "A position dipped in, or a lot hit its sell target", sample: "NVDA dipped to a buy rung — position 3 suggested" },
+  { key: "fill", label: "Order fills", desc: "A resting order executed", sample: "Filled: bought 10 MSFT @ 415.20" },
 ];
 const CHANS: { key: keyof NotifChannels; label: string }[] = [
   { key: "bell", label: "In-app" },
   { key: "desktop", label: "Desktop" },
   { key: "phone", label: "Phone" },
+  { key: "sound", label: "Sound" },
 ];
 
 export function PrefsPanel({ prefs, savePrefs, desktopPerm, onEnableDesktop }: {
@@ -27,9 +31,20 @@ export function PrefsPanel({ prefs, savePrefs, desktopPerm, onEnableDesktop }: {
   onEnableDesktop: () => void;
 }) {
   const [sym, setSym] = useState("");
+  const toast = useToast();
 
   const setCell = (cat: "alert" | "trigger" | "fill", chan: keyof NotifChannels, v: boolean) =>
     savePrefs({ categories: { ...prefs.categories, [cat]: { ...prefs.categories[cat], [chan]: v } } });
+
+  // Show + play exactly what a notification of this category is like — the in-app
+  // toast, a sample desktop pop-up (if permitted), and the category's chime.
+  const preview = (cat: typeof CATS[number]) => {
+    playNotifSound(cat.key);
+    toast(`${cat.label} — ${cat.sample}`, "info");
+    if (desktopPerm === "granted") {
+      try { new Notification("Schwab Trader", { body: `${cat.label} — ${cat.sample}` }); } catch { /* ignore */ }
+    }
+  };
 
   const addMute = () => {
     const s = sym.trim().toUpperCase();
@@ -60,7 +75,13 @@ export function PrefsPanel({ prefs, savePrefs, desktopPerm, onEnableDesktop }: {
         {CATS.map((cat) => (
           <div key={cat.key} role="row" style={{ ...G.gridRow, opacity: prefs.muted ? 0.45 : 1 }}>
             <span role="rowheader" style={G.rowHead}>
-              <b>{cat.label}</b>
+              <div style={G.rowTitle}>
+                <b>{cat.label}</b>
+                <button type="button" style={G.preview} onClick={() => preview(cat)}
+                  title={`Preview a ${cat.label} notification (see + hear it)`} aria-label={`Preview ${cat.label}`}>
+                  <IconPlay /> Preview
+                </button>
+              </div>
               <div style={G.dim}>{cat.desc}</div>
             </span>
             {CHANS.map((ch) => (
@@ -114,12 +135,16 @@ const G: Record<string, React.CSSProperties> = {
   muteRow: { display: "flex", gap: 10, alignItems: "flex-start", padding: "4px 0", cursor: "pointer", fontSize: "var(--fs-sm)" },
   dim: { fontSize: "var(--fs-2xs)", color: "var(--text-dim)", lineHeight: 1.4 },
   grid: { border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden" },
-  gridHead: { display: "grid", gridTemplateColumns: "1fr 64px 64px 64px", alignItems: "center",
+  gridHead: { display: "grid", gridTemplateColumns: "1fr 52px 52px 52px 52px", alignItems: "center",
     background: "var(--panel-2)", padding: "6px 10px" },
   colHead: { textAlign: "center", fontSize: "var(--fs-2xs)", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-dim)" },
-  gridRow: { display: "grid", gridTemplateColumns: "1fr 64px 64px 64px", alignItems: "center",
+  gridRow: { display: "grid", gridTemplateColumns: "1fr 52px 52px 52px 52px", alignItems: "center",
     padding: "8px 10px", borderTop: "1px solid var(--border-hairline)" },
   rowHead: { fontSize: "var(--fs-sm)" },
+  rowTitle: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  preview: { display: "inline-flex", alignItems: "center", gap: 4, background: "transparent",
+    border: "1px solid var(--border)", borderRadius: "var(--r-pill)", color: "var(--accent)",
+    cursor: "pointer", fontSize: "var(--fs-2xs)", fontWeight: 600, padding: "2px 9px" },
   cell: { display: "flex", justifyContent: "center", cursor: "pointer" },
   hint: { fontSize: "var(--fs-xs)", color: "var(--text-dim)", marginTop: 8, lineHeight: 1.45 },
   muteAdd: { display: "flex", gap: 6, alignItems: "center" },

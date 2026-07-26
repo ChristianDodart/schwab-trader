@@ -6,15 +6,16 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import type { Alert, AuditEvent, Notification as AppNote, NotifPrefs } from "../types";
 import { API, wsUrl } from "../api";
 import { desktopSupported, fireDesktop } from "./desktop";
+import { playNotifSound } from "./sound";
 
 const WS_URL = wsUrl("/ws/notifications");
 
 const DEFAULT_PREFS: NotifPrefs = {
   muted: false,
   categories: {
-    alert: { bell: true, desktop: true, phone: true },
-    trigger: { bell: true, desktop: true, phone: true },
-    fill: { bell: true, desktop: false, phone: true },
+    alert: { bell: true, desktop: true, phone: true, sound: false },
+    trigger: { bell: true, desktop: true, phone: true, sound: false },
+    fill: { bell: true, desktop: false, phone: true, sound: false },
   },
   muted_symbols: [],
 };
@@ -100,6 +101,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
           setNotes((prev) => [n, ...prev].slice(0, 100));
           if (!n.read) setUnread((u) => u + 1);   // muted pushes arrive read → no badge
           fireDesktop(n);                          // respects n.desktop (server's prefs decision)
+          if (n.sound) playNotifSound(n.kind);     // in-app chime (server decided per prefs)
           if (n.alert_id != null) loadAlerts();
           loadAudit();
         } catch { /* malformed frame */ }

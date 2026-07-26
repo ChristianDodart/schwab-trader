@@ -42,14 +42,16 @@ log = logging.getLogger(__name__)
 # it just doesn't interrupt — matching how Slack/iOS muting behaves.
 _PREFS_KEY = "notif_prefs"
 _CATEGORIES = ("alert", "trigger", "fill")
-_CHANNELS = ("bell", "desktop", "phone")
+# "sound" = an in-app chime played by the renderer when the note arrives. Default OFF
+# everywhere so an auto-update never suddenly makes noise; the user opts in per category.
+_CHANNELS = ("bell", "desktop", "phone", "sound")
 _DEFAULT_PREFS: dict = {
     "muted": False,
     "categories": {
-        "alert":   {"bell": True, "desktop": True, "phone": True},
-        "trigger": {"bell": True, "desktop": True, "phone": True},
+        "alert":   {"bell": True, "desktop": True, "phone": True, "sound": False},
+        "trigger": {"bell": True, "desktop": True, "phone": True, "sound": False},
         # Fills are frequent and low-urgency — no desktop pop-up by default.
-        "fill":    {"bell": True, "desktop": False, "phone": True},
+        "fill":    {"bell": True, "desktop": False, "phone": True, "sound": False},
     },
     "muted_symbols": [],
 }
@@ -101,7 +103,7 @@ def _gate(prefs: dict, category: str, symbol: str | None) -> dict:
     """Resolve one notification's delivery: whether it lands read (no badge), and
     whether desktop/phone copies go out. 'system' always fully delivers."""
     if category == "system":
-        return {"read": False, "desktop": True, "phone": True}
+        return {"read": False, "desktop": True, "phone": True, "sound": False}
     active = (not prefs.get("muted")) and ((symbol or "").upper() not in set(prefs.get("muted_symbols", [])))
     cat = (prefs.get("categories") or {}).get(category, {})
     bell = cat.get("bell", True)
@@ -109,6 +111,7 @@ def _gate(prefs: dict, category: str, symbol: str | None) -> dict:
         "read": not (active and bell),                 # muted/off → recorded as already-read
         "desktop": bool(active and cat.get("desktop", True)),
         "phone": bool(active and cat.get("phone", True)),
+        "sound": bool(active and cat.get("sound", False)),  # in-app chime (default off)
     }
 
 # Audit-log retention: the table grows forever otherwise. Prune rows that are BOTH
@@ -286,7 +289,8 @@ async def _fire(a: dict, symbol: str, px: float) -> None:
 
     _push({
         "id": nid, "alert_id": a["id"], "symbol": symbol, "message": msg,
-        "price": px, "read": g["read"], "created_at": _iso(), "kind": "alert", "desktop": g["desktop"],
+        "price": px, "read": g["read"], "created_at": _iso(), "kind": "alert",
+        "desktop": g["desktop"], "sound": g["sound"],
     })
     if g["phone"]:
         phone.dispatch(f"{symbol} alert", msg)  # unified prefs already decided phone
@@ -308,7 +312,8 @@ async def post_system_notification(symbol: str | None, message: str, price: floa
         nid = n.id
         await s.commit()
     _push({"id": nid, "alert_id": None, "symbol": symbol, "message": message,
-           "price": price, "read": g["read"], "created_at": _iso(), "kind": category, "desktop": g["desktop"]})
+           "price": price, "read": g["read"], "created_at": _iso(), "kind": category,
+           "desktop": g["desktop"], "sound": g["sound"]})
     if g["phone"]:
         phone.dispatch(symbol or "Schwab Trader", message)
     return nid
@@ -341,7 +346,8 @@ async def _emit(symbol: str | None, message: str, price: float | None, alert_id=
         nid = n.id
         await s.commit()
     _push({"id": nid, "alert_id": alert_id, "symbol": symbol, "message": message,
-           "price": price, "read": g["read"], "created_at": _iso(), "kind": "fill", "desktop": g["desktop"]})
+           "price": price, "read": g["read"], "created_at": _iso(), "kind": "fill",
+           "desktop": g["desktop"], "sound": g["sound"]})
     if g["phone"]:
         phone.dispatch(symbol or "Fill", message)
 

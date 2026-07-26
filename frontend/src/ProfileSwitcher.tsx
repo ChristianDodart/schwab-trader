@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 // re-reads under the new profile. Connecting an unconnected profile happens via
 // the existing AuthBanner (which reflects the ACTIVE profile's token).
 import { API } from "./api";
-import { IconChevronDown, IconClose, IconPlus } from "./Icon";
+import { IconChevronDown, IconClose, IconPlus, IconEdit, IconCheck } from "./Icon";
 
 type ProfStatus = { authorized: boolean; severity: string; days_left: number | null; message: string };
 type Prof = { id: string; name: string; active: boolean; connected: boolean; status: ProfStatus };
@@ -17,9 +17,12 @@ export function ProfileSwitcher() {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameName, setRenameName] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const closeMenu = () => { setOpen(false); setConfirmDel(null); setAdding(false); triggerRef.current?.focus(); };
+  const resetRows = () => { setConfirmDel(null); setAdding(false); setRenaming(null); };
+  const closeMenu = () => { setOpen(false); resetRows(); triggerRef.current?.focus(); };
 
   const load = () =>
     fetch(`${API}/profiles`).then((r) => r.json())
@@ -27,7 +30,7 @@ export function ProfileSwitcher() {
       .catch(() => {});
   useEffect(() => { load(); }, []);
   useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setConfirmDel(null); setAdding(false); } };
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); resetRows(); } };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
@@ -59,6 +62,17 @@ export function ProfileSwitcher() {
       .then(() => { setConfirmDel(null); load(); })
       .catch(() => {});
   };
+  const startRename = (p: Prof) => { resetRows(); setRenameName(p.name); setRenaming(p.id); };
+  const rename = (id: string) => {
+    const name = renameName.trim();
+    if (!name || busy) { setRenaming(null); return; }
+    // Rename works on any profile (even the active one) and only changes the label —
+    // no reload needed since the id is stable; just refresh the list.
+    fetch(`${API}/profiles/${id}/rename`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) })
+      .then((r) => r.json())
+      .then(() => { setRenaming(null); load(); })
+      .catch(() => setRenaming(null));
+  };
 
   return (
     <div ref={ref} style={S.wrap}
@@ -75,23 +89,40 @@ export function ProfileSwitcher() {
           <div style={S.popLabel}>Trading profile</div>
           {profiles.map((p) => (
             <div key={p.id} style={{ ...S.item, ...(p.active ? S.itemActive : null) }}>
-              <button role="menuitem" style={S.itemMain} disabled={busy} onClick={() => !p.active && activate(p.id)}>
-                <span style={{ ...S.dot, background: dotColor(p) }} aria-hidden="true" />
-                <span style={{ fontWeight: p.active ? 700 : 500 }}>{p.name}</span>
-                <span style={S.itemStatus}>
-                  {p.active ? "active" : p.connected ? (p.status.authorized ? "connected" : "expired") : "not connected"}
-                </span>
-              </button>
-              {confirmDel === p.id ? (
-                <span style={S.confirmRow}>
-                  <button className="btn btn-danger btn-sm" onClick={() => del(p.id)}>Delete</button>
-                  <button className="btn btn-ghost btn-sm" aria-label="Cancel delete" onClick={() => setConfirmDel(null)}><IconClose /></button>
+              {renaming === p.id ? (
+                <span style={S.addRow}>
+                  <input className="field" autoFocus value={renameName} maxLength={64}
+                    onChange={(e) => setRenameName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") rename(p.id); if (e.key === "Escape") { e.stopPropagation(); setRenaming(null); } }}
+                    style={{ height: 30, flex: 1 }} aria-label={`Rename ${p.name}`} />
+                  <button className="btn btn-primary btn-sm" disabled={!renameName.trim()} aria-label="Save name" onClick={() => rename(p.id)}><IconCheck /></button>
+                  <button className="btn btn-ghost btn-sm" aria-label="Cancel rename" onClick={() => setRenaming(null)}><IconClose /></button>
                 </span>
               ) : (
-                !p.active && (
-                  <button className="btn btn-ghost btn-sm" title={`Delete ${p.name}`} aria-label={`Delete ${p.name}`}
-                    onClick={() => setConfirmDel(p.id)}><IconClose /></button>
-                )
+                <>
+                  <button role="menuitem" style={S.itemMain} disabled={busy} onClick={() => !p.active && activate(p.id)}>
+                    <span style={{ ...S.dot, background: dotColor(p) }} aria-hidden="true" />
+                    <span style={{ fontWeight: p.active ? 700 : 500 }}>{p.name}</span>
+                    <span style={S.itemStatus}>
+                      {p.active ? "active" : p.connected ? (p.status.authorized ? "connected" : "expired") : "not connected"}
+                    </span>
+                  </button>
+                  {confirmDel === p.id ? (
+                    <span style={S.confirmRow}>
+                      <button className="btn btn-danger btn-sm" onClick={() => del(p.id)}>Delete</button>
+                      <button className="btn btn-ghost btn-sm" aria-label="Cancel delete" onClick={() => setConfirmDel(null)}><IconClose /></button>
+                    </span>
+                  ) : (
+                    <span style={S.confirmRow}>
+                      <button className="btn btn-ghost btn-sm" title={`Rename ${p.name}`} aria-label={`Rename ${p.name}`}
+                        onClick={() => startRename(p)}><IconEdit /></button>
+                      {!p.active && (
+                        <button className="btn btn-ghost btn-sm" title={`Delete ${p.name}`} aria-label={`Delete ${p.name}`}
+                          onClick={() => setConfirmDel(p.id)}><IconClose /></button>
+                      )}
+                    </span>
+                  )}
+                </>
               )}
             </div>
           ))}

@@ -249,10 +249,11 @@ export type Notification = {
   created_at: string | null;
   kind?: "alert" | "trigger" | "fill" | "system"; // live-push only (not stored) — category
   desktop?: boolean; // live-push only: server's decision (from notif prefs) whether to pop a desktop notification
+  sound?: boolean;   // live-push only: server's decision whether to play the in-app chime
 };
 
 // Notification delivery prefs (global) — the Notifications tab writes these.
-export type NotifChannels = { bell: boolean; desktop: boolean; phone: boolean };
+export type NotifChannels = { bell: boolean; desktop: boolean; phone: boolean; sound: boolean };
 export type NotifPrefs = {
   muted: boolean;
   categories: { alert: NotifChannels; trigger: NotifChannels; fill: NotifChannels };

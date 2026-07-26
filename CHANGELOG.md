@@ -3,6 +3,21 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.61.0 — "Rename profiles + hear your notifications"
+
+- **Trading profiles are renamable.** The profile switcher now has an edit button on each
+  profile — rename "Default" to your name (or anything), inline, no reload. Works on any
+  profile including the active one.
+- **Notification sounds + preview.** Each notification type (price alerts, strategy
+  triggers, order fills) can now play a short, distinct chime, and a new **Preview** button
+  on each one shows *and* plays exactly what it's like — so you can pick what you want to
+  hear before it happens for real. Sound is a new column in the delivery grid
+  (Settings inside the Notifications tab) and is **off by default** — nothing suddenly
+  makes noise until you turn it on.
+
+This is the first of a few waves reworking profiles, notifications, and rules to be
+manageable across all your accounts in one place.
+
 ## v0.60.0 — "Run in the system tray"
 
 - **New option: keep Schwab Trader running in the system tray.** Turn it on under

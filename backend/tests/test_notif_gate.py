@@ -5,21 +5,22 @@ from app import notifications as n
 
 def test_defaults_deliver_everything_except_fill_desktop():
     p = n._merge_prefs(None)
-    assert n._gate(p, "alert", "AAA") == {"read": False, "desktop": True, "phone": True}
-    assert n._gate(p, "trigger", "AAA") == {"read": False, "desktop": True, "phone": True}
+    # sound defaults OFF everywhere (an auto-update should never suddenly chime).
+    assert n._gate(p, "alert", "AAA") == {"read": False, "desktop": True, "phone": True, "sound": False}
+    assert n._gate(p, "trigger", "AAA") == {"read": False, "desktop": True, "phone": True, "sound": False}
     # Fills: bell + phone on, desktop OFF by default (frequent, low-urgency).
-    assert n._gate(p, "fill", "AAA") == {"read": False, "desktop": False, "phone": True}
+    assert n._gate(p, "fill", "AAA") == {"read": False, "desktop": False, "phone": True, "sound": False}
 
 
 def test_global_mute_records_read_and_silences_channels():
     p = n._merge_prefs({"muted": True})
     g = n._gate(p, "trigger", "AAA")
-    assert g == {"read": True, "desktop": False, "phone": False}
+    assert g == {"read": True, "desktop": False, "phone": False, "sound": False}
 
 
 def test_symbol_mute_only_that_symbol():
     p = n._merge_prefs({"muted_symbols": ["tsla"]})   # case-insensitive
-    assert n._gate(p, "alert", "TSLA") == {"read": True, "desktop": False, "phone": False}
+    assert n._gate(p, "alert", "TSLA") == {"read": True, "desktop": False, "phone": False, "sound": False}
     assert n._gate(p, "alert", "AAPL")["read"] is False
 
 
@@ -33,7 +34,7 @@ def test_category_bell_off_lands_read_but_channels_independent():
 def test_system_category_always_delivers():
     p = n._merge_prefs({"muted": True, "muted_symbols": ["AAA"]})
     # Re-auth nudges (system) bypass every mute.
-    assert n._gate(p, "system", "AAA") == {"read": False, "desktop": True, "phone": True}
+    assert n._gate(p, "system", "AAA") == {"read": False, "desktop": True, "phone": True, "sound": False}
 
 
 def test_merge_fills_partial_and_uppercases_symbols():
