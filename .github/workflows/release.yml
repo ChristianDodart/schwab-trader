@@ -73,14 +73,13 @@ jobs:
         working-directory: desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Phase 1: build macOS unsigned. Remove this once the Apple cert secrets exist.
+          # Phase 1: everything ships UNSIGNED. Do NOT inject CSC_LINK / CSC_KEY_PASSWORD /
+          # APPLE_* here — an EMPTY CSC_LINK makes electron-builder try (and fail) to resolve
+          # a non-existent cert on BOTH Windows and macOS ("… not a file"). Omitting them
+          # leaves the builds unsigned, which is what we want for now. This flag stops macOS
+          # from searching the keychain for a signing identity. Phase 2 (signing/notarization)
+          # adds CSC_LINK, CSC_KEY_PASSWORD and the APPLE_* vars back and drops this line.
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          # Present but empty until Phase 2 — electron-builder signs/notarizes when set.
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           npm ci
           # Publish only on a real tag push. A manual (workflow_dispatch) run is a
