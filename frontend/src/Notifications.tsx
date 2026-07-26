@@ -9,6 +9,7 @@ import { FeedPanel } from "./notifications/FeedPanel";
 import { ActivityPanel } from "./notifications/ActivityPanel";
 import { AlertsPanel } from "./notifications/AlertsPanel";
 import { PrefsPanel } from "./notifications/PrefsPanel";
+import { NotifHub } from "./notifications/NotifHub";
 import { useToast } from "./Toast";
 import { IconBell } from "./Icon";
 
@@ -26,12 +27,13 @@ export function NotificationsBell({ onOpen }: { onOpen: () => void }) {
   );
 }
 
-type Sub = "feed" | "alerts" | "activity" | "settings";
+type Sub = "feed" | "alerts" | "activity" | "settings" | "hub";
 const SUBS: { id: Sub; label: string }[] = [
   { id: "feed", label: "Feed" },
   { id: "alerts", label: "Alerts" },
   { id: "activity", label: "Activity" },
   { id: "settings", label: "Settings" },
+  { id: "hub", label: "All accounts" },
 ];
 
 export function NotificationsTab({ prefill, onPrefillConsumed }: {
@@ -81,7 +83,7 @@ export function NotificationsTab({ prefill, onPrefillConsumed }: {
   const activeCount = n.alerts.filter((a) => a.active).length;
 
   return (
-    <div style={S.page}>
+    <div style={sub === "hub" ? S.pageWide : S.page}>
       <h2 className="page-title" style={{ marginTop: 4 }}>Notifications</h2>
       <div className="panel" style={S.card}>
         <div style={S.tabs} role="tablist" aria-label="Notification views">
@@ -104,6 +106,8 @@ export function NotificationsTab({ prefill, onPrefillConsumed }: {
           <AlertsPanel alerts={n.alerts}
             sym={sym} onSym={setSym} dir={dir} onDir={setDir} price={price} onPrice={setPrice}
             repeat={repeat} onRepeat={setRepeat} formMsg={formMsg} onAdd={addAlert} onRemove={removeAlert} />
+        ) : sub === "hub" ? (
+          <NotifHub desktopPerm={n.desktopPerm} />
         ) : (
           <PrefsPanel prefs={n.prefs} savePrefs={n.savePrefs}
             desktopPerm={n.desktopPerm} onEnableDesktop={n.enableDesktop} />
@@ -136,6 +140,7 @@ const S: Record<string, React.CSSProperties> = {
   },
   badgePulse: { transform: "scale(1.4)", boxShadow: "0 0 0 3px var(--danger-bg)" },
   page: { maxWidth: 640 },
+  pageWide: { maxWidth: 1100 },
   card: { marginTop: 12, padding: 0, overflow: "hidden" },
   tabs: { display: "flex", alignItems: "center", borderBottom: "1px solid var(--border)", background: "var(--panel-header)" },
 };

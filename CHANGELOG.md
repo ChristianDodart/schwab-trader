@@ -3,6 +3,20 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.63.0 — "All-accounts notification hub"
+
+- **A single place to manage notifications across every account.** The Notifications tab
+  has a new **All accounts** view: every account is a column, every notification type and
+  channel (in-app, desktop, phone, sound) a row, so you can turn things on and off for any
+  account without switching to it — and a marker flags any row where two accounts differ,
+  so you can see at a glance where your settings diverge. Mute a whole account in one click,
+  and Preview any type right there.
+- Accounts from a profile that isn't currently connected still appear (their settings live
+  locally), shown with a masked account number until you reconnect that profile to pull the
+  real name.
+
+Next: the same side-by-side treatment for your trading rules.
+
 ## v0.62.0 — "Notifications, per account"
 
 - **Notification settings are now per-account.** Which alerts reach you — and how (in-app,

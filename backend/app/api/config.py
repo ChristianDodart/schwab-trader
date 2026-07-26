@@ -43,6 +43,36 @@ async def set_notif_prefs(body: NotifPrefsBody) -> dict:
     return await notifications_svc.set_notif_prefs(data, account_hash=acct)
 
 
+@router.get("/api/accounts-overview")
+async def accounts_overview() -> dict:
+    """Per-profile account columns for the multi-account hub / compare views.
+
+    The ACTIVE profile lists its LIVE accounts (labeled by mask + type). Other profiles
+    show their last-selected account from the local DB with a degraded (masked-hash)
+    label — their live account list needs that profile's Schwab token, which only the
+    active login holds. Rules and notification prefs are all local, so every listed
+    account can still be read/edited without switching profiles."""
+    profs = (await profiles_svc.list_profiles())["profiles"]
+    active = await accounts_svc.list_accounts()   # active profile's live accounts
+    sel_hash = active.get("selected_hash")
+    out = []
+    for p in profs:
+        if p["active"]:
+            accts = [
+                {"hash": a["hash"],
+                 "label": a["mask"] + (f" · {a['type']}" if a.get("type") else ""),
+                 "selected": a["hash"] == sel_hash, "live": True}
+                for a in active.get("accounts", [])
+            ]
+        else:
+            sel = await profiles_svc._raw_get(f"p:{p['id']}:{accounts_svc.SELECTED_KEY}")
+            accts = ([{"hash": sel, "label": f"…{sel[-4:]}", "selected": True, "live": False}]
+                     if sel else [])
+        out.append({"id": p["id"], "name": p["name"], "active": p["active"],
+                    "connected": p["connected"], "accounts": accts})
+    return {"profiles": out}
+
+
 @router.get("/api/strategy/validate")
 async def validate_strategy() -> dict:
     """Advisory sanity checks on the SELECTED account's strategy config (never blocks)."""
@@ -107,12 +137,15 @@ class ConfigBody(BaseModel):
     # below so an OMITTED field is left as-is while an explicit null clears it.
     year_end_goal: float | None = None
     other_annual_income: float | None = None
+    account_hash: str | None = None   # which account to write (default: selected)
 
 
 @router.get("/api/config")
-async def get_config() -> dict:
-    """Per-account config (strategy + trading-enable + tax) for the selected account."""
-    return await config_store.get_config(await _selected())
+async def get_config(account_hash: str | None = None) -> dict:
+    """Per-account config (strategy + trading-enable + tax). Defaults to the selected
+    account; pass ?account_hash= to read another's (for the multi-account compare view).
+    Rules live in the local DB, so any account's config reads without its Schwab token."""
+    return await config_store.get_config(account_hash or await _selected())
 
 
 @router.post("/api/config")
@@ -126,7 +159,7 @@ async def post_config(body: ConfigBody) -> dict:
     if "other_annual_income" in fs:
         extra["other_annual_income"] = body.other_annual_income
     return await config_store.set_config(
-        await _selected(),
+        body.account_hash or await _selected(),
         trading_enabled=body.trading_enabled, tax_filing=body.tax_filing,
         tax_state_rate=body.tax_state_rate, strategy=body.strategy, **extra,
     )
@@ -190,19 +223,21 @@ async def set_appearance(body: AppearanceBody) -> dict:
 
 
 @router.get("/api/signal-rules")
-async def get_signal_rules() -> dict:
-    """User-defined extra signal rules for the selected account."""
-    return {"rules": await ledger_svc.get_signal_rules(await _selected())}
+async def get_signal_rules(account_hash: str | None = None) -> dict:
+    """User-defined extra signal rules. Defaults to the selected account; pass
+    ?account_hash= to read another's (multi-account compare view)."""
+    return {"rules": await ledger_svc.get_signal_rules(account_hash or await _selected())}
 
 
 class SignalRulesBody(BaseModel):
     rules: list
+    account_hash: str | None = None   # which account to write (default: selected)
 
 
 @router.put("/api/signal-rules")
 async def set_signal_rules(body: SignalRulesBody) -> dict:
-    """Replace the extra signal rules for the selected account."""
-    return await ledger_svc.set_signal_rules(await _selected(), body.rules)
+    """Replace the extra signal rules for an account (default: selected)."""
+    return await ledger_svc.set_signal_rules(body.account_hash or await _selected(), body.rules)
 
 
 @router.get("/api/symbol-rules")
