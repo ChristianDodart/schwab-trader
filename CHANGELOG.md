@@ -3,6 +3,22 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.62.0 — "Notifications, per account"
+
+- **Notification settings are now per-account.** Which alerts reach you — and how (in-app,
+  desktop, phone, sound) — is remembered separately for each account. Set fills to chime
+  loudly on your active-trading account and stay silent on a long-term one, for example.
+  The settings you see (under the Notifications tab) always reflect the account you're on;
+  switch accounts to set another's. Existing choices carry over — a newly-seen account
+  starts from what you had before, so nothing feels reset.
+- **Price alerts belong to the account** you created them on, so a threshold hit follows
+  that account's notification settings.
+- Under the hood: fills, strategy triggers, and price alerts now each route through the
+  owning account's preferences. (Re-auth reminders are still always shown.)
+
+Groundwork for the next wave — a single hub to manage every account's notifications side
+by side.
+
 ## v0.61.0 — "Rename profiles + hear your notifications"
 
 - **Trading profiles are renamable.** The profile switcher now has an edit button on each

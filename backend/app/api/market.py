@@ -86,8 +86,11 @@ async def list_alerts() -> dict:
 
 @router.post("/api/alerts")
 async def create_alert(body: AlertBody) -> dict:
+    # Stamp the alert with the selected account so its notification follows that
+    # account's prefs (None in demo / no selection → gated by the global defaults).
     return await notifications_svc.create_alert(
-        body.symbol, body.direction, body.threshold, body.note, body.repeat
+        body.symbol, body.direction, body.threshold, body.note, body.repeat,
+        account_hash=(await _selected()) or None,
     )
 
 

@@ -45,7 +45,7 @@ export function useNotifs(): Ctx {
   return c;
 }
 
-export function NotificationsProvider({ children }: { children: React.ReactNode }) {
+export function NotificationsProvider({ children, acctKey }: { children: React.ReactNode; acctKey?: string }) {
   const [notes, setNotes] = useState<AppNote[]>([]);
   const [unread, setUnread] = useState(0);
   const [pulse, setPulse] = useState(false);
@@ -83,6 +83,10 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   }, [unread]);
 
   useEffect(() => { loadNotes(); loadAlerts(); loadAudit(); loadPrefs(); }, [loadNotes, loadAlerts, loadAudit, loadPrefs]);
+
+  // Prefs are per-account now — reload them when the selected account changes so the
+  // Notifications settings reflect (and save to) the account you're actually on.
+  useEffect(() => { loadPrefs(); }, [acctKey, loadPrefs]);
 
   // Live push — one connection for the whole app lifetime.
   useEffect(() => {

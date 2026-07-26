@@ -75,7 +75,7 @@ async def run_strategy_trigger_watcher() -> None:
                                f"(${r['next_buy_price']:.2f}) — consider adding a position.")
                     else:
                         msg = f"{symbol} reached a sell target — profit is lockable now."
-                    await notifications.post_system_notification(symbol, msg, r.get("price"))
+                    await notifications.post_system_notification(symbol, msg, r.get("price"), account_hash=account)
                     log.info(f"{symbol} {kind}-trigger @ {r.get('price')}")
         except asyncio.CancelledError:
             raise

@@ -55,7 +55,14 @@ _DEFAULT_PREFS: dict = {
     },
     "muted_symbols": [],
 }
-_prefs_cache: dict | None = None
+# Prefs are per-ACCOUNT (v0.62): stored under key "a:{account_hash}:notif_prefs", cached
+# per account. account_hash=None means the legacy GLOBAL blob ("notif_prefs"), which also
+# seeds a brand-new account's prefs so existing global choices carry over on first read.
+_prefs_cache: dict[str | None, dict] = {}
+
+
+def _prefs_key(account_hash: str | None) -> str:
+    return f"a:{account_hash}:{_PREFS_KEY}" if account_hash else _PREFS_KEY
 
 
 def _merge_prefs(stored: dict | None) -> dict:
@@ -73,29 +80,35 @@ def _merge_prefs(stored: dict | None) -> dict:
     return p
 
 
-async def get_notif_prefs() -> dict:
-    global _prefs_cache
-    if _prefs_cache is None:
-        async with SessionLocal() as s:
-            row = await s.get(AppSetting, _PREFS_KEY)
-        try:
-            _prefs_cache = _merge_prefs(json.loads(row.value) if row and row.value else None)
-        except (ValueError, TypeError):
-            _prefs_cache = _merge_prefs(None)
-    return _prefs_cache
+async def get_notif_prefs(account_hash: str | None = None) -> dict:
+    if account_hash in _prefs_cache:
+        return _prefs_cache[account_hash]
+    async with SessionLocal() as s:
+        row = await s.get(AppSetting, _prefs_key(account_hash))
+        raw = row.value if row else None
+        # A brand-new account inherits the old global blob so nothing feels reset.
+        if raw is None and account_hash is not None:
+            g = await s.get(AppSetting, _PREFS_KEY)
+            raw = g.value if g else None
+    try:
+        prefs = _merge_prefs(json.loads(raw) if raw else None)
+    except (ValueError, TypeError):
+        prefs = _merge_prefs(None)
+    _prefs_cache[account_hash] = prefs
+    return prefs
 
 
-async def set_notif_prefs(patch: dict) -> dict:
-    global _prefs_cache
-    merged = _merge_prefs({**(await get_notif_prefs()), **(patch or {})})
+async def set_notif_prefs(patch: dict, account_hash: str | None = None) -> dict:
+    merged = _merge_prefs({**(await get_notif_prefs(account_hash)), **(patch or {})})
     payload = json.dumps(merged)
+    key = _prefs_key(account_hash)
     async with SessionLocal() as s:
         await s.execute(
-            pg_insert(AppSetting).values(key=_PREFS_KEY, value=payload)
+            pg_insert(AppSetting).values(key=key, value=payload)
             .on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": payload})
         )
         await s.commit()
-    _prefs_cache = merged
+    _prefs_cache[account_hash] = merged
     return merged
 
 
@@ -258,6 +271,7 @@ async def _reload_cache() -> None:
             cache.setdefault(a.symbol, []).append({
                 "id": a.id, "symbol": a.symbol, "direction": a.direction,
                 "threshold": float(a.threshold), "repeat": a.repeat, "note": a.note,
+                "account_hash": a.account_hash,
             })
     _cache.clear()
     _cache.update(cache)
@@ -269,7 +283,7 @@ async def _fire(a: dict, symbol: str, px: float) -> None:
     msg = f"{symbol} {_sym(a['direction'])} {a['threshold']:g} (now {px:g})"
     if a.get("note"):
         msg += f" — {a['note']}"
-    g = _gate(await get_notif_prefs(), "alert", symbol)
+    g = _gate(await get_notif_prefs(a.get("account_hash")), "alert", symbol)
     async with SessionLocal() as s:
         n = Notification(alert_id=a["id"], symbol=symbol, message=msg, price=px, read=g["read"])
         s.add(n)
@@ -300,11 +314,13 @@ async def _fire(a: dict, symbol: str, px: float) -> None:
 
 
 async def post_system_notification(symbol: str | None, message: str, price: float | None = None,
-                                   category: str = "trigger") -> int:
+                                   category: str = "trigger", account_hash: str | None = None) -> int:
     """Post a non-price-alert notification to the bell feed + live push. `category` is
     one of alert|trigger|fill (gated by the user's notification prefs) or "system"
-    (re-auth nudges — always delivered). alert_id is NULL. Returns the id."""
-    g = _gate(await get_notif_prefs(), category, symbol)
+    (re-auth nudges — always delivered). `account_hash` picks whose prefs gate it (the
+    account the trigger fired for); None → the global defaults. alert_id is NULL.
+    Returns the id."""
+    g = _gate(await get_notif_prefs(account_hash), category, symbol)
     async with SessionLocal() as s:
         n = Notification(alert_id=None, symbol=symbol, message=message, price=price, read=g["read"])
         s.add(n)
@@ -337,8 +353,9 @@ async def _on_quote(symbol: str, px: float) -> None:
 
 
 # ---------- fill notifications ----------
-async def _emit(symbol: str | None, message: str, price: float | None, alert_id=None) -> None:
-    g = _gate(await get_notif_prefs(), "fill", symbol)
+async def _emit(symbol: str | None, message: str, price: float | None, alert_id=None,
+                account_hash: str | None = None) -> None:
+    g = _gate(await get_notif_prefs(account_hash), "fill", symbol)
     async with SessionLocal() as s:
         n = Notification(alert_id=alert_id, symbol=symbol, message=message, price=price, read=g["read"])
         s.add(n)
@@ -413,7 +430,8 @@ async def notify_fills(account_hash: str, fills) -> None:
             if ot and ot != "MARKET" and recent:
                 verb = "bought" if str(f.side).upper() == "BUY" else "sold"
                 base = f"{f.symbol} {verb} {f.shares:g} @ ${float(f.price):.2f}"
-                await _emit(f.symbol, f"{base} — {ot.replace('_', ' ').title()} order filled", float(f.price))
+                await _emit(f.symbol, f"{base} — {ot.replace('_', ' ').title()} order filled", float(f.price),
+                            account_hash=account_hash)
                 log.info(f"resting fill: {base} ({ot})")
             else:
                 log.info(f"[audit] fill recorded ({ot or 'order'}): {f.symbol} {f.shares:g} @ {f.price}")
@@ -461,7 +479,7 @@ async def run_alert_watcher() -> None:
 # ---------- CRUD (used by the API) ----------
 
 async def create_alert(symbol: str, direction: str, threshold, note=None,
-                       repeat: bool = False) -> dict:
+                       repeat: bool = False, account_hash: str | None = None) -> dict:
     symbol = (symbol or "").strip().upper()
     direction = (direction or "").strip().lower()
     if not symbol:
@@ -483,7 +501,8 @@ async def create_alert(symbol: str, direction: str, threshold, note=None,
 
     async with SessionLocal() as s:
         a = PriceAlert(symbol=symbol, direction=direction, threshold=threshold,
-                       note=(note or None), repeat=bool(repeat), active=True)
+                       note=(note or None), repeat=bool(repeat), active=True,
+                       account_hash=account_hash or None)
         s.add(a)
         await s.flush()
         aid = a.id

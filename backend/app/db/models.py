@@ -188,9 +188,12 @@ class AccountConfig(Base):
 class PriceAlert(Base):
     """A user-set price-hit rule: notify when SYMBOL crosses THRESHOLD.
 
-    Global (not account-scoped) — a price is a price regardless of which account
-    is selected. One-shot by default (deactivates on fire); `repeat` re-arms it
-    so it fires again on each fresh crossing.
+    A price is the same regardless of account, but the notification it raises is
+    gated by ONE account's prefs (v0.62): `account_hash` records which account owns
+    the alert — the account selected when it was created — so its bell/desktop/phone/
+    sound routing follows that account's notification settings. NULL = legacy/global
+    (gated by the global defaults). One-shot by default (deactivates on fire);
+    `repeat` re-arms it so it fires again on each fresh crossing.
     """
 
     __tablename__ = "price_alert"
@@ -202,6 +205,7 @@ class PriceAlert(Base):
     note: Mapped[str | None] = mapped_column(String(256))
     repeat: Mapped[bool] = mapped_column(default=False)
     active: Mapped[bool] = mapped_column(default=True)
+    account_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)  # owning account (NULL = legacy/global)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     last_fired_at: Mapped[datetime | None] = mapped_column()
 

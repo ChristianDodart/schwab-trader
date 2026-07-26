@@ -365,7 +365,7 @@ export function App() {
   }, []);
 
   return (
-    <NotificationsProvider>
+    <NotificationsProvider acctKey={acctKey}>
     <main className="app-main">
       <div className="app-container">
         <header style={S.header}>

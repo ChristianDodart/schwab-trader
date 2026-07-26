@@ -21,20 +21,26 @@ router = APIRouter()
 
 
 @router.get("/api/notif-prefs")
-async def get_notif_prefs() -> dict:
-    """Notification delivery prefs (global): mute, per-category channel toggles, muted symbols."""
-    return await notifications_svc.get_notif_prefs()
+async def get_notif_prefs(account_hash: str | None = None) -> dict:
+    """Notification delivery prefs for one account (mute, per-category channels, muted
+    symbols). Defaults to the selected account; pass ?account_hash= to read another's.
+    A brand-new account inherits the old global prefs so nothing feels reset."""
+    acct = account_hash or (await _selected()) or None
+    return await notifications_svc.get_notif_prefs(acct)
 
 
 class NotifPrefsBody(BaseModel):
     muted: bool | None = None
     categories: dict | None = None
     muted_symbols: list[str] | None = None
+    account_hash: str | None = None   # which account to write (default: selected)
 
 
 @router.post("/api/notif-prefs")
 async def set_notif_prefs(body: NotifPrefsBody) -> dict:
-    return await notifications_svc.set_notif_prefs(body.model_dump(exclude_none=True))
+    data = body.model_dump(exclude_none=True)
+    acct = data.pop("account_hash", None) or (await _selected()) or None
+    return await notifications_svc.set_notif_prefs(data, account_hash=acct)
 
 
 @router.get("/api/strategy/validate")

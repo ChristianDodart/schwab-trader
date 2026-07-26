@@ -66,7 +66,9 @@ export function PrefsPanel({ prefs, savePrefs, desktopPerm, onEnableDesktop }: {
       </label>
 
       {/* Category × channel grid */}
-      <div style={{ ...G.dim, margin: "14px 0 6px" }}>What to deliver, and where</div>
+      <div style={{ ...G.dim, margin: "14px 0 6px" }}>
+        What to deliver, and where — <b>for the account you're on now</b>. Switch accounts to set another's.
+      </div>
       <div style={G.grid} role="table" aria-label="Notification delivery by category and channel">
         <div style={G.gridHead} role="row">
           <span role="columnheader" />
