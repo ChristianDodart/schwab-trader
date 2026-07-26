@@ -3,6 +3,20 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.64.0 — "Compare your rules across accounts"
+
+- **See your trading rules for every account side by side.** The Rules tab has a new
+  **Compare accounts** view: each account is a column, the key rules (sell target, buy-ladder
+  drops, sizing, guardrails, deployment scaling, trading on/off) are rows, and any row where
+  two accounts disagree is flagged — so you can spot exactly where your playbooks differ.
+- **Copy a whole playbook onto another account** in one step, from the column header — handy
+  for setting a new account up like an existing one. Because rules live locally, you can
+  compare (and copy onto) accounts of profiles that aren't currently connected; their account
+  name shows masked until you reconnect that profile.
+
+This completes the "manage everything across all your accounts in one place" set: renamable
+profiles, per-account notifications with an all-accounts hub, and now rules side by side.
+
 ## v0.63.0 — "All-accounts notification hub"
 
 - **A single place to manage notifications across every account.** The Notifications tab

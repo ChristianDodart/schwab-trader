@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usd } from "./format";
 import { SignalRulesEditor } from "./settings/SignalRulesEditor";
+import { RulesCompare } from "./RulesCompare";
 import { useToast } from "./Toast";
 import { IconCheck, IconWarning, IconClose } from "./Icon";
 
@@ -48,6 +49,7 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [findings, setFindings] = useState<Finding[] | null>(null);
+  const [mode, setMode] = useState<"account" | "compare">("account");
   const toast = useToast();
 
   const loadFindings = () =>
@@ -64,7 +66,24 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  if (!c) return <p style={S.note}>Loading your rules…</p>;
+  // Header + mode toggle: "This account" (the full editor) vs "Compare accounts" (the
+  // side-by-side matrix). Compare doesn't need the loaded config, so it renders even
+  // while `c` is loading.
+  const header = (
+    <>
+      <h2 className="page-title" style={{ marginTop: 4 }}>Financial Rules</h2>
+      <div style={S.modeToggle} role="tablist" aria-label="Rules view">
+        {(["account", "compare"] as const).map((m) => (
+          <button key={m} role="tab" aria-selected={mode === m} onClick={() => setMode(m)}
+            style={{ ...S.modeBtn, ...(mode === m ? S.modeBtnActive : null) }}>
+            {m === "account" ? "This account" : "Compare accounts"}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+  if (mode === "compare") return <div style={S.wrapWide}>{header}<RulesCompare /></div>;
+  if (!c) return <div style={S.wrap}>{header}<p style={S.note}>Loading your rules…</p></div>;
   const st = c.strategy;
   const setStrat = (patch: Partial<Strategy>) => {
     setC({ ...c, strategy: { ...st, ...patch } }); setSaved(false); setDirty(true);
@@ -123,7 +142,7 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
 
   return (
     <div style={S.wrap}>
-      <h2 className="page-title" style={{ marginTop: 4 }}>Financial Rules</h2>
+      {header}
       <p style={S.intro}>
         This is the playbook behind every <b>buy</b> and <b>sell</b> suggestion. Changing a rule changes what the app
         recommends — it <b>never places an order on its own</b>; you always review and confirm each one.
@@ -418,6 +437,12 @@ function MultInput({ value, onChange }: { value: number; onChange: (v: number) =
 
 const S: Record<string, React.CSSProperties> = {
   wrap: { marginTop: 12, maxWidth: 640, paddingBottom: 60 },
+  wrapWide: { marginTop: 12, maxWidth: 1100, paddingBottom: 60 },
+  modeToggle: { display: "inline-flex", gap: 2, padding: 3, background: "var(--panel-2)",
+    border: "1px solid var(--border)", borderRadius: "var(--r-md)", margin: "6px 0 14px" },
+  modeBtn: { border: "none", background: "transparent", color: "var(--text-muted)",
+    padding: "6px 16px", borderRadius: "var(--r-sm)", cursor: "pointer", fontSize: "var(--fs-sm)", fontWeight: 600 },
+  modeBtnActive: { background: "var(--pop)", color: "var(--text)", boxShadow: "var(--elev-1)" },
   intro: { color: "var(--text-muted)", fontSize: "var(--fs-md)", lineHeight: 1.55, margin: "4px 0 4px", padding: "12px 14px", background: "var(--panel-2)", borderRadius: "var(--r-md)", border: "1px solid var(--border-hairline)" },
   healthOk: { color: "var(--pos)", fontSize: "var(--fs-sm)", margin: "8px 0", padding: "8px 12px", background: "var(--pos-bg)", borderRadius: "var(--r-md)" },
   healthWarn: { fontSize: "var(--fs-sm)", lineHeight: 1.5, margin: "8px 0", padding: "10px 12px", background: "var(--warn-bg)", border: "1px solid var(--warn-border)", borderRadius: "var(--r-md)", color: "var(--text-muted)" },
