@@ -26,4 +26,10 @@ contextBridge.exposeInMainWorld("desktop", {
   },
   // Restart now and install the downloaded update.
   installUpdate: () => ipcRenderer.invoke("updater:install"),
+
+  // --- "run in the system tray" preference (desktop-only) ---
+  // Read the current setting (resolves to a boolean).
+  getTrayPref: () => ipcRenderer.invoke("trayPref:get"),
+  // Turn "minimize/close to the tray" on or off; resolves to the applied value.
+  setTrayPref: (on) => ipcRenderer.invoke("trayPref:set", on),
 });

@@ -3,6 +3,15 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.60.0 — "Run in the system tray"
+
+- **New option: keep Schwab Trader running in the system tray.** Turn it on under
+  Settings -> Desktop. With it enabled, minimizing or closing the window tucks the app
+  into the tray (the notification area) and keeps it running in the background instead of
+  quitting — so live updates and price alerts keep working with no taskbar button in the
+  way. A tray icon (and its right-click menu) brings the window back or quits for real.
+  Off by default, so nothing changes unless you want it.
+
 ## v0.59.0 — "Glossary everywhere + live worked examples"
 
 - **The glossary now reaches the whole app.** Ledger cards, capital & margin rows, position-detail

@@ -8,5 +8,7 @@ interface Window {
     onUpdateDownloaded?: (cb: (info: { version?: string; notes?: string | null }) => void) => () => void;
     onUpdateAvailable?: (cb: (info: { version?: string }) => void) => () => void;
     installUpdate?: () => Promise<boolean>;
+    getTrayPref?: () => Promise<boolean>;
+    setTrayPref?: (on: boolean) => Promise<boolean>;
   };
 }

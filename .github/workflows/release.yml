@@ -1,0 +1,122 @@
+name: Release
+
+# Builds the desktop app for Windows, macOS, and Linux and publishes them to a
+# single GitHub Release with the electron-updater feed. Triggered by pushing a
+# version tag (e.g. `git tag v0.60.0 && git push origin v0.60.0`); can also be run
+# manually from the Actions tab for a dry run (workflow_dispatch).
+#
+# PyInstaller can't cross-compile, so each OS builds its own backend sidecar on its
+# own runner. The public repo gets free macOS/Linux/Windows runners.
+#
+# Signing status:
+#   - Linux (AppImage): never needs signing.
+#   - Windows (NSIS):   unsigned for now (SmartScreen warning). Add a cert + the
+#                       CSC_LINK / CSC_KEY_PASSWORD secrets to sign.
+#   - macOS (dmg/zip):  UNSIGNED until Phase 2 — CSC_IDENTITY_AUTO_DISCOVERY is
+#                       forced off below so the build succeeds without a cert. To
+#                       enable signing + notarization: add the Apple secrets
+#                       (CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID,
+#                       APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID), remove the
+#                       CSC_IDENTITY_AUTO_DISCOVERY line, and add `"notarize":
+#                       { "teamId": "…" }` under `mac` in desktop/package.json.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+          - os: macos-14      # Apple Silicon (arm64)
+          - os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build frontend
+        shell: bash
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build backend sidecar (PyInstaller)
+        shell: bash
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+          pyinstaller --noconfirm schwab-backend.spec
+
+      - name: Package + publish (electron-builder)
+        shell: bash
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Phase 1: build macOS unsigned. Remove this once the Apple cert secrets exist.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          # Present but empty until Phase 2 — electron-builder signs/notarizes when set.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          npm ci
+          # Publish only on a real tag push. A manual (workflow_dispatch) run is a
+          # DRY BUILD — it must never publish, or it would overwrite the live release
+          # for the current package.json version with unsigned/dev artifacts.
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            npm run release
+          else
+            npm run dist
+          fi
+
+  # electron-builder leaves the release as a DRAFT with auto-generated notes. Pull
+  # this version's section out of CHANGELOG.md (so the web notes match the in-app
+  # update banner), append the standard footer, and flip the draft to published —
+  # the same thing build-installer.ps1 did locally. Runs once, after all builds.
+  finalize:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set release notes + publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          # Extract the CHANGELOG section for this version (## vX.Y.Z … up to the next ## v).
+          NOTES="$(awk -v ver="$VERSION" '
+            $0 ~ "^## +v" ver "([ ]|$)" {grab=1; next}
+            grab && /^## +v/ {exit}
+            grab {print}
+          ' CHANGELOG.md | sed -e 's/[[:space:]]*$//')"
+          FOOTER=$'\n\n---\nHow to update: the app updates itself. Next time you launch, click "Restart & update" in the banner, or just close and reopen — your data and settings stay exactly as they are.'
+          if [ -z "${NOTES// /}" ]; then NOTES="Maintenance release."; fi
+          printf '%s%s' "$NOTES" "$FOOTER" > /tmp/notes.md
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file /tmp/notes.md --draft=false

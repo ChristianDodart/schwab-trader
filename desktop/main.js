@@ -7,7 +7,7 @@
 //   2. Wait for the backend to answer, then load the window at http://localhost:PORT/.
 //   3. Auto-update from GitHub Releases (electron-updater).
 //   4. Kill the sidecar on quit.
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell, Tray, Menu, nativeImage } = require("electron");
 const { spawn } = require("child_process");
 const fs = require("fs");
 const http = require("http");
@@ -34,16 +34,21 @@ function getFreePort() {
 let backend = null;
 let win = null;
 
-// Resolve the sidecar exe + bundled frontend dist for dev vs packaged.
+// PyInstaller names the sidecar binary "schwab-backend.exe" on Windows and
+// "schwab-backend" (no extension) on macOS/Linux. Resolve the right one per OS so
+// the same code packages on all three.
+const SIDECAR = process.platform === "win32" ? "schwab-backend.exe" : "schwab-backend";
+
+// Resolve the sidecar binary + bundled frontend dist for dev vs packaged.
 function paths() {
   if (isDev) {
     return {
-      exe: path.join(__dirname, "..", "backend", "dist", "schwab-backend", "schwab-backend.exe"),
+      exe: path.join(__dirname, "..", "backend", "dist", "schwab-backend", SIDECAR),
       frontend: path.join(__dirname, "..", "frontend", "dist"),
     };
   }
   return {
-    exe: path.join(process.resourcesPath, "schwab-backend", "schwab-backend.exe"),
+    exe: path.join(process.resourcesPath, "schwab-backend", SIDECAR),
     frontend: path.join(process.resourcesPath, "frontend"),
   };
 }
@@ -103,6 +108,65 @@ function waitForBackend(cb, tries = 60) {
   ping();
 }
 
+// --- System tray ("run in the tray" option) -------------------------------------
+// Opt-in (off by default = classic taskbar behavior). When ON, minimizing or closing
+// the window HIDES it to the tray and keeps the app running (updates + notifications
+// keep flowing) instead of quitting; the tray icon / its menu bring it back or quit
+// for real. The preference is stored Electron-side in userData (the backend never sees
+// it) and toggled live from Settings via IPC. Cross-platform: Electron's Tray maps to
+// the Windows notification area, the macOS menu bar, and the Linux app indicator, so
+// this same code works on all three — nothing here is Windows-only.
+const prefsFile = () => path.join(app.getPath("userData"), "desktop-prefs.json");
+function readPrefs() {
+  try { return JSON.parse(fs.readFileSync(prefsFile(), "utf8")); } catch (e) { return {}; }
+}
+function writePrefs(patch) {
+  try { fs.writeFileSync(prefsFile(), JSON.stringify({ ...readPrefs(), ...patch }, null, 2)); }
+  catch (e) { /* best-effort; a missing pref just falls back to the default */ }
+}
+
+// The tray icon: an accent-blue badge with ascending bars, embedded as a data URL so
+// there's no asset to package. On macOS it shows in colour in the menu bar (not a
+// template image), which is fine for a branded mark.
+const TRAY_IMG = nativeImage.createFromDataURL(
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAXElEQVR42u3XwQ0AIAwCwG7oeC7pDjqA2keDlSgkfuWexYw5pbaOeFdKQ5jT5S4iq3yL+BuQXT4h0B+vIoAAcIBXIoAAMEC0RAAB3gE8fRXpKOUbJhTTjGKcZmcAMW8KWrk0l04AAAAASUVORK5CYII=",
+);
+
+let trayEnabled = false; // "run in the system tray" — resolved from prefs on startup
+let tray = null;
+let quitting = false;    // true = a real quit (tray "Quit" / before-quit); don't hide
+
+function showWindow() {
+  if (!win) { createWindow(); return; }
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+function buildTray() {
+  if (tray) return;
+  tray = new Tray(TRAY_IMG);
+  tray.setToolTip("Schwab Trader");
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: "Open Schwab Trader", click: showWindow },
+    { type: "separator" },
+    { label: "Quit Schwab Trader", click: () => { quitting = true; app.quit(); } },
+  ]));
+  tray.on("click", showWindow);         // Windows/Linux single-click opens
+  tray.on("double-click", showWindow);
+}
+
+function setTrayEnabled(on) {
+  trayEnabled = !!on;
+  writePrefs({ trayEnabled });
+  if (trayEnabled) { buildTray(); }
+  else if (tray) { tray.destroy(); tray = null; }
+}
+
+// Renderer (Settings) reads/writes the tray preference over IPC.
+ipcMain.handle("trayPref:get", () => trayEnabled);
+ipcMain.handle("trayPref:set", (_e, on) => { setTrayEnabled(on); return trayEnabled; });
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 900, backgroundColor: "#0b0e13",
@@ -112,6 +176,10 @@ function createWindow() {
   win.removeMenu();
   win.loadURL(BASE + "/");
   win.on("closed", () => { win = null; });
+  // With "run in the tray" on, closing/minimizing hides to the tray instead of
+  // quitting/going to the taskbar. A real quit (quitting=true) still closes normally.
+  win.on("close", (e) => { if (trayEnabled && !quitting) { e.preventDefault(); win.hide(); } });
+  win.on("minimize", (e) => { if (trayEnabled) { e.preventDefault(); win.hide(); } });
   // The app window must never navigate away from the app (a stray external link
   // would strand the user with no address bar). Open externals in the real browser.
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: "deny" }; });
@@ -170,7 +238,9 @@ if (!app.requestSingleInstanceLock()) {
     BASE = `http://localhost:${PORT}`;
     startBackend();
     waitForBackend(() => {
+      trayEnabled = !!readPrefs().trayEnabled; // resolve before the window's handlers run
       createWindow();
+      if (trayEnabled) buildTray();
       if (!isDev) setupAutoUpdate();
     });
   });
@@ -214,5 +284,5 @@ function killBackend() {
 }
 
 app.on("window-all-closed", () => { killBackend(); app.quit(); });
-app.on("before-quit", killBackend);
+app.on("before-quit", () => { quitting = true; killBackend(); });
 process.on("exit", killBackend);

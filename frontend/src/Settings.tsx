@@ -11,6 +11,7 @@ import { Appearance } from "./settings/Appearance";
 import { Backups } from "./settings/Backups";
 import { BenchmarkPicker } from "./settings/BenchmarkPicker";
 import { DataHealth } from "./settings/DataHealth";
+import { DesktopSection } from "./settings/DesktopSection";
 import { Diagnostics } from "./settings/Diagnostics";
 import { FmpKey } from "./settings/FmpKey";
 import { SchwabCreds } from "./settings/SchwabCreds";
@@ -79,6 +80,12 @@ export function Settings({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) =
       <Section title="Appearance" info="Pick a color theme for the app. Themes change color only — layout, spacing, and motion are identical across all of them, and every theme meets WCAG AA contrast. 'Follow system' tracks your OS light/dark setting; an explicit pick always wins. Your choice is saved on this install and applies before the window even paints.">
         <Appearance />
       </Section>
+
+      {window.desktop?.isDesktop && (
+        <Section title="Desktop" info="Behavior of the desktop app window. 'Run in the system tray' keeps the app alive in the background when you minimize or close it — handy for a trading app you want quietly watching (live updates and price alerts keep working) without a taskbar button. Turn it off to go back to the classic behavior where closing the window quits.">
+          <DesktopSection />
+        </Section>
+      )}
 
       <Section title="Schwab API credentials" info="Your Schwab developer-app key + secret (from developer.schwab.com) and callback URL. Stored on THIS install (overrides .env), so each person/install uses their own app. Set these first, then connect each profile under Schwab connection.">
         <SchwabCreds />

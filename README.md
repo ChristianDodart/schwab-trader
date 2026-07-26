@@ -65,10 +65,18 @@ FastAPI backend ── token mgr · streamer · strategy engine · order mgr · 
 
 ## Install (end users)
 
-Download the latest `Schwab Trader Setup x.y.z.exe` from the
-[Releases](https://github.com/ChristianDodart/schwab-trader/releases) page and run
-it. The app checks for updates on launch and installs them on the next restart —
-your data and settings are preserved.
+Grab the latest build for your OS from the
+[Releases](https://github.com/ChristianDodart/schwab-trader/releases) page:
+
+- **Windows** — `Schwab Trader Setup x.y.z.exe`. Auto-updates on launch (installs on the
+  next restart; your data and settings are preserved). Unsigned, so the first run shows a
+  SmartScreen prompt — click *More info -> Run anyway*.
+- **Linux** — `Schwab Trader-x.y.z.AppImage`. Mark it executable and run it. Auto-updates.
+- **macOS** — `Schwab Trader-x.y.z-arm64.dmg` (Apple Silicon). The build is **unsigned**,
+  so macOS Gatekeeper blocks it on first open: right-click the app -> Open, or allow it
+  under System Settings -> Privacy & Security. macOS builds **do not auto-update** (Apple
+  requires a signed app for that) — to upgrade, download the newer `.dmg` from Releases
+  and reinstall. Your data and settings are preserved.
 
 ## Develop
 
@@ -113,12 +121,23 @@ cd frontend && npx tsc -b && npx vitest run && npm run build
 ```
 
 ## Build & release
+
+**Cross-platform release (Windows + macOS + Linux)** — the normal path. Bump
+`backend/app/version.py` + `desktop/package.json`, add a `CHANGELOG.md` section, then
+push a version tag. GitHub Actions (`.github/workflows/release.yml`) builds all three
+OSes on their own runners and publishes them to one GitHub Release; the workflow reads
+the CHANGELOG section for the notes.
+```bash
+git tag v0.60.0 && git push origin v0.60.0
+```
+(PyInstaller can't cross-compile, so each OS builds its own backend sidecar in CI. A
+manual "Run workflow" from the Actions tab does a dry build that publishes nothing.)
+
+**Local Windows-only build** — a fast fallback when you just need a Windows installer:
 ```powershell
 .\build-installer.ps1            # build the installer locally
-.\build-installer.ps1 -Publish   # build + publish a GitHub Release (auto-update feed)
+.\build-installer.ps1 -Publish   # build + publish a Windows-only GitHub Release
 ```
-Bump `backend/app/version.py` first; the script syncs `desktop/package.json`, sets
-the release notes from the newest `CHANGELOG.md` section, and publishes the release.
 
 ## Strategy config
 All strategy numbers live in **`backend/app/strategy/default_strategy.yaml`**
