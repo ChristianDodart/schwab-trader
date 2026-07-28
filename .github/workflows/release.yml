@@ -73,13 +73,16 @@ jobs:
         working-directory: desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Phase 1: everything ships UNSIGNED. Do NOT inject CSC_LINK / CSC_KEY_PASSWORD /
-          # APPLE_* here — an EMPTY CSC_LINK makes electron-builder try (and fail) to resolve
-          # a non-existent cert on BOTH Windows and macOS ("… not a file"). Omitting them
-          # leaves the builds unsigned, which is what we want for now. This flag stops macOS
-          # from searching the keychain for a signing identity. Phase 2 (signing/notarization)
-          # adds CSC_LINK, CSC_KEY_PASSWORD and the APPLE_* vars back and drops this line.
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          # Unsigned release builds (no Apple cert yet). Do NOT inject CSC_LINK /
+          # CSC_KEY_PASSWORD / APPLE_* — an EMPTY CSC_LINK makes electron-builder try (and
+          # fail) to resolve a non-existent cert on BOTH Windows and macOS ("… not a file").
+          #
+          # We must NOT set CSC_IDENTITY_AUTO_DISCOVERY=false: that made electron-builder
+          # skip macOS signing ENTIRELY, shipping an Apple-Silicon .app with NO signature —
+          # which macOS refuses to launch as "damaged" (only Move to Trash / Cancel). With no
+          # cert AND the flag absent, electron-builder AD-HOC signs the mac app, so it launches
+          # after the normal Gatekeeper right-click -> Open. Full notarization (no prompt at
+          # all) still needs the Apple Developer cert (Phase 2: add the CSC_LINK/APPLE_* vars).
         run: |
           npm ci
           # Publish only on a real tag push. A manual (workflow_dispatch) run is a
