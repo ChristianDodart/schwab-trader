@@ -3,6 +3,15 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.65.0 — "macOS build actually opens"
+
+- **Fixed the macOS build refusing to launch.** The Apple-Silicon app was shipping without
+  a code signature, so macOS blocked it as "damaged" (offering only Move to Trash). It now
+  gets an ad-hoc signature during the build, so it opens with the normal first-run
+  **right-click -> Open** (Control-click the app, choose Open, confirm once). Still not
+  notarized — that needs the paid Apple Developer certificate — but the hard block is gone.
+- Windows and Linux builds are unchanged.
+
 ## v0.64.0 — "Compare your rules across accounts"
 
 - **See your trading rules for every account side by side.** The Rules tab has a new
