@@ -23,6 +23,7 @@
   "build": {
     "appId": "com.foretopia.schwabtrader",
     "productName": "Schwab Trader",
+    "afterPack": "build/afterPack.js",
     "files": [
       "main.js",
       "preload.js",
