@@ -3,6 +3,15 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.66.0 — "Live prices on macOS"
+
+- **Fixed the dashboard showing blank prices on macOS.** The live quote stream was stuck
+  "Connecting…" because the packaged app's TLS layer couldn't find its certificate bundle
+  for the streaming connection (regular data loaded fine, which is why drilling into a
+  ticker still showed your positions). The app now points its secure-connection layer at
+  the bundled certificates, so live quotes flow and every price / market-value / P/L column
+  fills in. Windows and Linux were unaffected.
+
 ## v0.65.0 — "macOS build actually opens"
 
 - **Fixed the macOS build refusing to launch.** The Apple-Silicon app was shipping without

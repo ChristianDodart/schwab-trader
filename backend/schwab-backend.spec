@@ -16,6 +16,11 @@ tmp_ret = collect_all('schwab')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('alembic')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+# certifi's cacert.pem must be bundled so certifi.where() resolves in the frozen app —
+# desktop_backend.py points the default SSL context at it so the quote-stream WebSocket
+# can verify TLS on macOS/Linux (see the SSL_CERT_FILE wiring there).
+tmp_ret = collect_all('certifi')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(

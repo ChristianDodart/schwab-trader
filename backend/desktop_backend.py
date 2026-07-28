@@ -9,6 +9,24 @@ import os
 import sys
 import threading
 
+# Frozen macOS/Linux: OpenSSL's default CA path points inside the (empty) PyInstaller
+# bundle, so the quote-stream WebSocket's TLS handshake to Schwab can never verify and
+# the stream hangs at "Connecting…" — even though REST works, because httpx ships its own
+# certifi bundle while the `websockets` library uses Python's DEFAULT SSL context. Point
+# that default context at certifi's CA file (already bundled — that's why REST works) so
+# websockets can verify too. setdefault: never override an OS/user-set value; a no-op on
+# a normal dev machine (which has system CAs) and on Windows. Must run before any SSL
+# context is created (i.e. before importing the app / starting the stream).
+try:
+    import certifi
+
+    _ca = certifi.where()
+    if _ca and os.path.exists(_ca):
+        os.environ.setdefault("SSL_CERT_FILE", _ca)
+        os.environ.setdefault("SSL_CERT_DIR", os.path.dirname(_ca))
+except Exception:
+    pass
+
 import uvicorn
 
 # Line-buffer output so sidecar logs are visible if Electron ever captures them.
