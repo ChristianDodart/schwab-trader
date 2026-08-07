@@ -230,9 +230,11 @@ ipcMain.handle("oauth:capture", (_evt, authUrl) => new Promise((resolve) => {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on("second-instance", () => {
-    if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
-  });
+  // A second launch focuses the running instance. Route through showWindow() so a window
+  // HIDDEN in the tray is actually shown again — the old code only focused it, which on
+  // Windows left a hidden window half-shown (unclickable, header clipped under the title
+  // bar) until a real relaunch.
+  app.on("second-instance", () => { showWindow(); });
   app.whenReady().then(async () => {
     PORT = await getFreePort();
     BASE = `http://localhost:${PORT}`;

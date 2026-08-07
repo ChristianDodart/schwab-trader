@@ -3,6 +3,13 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.67.0 — "Reopening from the tray"
+
+- **Fixed a glitch when the app was running in the tray and you launched it again.** It
+  would come back half-shown — unclickable, with the header tucked under the window's
+  title bar — until you fully quit and reopened. Relaunching now properly restores and
+  shows the window (only matters with "Run in the system tray" enabled).
+
 ## v0.66.0 — "Live prices on macOS"
 
 - **Fixed the dashboard showing blank prices on macOS.** The live quote stream was stuck
