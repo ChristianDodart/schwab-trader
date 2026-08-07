@@ -33,6 +33,12 @@ jobs:
   build:
     strategy:
       fail-fast: false
+      # Serialize the OS builds. All three run `electron-builder --publish always` against
+      # the SAME tag/release; run concurrently, they race — one recreates the GitHub release
+      # and clobbers another's uploaded assets (v0.67.0 shipped Linux-only this way). One at
+      # a time, each finds the release the previous job created and just appends its assets.
+      # ~3x wall-clock, but releases are infrequent and correctness wins.
+      max-parallel: 1
       matrix:
         include:
           - os: windows-latest

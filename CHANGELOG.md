@@ -3,6 +3,12 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.67.1 — "Reopening from the tray"
+
+- Same as 0.67.0 (the tray-relaunch fix below). 0.67.0's release was published incomplete
+  — a build-pipeline race uploaded only the Linux files — so this re-releases it with all
+  platforms and a fix that prevents the race. No app changes beyond 0.67.0.
+
 ## v0.67.0 — "Reopening from the tray"
 
 - **Fixed a glitch when the app was running in the tray and you launched it again.** It
