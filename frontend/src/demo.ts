@@ -89,6 +89,7 @@ export function simulateFill(d: Dashboard): Dashboard | null {
       const invested = r.basis_per_share * shares;
       return { ...r, shares, invested, positions: Math.max(1, r.positions - 1),
         last_pos_cost: r.basis_per_share * lot, last_pos_profit: (price - r.basis_per_share) * lot,
+        last_sold: price,
         current_value: shares * price, unrealized: shares * price - invested };
     };
   }

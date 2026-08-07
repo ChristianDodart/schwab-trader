@@ -87,9 +87,23 @@ async def _load(account_hash: str):
                 .group_by(CompletedTrade.symbol)
             )
         ).all()
+        # Most-recent realized sell price per symbol — "the price you last sold a lot at".
+        # Ordered newest-first; the first row we see per symbol is the latest sell.
+        sold_rows = (
+            await s.execute(
+                select(CompletedTrade.symbol, CompletedTrade.sell_price)
+                .where(CompletedTrade.account_hash == account_hash)
+                .order_by(CompletedTrade.symbol,
+                          CompletedTrade.completed_at.desc(),
+                          CompletedTrade.id.desc())
+            )
+        ).all()
     realized = {r[0]: (_f(r[1]), int(r[2]), r[3]) for r in agg}
     year_realized = {r[0]: (_f(r[1]), int(r[2])) for r in agg_year}
-    return lots, tickers, realized, year_realized
+    last_sold: dict[str, float] = {}
+    for sym, sp in sold_rows:
+        last_sold.setdefault(sym, _f(sp))
+    return lots, tickers, realized, year_realized, last_sold
 
 
 def _risk(ticker) -> str:
@@ -121,7 +135,8 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
                  cfg: StrategyConfig, deployed_pct: float | None = None,
                  sym_div: float = 0.0,
                  today_trade: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0),
-                 schwab_day_pl: float | None = None) -> dict:
+                 schwab_day_pl: float | None = None,
+                 last_sold: float | None = None) -> dict:
     quote = hub.latest.get(symbol, {})
     price = quote.get("last")
     price = _f(price) if price is not None else None
@@ -199,6 +214,9 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
         "sell_mark": rules.is_sell_mark(price, sell_targets) if has_price else False,
         "last_pos_cost": round(last_amount, 2),
         "last_pos_profit": round(price * _f(last.shares) - last_amount, 2) if has_price else None,
+        # The price you last sold a lot of this at (most recent round-trip). A subtle
+        # re-entry / trim reference on held rows — mirrors watch rows' "last held".
+        "last_sold": round(last_sold, 4) if last_sold else None,
         "log_profit": round(log_profit, 2),
         "trades": trades,
         "year_profit": round(year_profit, 2),
@@ -321,7 +339,7 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
     cfg = await config_store.get_strategy(account_hash)
     # Deployment-adjusted ladder: only fetch (cached ~60s) when the user has enabled it.
     deployed = await _deployed_pct_if_scaling(account_hash, cfg)
-    lots, tickers, realized, year_realized = await _load(account_hash)
+    lots, tickers, realized, year_realized, last_sold = await _load(account_hash)
     by = _group(lots)
     total_invested = sum(
         _f(l.shares) * _f(l.buy_price) for l in lots
@@ -344,7 +362,8 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
                      config_store.apply_symbol_override(cfg, sym_overrides.get(sym)), deployed,
                      sym_div=div_by_sym.get(sym, 0.0),
                      today_trade=today_trades.get(sym, (0.0, 0.0, 0.0, 0.0)),
-                     schwab_day_pl=day_pl.get(sym))
+                     schwab_day_pl=day_pl.get(sym),
+                     last_sold=last_sold.get(sym))
         for sym in by
     ]
     rows.sort(key=lambda r: r["portfolio_pct"] or 0, reverse=True)
@@ -462,6 +481,14 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
                 .where(CompletedTrade.symbol == symbol, CompletedTrade.account_hash == account_hash)
             )
         ).scalar()
+        last_sold_val = (
+            await s.execute(
+                select(CompletedTrade.sell_price)
+                .where(CompletedTrade.symbol == symbol, CompletedTrade.account_hash == account_hash)
+                .order_by(CompletedTrade.completed_at.desc(), CompletedTrade.id.desc())
+                .limit(1)
+            )
+        ).scalar()
     # ETF grouping context (auto from name + per-account manual override).
     etf_overrides = await get_etf_links(account_hash)
     etf_underlying = grouping.resolve_underlying(
@@ -572,6 +599,7 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
         # name — no double count: price P/L and cash dividends are distinct).
         "unrealized": round(shares * price - invested, 2) if has_price else None,
         "realized": round(_f(realized), 2),
+        "last_sold": round(_f(last_sold_val), 4) if last_sold_val else None,
         "dividends": sym_dividends,
         "total_return": round(_f(realized) + sym_dividends + (shares * price - invested if has_price else 0.0), 2),
         "underlying": etf_underlying, "is_leveraged": etf_is_lev,

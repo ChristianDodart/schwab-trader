@@ -3,6 +3,15 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.68.0 — "Last sold price"
+
+- **See the price you last sold a stock at, right on the positions you still hold.** A
+  faint "sold $X" now trails the live price for any position you've trimmed — the same
+  cue watchlist names already show after you fully sell out, extended to your open
+  positions. It's your most recent sell price for that name (a real booked trade), handy
+  as a re-entry or trim reference, and it only appears where you've actually sold, so it
+  stays out of the way. Also shown as a "Last sold" stat when you drill into a position.
+
 ## v0.67.1 — "Reopening from the tray"
 
 - Same as 0.67.0 (the tray-relaunch fix below). 0.67.0's release was published incomplete

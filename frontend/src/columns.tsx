@@ -123,14 +123,20 @@ export const DASH_COLUMN_LIST: DashCol[] = [
   // The two most ACTIONABLE numbers — current price + profit on the last position.
   // Now ordinary registry columns (movable/foldable); only Ticker is mandatory. They
   // lead the default layout, so the resting table looks exactly as before.
-  { id: "price", label: "Price", align: "left", prov: "schwab", render: (r) => (
-      r.is_watch && r.last_held != null
+  { id: "price", label: "Price", align: "left", prov: "schwab", render: (r) => {
+      // A faint "sold $X" trailing the live price: for watch rows it's the price you
+      // sold out at (watching for re-entry); for held rows it's your most recent trim.
+      const soldAt = r.is_watch ? r.last_held : r.last_sold;
+      const soldTip = r.is_watch
+        ? "The price you last sold this at — watching for a re-entry below it"
+        : "The price you last sold a lot of this at — your most recent trim";
+      return soldAt != null
         ? <span style={{ whiteSpace: "nowrap" }}><b>{usd0(r.price)}</b>
             <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-2xs)", marginLeft: 6 }}
-              title="The price you last sold this at — watching for a re-entry below it">sold {usd(r.last_held)}</span>
+              title={soldTip}>sold {usd(soldAt)}</span>
           </span>
-        : <b>{usd0(r.price)}</b>
-    ) },
+        : <b>{usd0(r.price)}</b>;
+    } },
   { id: "last_pos_profit", label: "Last Pos P/L", align: "left", term: "last_position", watchNA: true, render: (r) => <b><Colored v={usd(r.last_pos_profit)} n={r.last_pos_profit} /></b> },
   // Mean of the daily closes over the past year — "where the stock spends most of
   // its time." Compare against the pinned Price: below = historical discount
