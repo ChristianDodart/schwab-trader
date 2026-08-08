@@ -305,7 +305,10 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   "52wk_high_pct": {
     term: "% of 52-week high",
     oneLiner: "Where the price sits relative to its highest point in the last year.",
-    howCalculated: "Current price ÷ 52-week high × 100.",
+    howCalculated: "Current price ÷ 52-week high × 100. For leveraged/inverse ETFs a 13-week " +
+      "(one-quarter) high is used instead — their value bleeds via daily rebalancing, so a " +
+      "year-old high they may never revisit would make every reading look falsely cheap. A " +
+      "faint \"13w\" tag marks those rows.",
     source: "hybrid",
     related: [],
   },

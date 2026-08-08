@@ -9,15 +9,17 @@ import { useChartColors } from "./chartTheme";
 const RANGES = ["1D", "5D", "1M", "6M", "1Y"] as const;
 type Range = (typeof RANGES)[number];
 
-// `rungs` are projected buy-trigger prices; avg52/median52 are the 52-week
-// reference levels. All optional — the chart works with just a symbol.
+// `rungs` are projected buy-trigger prices; avg52/median52 are the reference
+// levels. `windowWeeks` labels those lines (52 normally, 13 for leveraged/inverse
+// ETFs whose value decays). All optional — the chart works with just a symbol.
 export function PriceChart({
-  symbol, rungs = [], avg52, median52,
+  symbol, rungs = [], avg52, median52, windowWeeks = 52,
 }: {
   symbol: string;
   rungs?: number[];
   avg52?: number | null;
   median52?: number | null;
+  windowWeeks?: number;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -96,15 +98,15 @@ export function PriceChart({
     if (avg52 != null)
       lines.push(series.createPriceLine({
         price: avg52, color: c.ref1, lineWidth: 1, lineStyle: LineStyle.Dotted,
-        axisLabelVisible: true, title: "52w avg",
+        axisLabelVisible: true, title: `${windowWeeks}w avg`,
       }));
     if (median52 != null)
       lines.push(series.createPriceLine({
         price: median52, color: c.ref2, lineWidth: 1, lineStyle: LineStyle.Dotted,
-        axisLabelVisible: true, title: "52w med",
+        axisLabelVisible: true, title: `${windowWeeks}w med`,
       }));
     return () => { for (const l of lines) { try { series.removePriceLine(l); } catch { /* chart gone */ } } };
-  }, [chartGen, rungs.join(","), avg52, median52, c]);
+  }, [chartGen, rungs.join(","), avg52, median52, windowWeeks, c]);
 
   return (
     <div style={S.wrap}>

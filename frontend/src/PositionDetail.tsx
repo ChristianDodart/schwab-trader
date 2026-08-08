@@ -127,7 +127,7 @@ export function PositionDetail({ symbol, mode, onClose, embedded }: { symbol: st
       {panel === "chart" && (
         <div style={{ marginTop: 8 }}>
           <PriceChart symbol={d.symbol} rungs={d.projected_ladder.map((p) => p.trigger_price)}
-            avg52={d.avg_52wk} median52={d.median_52wk} />
+            avg52={d.avg_52wk} median52={d.median_52wk} windowWeeks={d.ref_window_weeks ?? 52} />
         </div>
       )}
       {panel === "rules" && !d.is_watch && (

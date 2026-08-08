@@ -3,6 +3,17 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.69.0 — "Quarter-window for leveraged ETFs"
+
+- **Leveraged and inverse ETFs now measure against a 13-week window instead of 52.** These
+  funds reset daily, so their value structurally bleeds over time — which makes a full-year
+  average, high, and low anchored to price levels the fund may never see again, and makes
+  "% of 52-week high" look permanently cheap. For those names, the 52wk Avg / Med / High /
+  Low and % of high columns (and the reference lines on the price chart) now use a 13-week
+  (one-quarter) window, which is a far truer read of where they actually trade. A faint
+  "13w" tag marks every affected figure so a quarter number is never mistaken for a year.
+  Ordinary stocks and plain index ETFs are unchanged — they still use the full 52 weeks.
+
 ## v0.68.0 — "Last sold price"
 
 - **See the price you last sold a stock at, right on the positions you still hold.** A

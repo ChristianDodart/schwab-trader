@@ -28,7 +28,15 @@ from .ledger import MARKET_TZ
 # masquerading as a year. Below this many daily closes, the values are None.
 _MIN_DAYS = 20
 
-# symbol -> {"mean": float | None, "median": float | None, "days": int, "asof": date}
+# Short "recency" window (≈ one calendar quarter of trading days). Leveraged/inverse
+# ETFs bleed value via daily rebalancing, so a full-year average/high is anchored to
+# stale price levels; the dashboard uses THIS window for those names instead (see
+# dashboard._ref_window). Computed from the trailing slice of the SAME year of candles
+# — no extra fetch. Candles come back oldest→newest, so the last N are the most recent.
+_SHORT_DAYS = 63
+
+# symbol -> {"mean", "median", "s_mean", "s_median", "s_high", "s_low", "days", "asof"}
+# ("s_*" = the short 13-week window; long mean/median cover the full year.)
 _cache: dict[str, dict] = {}
 _inflight: set[str] = set()
 # Per-symbol "don't retry before" wall-clock (monotonic). A failed/throttled fetch
@@ -81,6 +89,18 @@ def median(symbol: str) -> float | None:
     return entry["median"] if entry else None
 
 
+def short_stats(symbol: str) -> dict | None:
+    """13-week (≈ one quarter) window: {"mean", "median", "high", "low"} over the trailing
+    daily closes. For leveraged/inverse ETFs whose value decays over time, this is a truer
+    "where it trades / how far off its high" than the year figures. None until warmed / too
+    new. Non-blocking — shares the same cache/refresh as get()/median()."""
+    entry = _ensure(symbol.upper())
+    if not entry or entry.get("s_mean") is None:
+        return None
+    return {"mean": entry["s_mean"], "median": entry["s_median"],
+            "high": entry["s_high"], "low": entry["s_low"]}
+
+
 def _median(xs: list[float]) -> float:
     s = sorted(xs)
     n = len(s)
@@ -105,9 +125,14 @@ async def _refresh(symbol: str) -> None:
         _next_try.pop(symbol, None)
         days = len(closes)
         enough = days >= _MIN_DAYS
+        short = closes[-_SHORT_DAYS:]   # trailing quarter (or all we have, if fewer)
         _cache[symbol] = {
             "mean": round(sum(closes) / days, 4) if enough else None,
             "median": round(_median(closes), 4) if enough else None,
+            "s_mean": round(sum(short) / len(short), 4) if enough else None,
+            "s_median": round(_median(short), 4) if enough else None,
+            "s_high": round(max(short), 4) if enough else None,
+            "s_low": round(min(short), 4) if enough else None,
             "days": days,
             "asof": _today(),
         }

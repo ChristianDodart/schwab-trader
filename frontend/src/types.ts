@@ -35,6 +35,7 @@ export type DashboardRow = {
   note_preview?: string | null; // truncated note text for the dashboard hover tooltip
   last_held?: number | null; // watch rows previously held: last held price
   last_sold?: number | null; // held rows: price of your most recent sell (last trim)
+  ref_window_weeks?: number; // avg/median/high/low window: 13 for leveraged/inverse ETFs, else 52
   risk?: string;          // "low"|"medium"|"elevated"|"high" — drives ticker coloring
   underlying?: string | null; // leveraged ETF -> its underlying stock symbol (nesting)
   has_rules?: boolean;    // a per-ticker rule override is active for this symbol
@@ -446,6 +447,7 @@ export type PositionDetailData = {
   is_watch?: boolean;         // no open position — watch-mode detail
   last_held?: number | null;  // last price held (for a sold-out watch ticker)
   last_sold?: number | null;  // held rows: price of your most recent sell (last trim)
+  ref_window_weeks?: number;  // avg/median window: 13 for leveraged/inverse ETFs, else 52
   risk?: string;              // risk band for ticker coloring
   underlying?: string | null; // leveraged ETF -> underlying stock symbol
   is_leveraged?: boolean;     // this instrument is a leveraged/inverse ETF

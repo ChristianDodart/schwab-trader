@@ -114,6 +114,23 @@ def _risk(ticker) -> str:
                              _f(ticker.market_cap) if ticker.market_cap is not None else None)
 
 
+def _ref_window(symbol: str, ticker, quote: dict):
+    """Reference price window for the avg / median / high / low / %-of-high columns,
+    returned as (avg, median, high, low, weeks). Leveraged & inverse ETFs use a 13-week
+    (one-quarter) window — their price structurally bleeds via daily rebalancing, so a
+    full-year average is anchored to stale levels and a 52-week high the fund may never
+    revisit. Everything else keeps the 52-week figures: candle avg/median plus the quote's
+    true intraday high/low. Falls back to the 52wk path if the short window isn't warm yet
+    (so a leveraged row shows honest 52wk values, labeled as such, until candles load)."""
+    if grouping.is_leveraged_etf(ticker.name if ticker else None,
+                                 ticker.industry if ticker else None):
+        s = avg52.short_stats(symbol)
+        if s:
+            return s["mean"], s["median"], s["high"], s["low"], 13
+    year_high = quote.get("yearHigh") or (_f(ticker.year_high) if ticker and ticker.year_high else None)
+    return avg52.get(symbol), avg52.median(symbol), year_high, quote.get("yearLow"), 52
+
+
 def _group(lots):
     by: dict[str, list[Lot]] = {}
     for lot in lots:
@@ -140,7 +157,8 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
     quote = hub.latest.get(symbol, {})
     price = quote.get("last")
     price = _f(price) if price is not None else None
-    year_high = quote.get("yearHigh") or (_f(ticker.year_high) if ticker and ticker.year_high else None)
+    # avg / median / high / low reference window (13wk for leveraged/inverse ETFs, else 52wk).
+    ref_avg, ref_median, year_high, year_low, ref_weeks = _ref_window(symbol, ticker, quote)
 
     shares = sum(_f(l.shares) for l in lots)   # total shares held (every lot)
     positions = len(lots)
@@ -199,16 +217,18 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
                                         today_trade[2], today_trade[3]), 2)
               if has_price and quote.get("netChange") is not None else None),
         "lilo_pct": round(rules.lilo_pct(price, min_buy), 4) if has_price else None,
-        # 52-week average + median of daily closes — "where it spends most of its
-        # time"; below = historical discount, above = rich. Median is spike-robust
-        # (the true typical close). Cached/refreshed in the background (non-blocking);
-        # None until warmed / too new.
-        "avg_52wk": avg52.get(symbol),
-        "median_52wk": avg52.median(symbol),
+        # Average + median of daily closes — "where it spends most of its time"; below =
+        # historical discount, above = rich. Median is spike-robust (the true typical
+        # close). Window is 52wk normally, 13wk for leveraged/inverse ETFs (decay makes a
+        # year stale) — `ref_window_weeks` tells the UI which, so the figure is never
+        # mislabeled. Cached/refreshed in the background; None until warmed / too new.
+        "avg_52wk": ref_avg,
+        "median_52wk": ref_median,
         "pct_of_high": round(price / year_high, 4) if has_price and year_high else None,
         "portfolio_pct": round(invested / total_invested, 4) if total_invested else None,
         "year_high": year_high,
-        "year_low": quote.get("yearLow"),
+        "year_low": year_low,
+        "ref_window_weeks": ref_weeks,
         "next_buy_price": round(next_buy, 4),
         "buy_mark": rules.is_buy_mark(price, next_buy) if has_price else False,
         "sell_mark": rules.is_sell_mark(price, sell_targets) if has_price else False,
@@ -437,7 +457,7 @@ def _watch_row(ticker: Ticker) -> dict:
     quote = hub.latest.get(ticker.symbol, {})
     price = quote.get("last")
     price = _f(price) if price is not None else None
-    year_high = quote.get("yearHigh") or (_f(ticker.year_high) if ticker.year_high else None)
+    ref_avg, ref_median, year_high, year_low, ref_weeks = _ref_window(ticker.symbol, ticker, quote)
     has_price = price is not None and price > 0
     return {
         "symbol": ticker.symbol, "name": ticker.name, "sector": ticker.sector, "is_watch": True,
@@ -445,10 +465,11 @@ def _watch_row(ticker: Ticker) -> dict:
         "positions": 0, "shares": 0, "invested": 0, "basis_per_share": 0,
         "price": round(price, 4) if has_price else None,
         "current_value": None, "unrealized": None, "day_change": None, "lilo_pct": None,
-        "avg_52wk": avg52.get(ticker.symbol),
-        "median_52wk": avg52.median(ticker.symbol),
+        "avg_52wk": ref_avg,
+        "median_52wk": ref_median,
         "pct_of_high": round(price / year_high, 4) if has_price and year_high else None,
-        "portfolio_pct": None, "year_high": year_high, "year_low": quote.get("yearLow"),
+        "portfolio_pct": None, "year_high": year_high, "year_low": year_low,
+        "ref_window_weeks": ref_weeks,
         "next_buy_price": None, "buy_mark": False, "sell_mark": False,
         "last_pos_cost": None, "last_pos_profit": None, "log_profit": 0, "trades": 0,
         "year_profit": 0, "year_trades": 0, "avg_monthly": 0,
@@ -508,11 +529,12 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
         sym_div = round(sum(_f(d.get("amount")) for d in div_data.get("rows", [])
                             if (d.get("symbol") or "").upper() == symbol), 2)
         last_held = (await get_last_held(account_hash)).get(symbol)
+        w_avg, w_median, _wh, _wl, w_weeks = _ref_window(symbol, ticker, q)
         return {
             "symbol": symbol, "name": ticker.name, "sector": ticker.sector, "risk": _risk(ticker),
             "price": round(wprice, 4) if wprice else None,
             "positions": 0, "shares": 0.0, "invested": 0.0, "basis_per_share": 0.0,
-            "lilo_pct": None, "avg_52wk": avg52.get(symbol), "median_52wk": avg52.median(symbol),
+            "lilo_pct": None, "avg_52wk": w_avg, "median_52wk": w_median, "ref_window_weeks": w_weeks,
             "unrealized": None, "realized": round(_f(realized), 2), "dividends": sym_div,
             "total_return": round(_f(realized) + sym_div, 2),
             "is_watch": True, "last_held": last_held,
@@ -579,6 +601,7 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
     div_data = await get_dividends(account_hash)
     sym_dividends = round(sum(_f(d.get("amount")) for d in div_data.get("rows", [])
                               if (d.get("symbol") or "").upper() == symbol), 2)
+    ref_avg, ref_median, _rh, _rl, ref_weeks = _ref_window(symbol, ticker, quote)
 
     return {
         "symbol": symbol,
@@ -591,9 +614,11 @@ async def build_position_detail(symbol: str, account_hash: str) -> dict | None:
         "invested": round(invested, 2),
         "basis_per_share": round(rules.basis_per_share(invested, shares), 4),
         "lilo_pct": round(rules.lilo_pct(price, min_buy), 4) if has_price else None,
-        # 52wk reference levels for the chart overlay (None until warmed).
-        "avg_52wk": avg52.get(symbol),
-        "median_52wk": avg52.median(symbol),
+        # Avg/median reference levels for the chart overlay (None until warmed). 13wk for
+        # leveraged/inverse ETFs (decay makes a year stale), else 52wk — ref_window_weeks says which.
+        "avg_52wk": ref_avg,
+        "median_52wk": ref_median,
+        "ref_window_weeks": ref_weeks,
         # P/L split: unrealized = mark-to-market on open lots; realized = booked round-trips;
         # dividends = income received for this name. total_return sums all three (a single
         # name — no double count: price P/L and cash dividends are distinct).

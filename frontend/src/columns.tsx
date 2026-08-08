@@ -59,6 +59,16 @@ const Dash = () => null;
 const usd0 = (n: number | null | undefined) => (n == null ? null : usd(n));
 const pct0 = (n: number | null | undefined) => (n == null ? null : pct(n));
 
+// A faint "13w" tag on the avg/median/high/low cells of a leveraged/inverse ETF — those
+// use a 13-week window instead of 52 (daily-rebalancing decay makes a full year stale),
+// so the figure is never silently mislabeled against a "52wk" header. Absent (52wk) rows
+// show nothing.
+const WinTag = ({ r }: { r: DashboardRow }) =>
+  r.ref_window_weeks === 13 ? (
+    <span style={{ color: "var(--text-faint)", fontSize: "var(--fs-2xs)", marginLeft: 4 }}
+      title="Leveraged/inverse ETF — a 13-week (one-quarter) window; a full-year figure is skewed by daily-rebalancing decay">13w</span>
+  ) : null;
+
 // RULE 10 from the sheet: keep every stock under 5% of the portfolio. Flag any
 // held position at/over this so over-concentration is visible at a glance.
 export const CONCENTRATION_CAP = 0.05;
@@ -142,12 +152,12 @@ export const DASH_COLUMN_LIST: DashCol[] = [
   // its time." Compare against the pinned Price: below = historical discount
   // (lean buy), above = rich (lean sell). Dim vs. the price so it reads as a
   // reference line, not a live number.
-  { id: "avg_52wk", label: "52wk Avg", align: "right", render: (r) => <span style={{ color: "var(--text-muted)" }}>{usd0(r.avg_52wk)}</span> },
+  { id: "avg_52wk", label: "52wk Avg", align: "right", render: (r) => <span style={{ color: "var(--text-muted)" }}>{usd0(r.avg_52wk)}<WinTag r={r} /></span> },
   // Median daily close over the past year — the middle price, unmoved by outlier
   // spikes (often the truer "typical" level for a choppy name). Same dim reference
   // treatment as the average.
-  { id: "median_52wk", label: "52wk Med", align: "right", render: (r) => <span style={{ color: "var(--text-muted)" }}>{usd0(r.median_52wk)}</span> },
-  { id: "pct_of_high", label: "% of 52wk High", align: "right", term: "52wk_high_pct", render: (r) => pct0(r.pct_of_high) },
+  { id: "median_52wk", label: "52wk Med", align: "right", render: (r) => <span style={{ color: "var(--text-muted)" }}>{usd0(r.median_52wk)}<WinTag r={r} /></span> },
+  { id: "pct_of_high", label: "% of 52wk High", align: "right", term: "52wk_high_pct", render: (r) => r.pct_of_high == null ? null : <span>{pct0(r.pct_of_high)}<WinTag r={r} /></span> },
   { id: "lilo_pct", label: "LILO %", align: "right", watchNA: true, render: (r) => <Colored v={pct(r.lilo_pct)} n={r.lilo_pct} /> },
   { id: "last_pos_cost", label: "Last Pos Cost", align: "right", term: "cost_basis", watchNA: true, render: (r) => usd(r.last_pos_cost) },
   { id: "invested", label: "Invested", align: "right", term: "invested", watchNA: true, render: (r) => usd(r.invested) },
@@ -168,8 +178,8 @@ export const DASH_COLUMN_LIST: DashCol[] = [
   { id: "total_return", label: "Total Return", align: "right", watchNA: true, render: (r) => <Colored v={usd(r.total_return)} n={r.total_return} /> },
   { id: "trades", label: "Trades (all-time)", align: "right", watchNA: true, render: (r) => num(r.trades) },
   { id: "next_buy_price", label: "Next Buy Trigger", align: "right", term: "buy_dip", watchNA: true, render: (r) => usd(r.next_buy_price) },
-  { id: "year_high", label: "52wk High", align: "right", prov: "schwab", render: (r) => usd0(r.year_high) },
-  { id: "year_low", label: "52wk Low", align: "right", prov: "schwab", render: (r) => usd0(r.year_low) },
+  { id: "year_high", label: "52wk High", align: "right", prov: "schwab", render: (r) => r.year_high == null ? null : <span>{usd0(r.year_high)}<WinTag r={r} /></span> },
+  { id: "year_low", label: "52wk Low", align: "right", prov: "schwab", render: (r) => r.year_low == null ? null : <span>{usd0(r.year_low)}<WinTag r={r} /></span> },
 ];
 export const DASH_COLUMNS: Record<string, DashCol> = Object.fromEntries(
   DASH_COLUMN_LIST.map((c) => [c.id, c]),
