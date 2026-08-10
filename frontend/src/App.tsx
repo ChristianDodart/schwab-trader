@@ -26,6 +26,7 @@ import { PositionDetail } from "./PositionDetail";
 import { Screener, MarketHoursBadge } from "./Screener";
 import { Settings } from "./Settings";
 import { FinancialRules } from "./FinancialRules";
+import { Method } from "./Method";
 import { SkeletonTable } from "./Skeleton";
 import { useToast } from "./Toast";
 import type { AlertPrefill, BuyCandidate, Dashboard, DashboardRow, ExitCandidate, SellCandidate, Suggestion } from "./types";
@@ -41,11 +42,12 @@ const NAV: { id: View; label: string }[] = [
   { id: "ledger", label: "Ledger" },
   { id: "orders", label: "Orders" },
   { id: "rules", label: "Rules" },
+  { id: "method", label: "Method" },
   { id: "notifications", label: "Notifications" },
   { id: "profile", label: "Profile" },
   { id: "settings", label: "Settings" },
 ];
-type View = "dashboard" | "screen" | "ledger" | "orders" | "rules" | "notifications" | "profile" | "settings";
+type View = "dashboard" | "screen" | "ledger" | "orders" | "rules" | "method" | "notifications" | "profile" | "settings";
 
 export function App() {
   const [data, setData] = useState<Dashboard | null>(null);
@@ -529,6 +531,8 @@ export function App() {
           <ProfilePanel acctKey={acctKey} onAccountChange={onAccountChange} />
         ) : view === "rules" ? (
           <FinancialRules key={acctKey} onDirtyChange={setSettingsDirty} />
+        ) : view === "method" ? (
+          <Method key={acctKey} />
         ) : view === "notifications" ? (
           <NotificationsTab prefill={alertPrefill} onPrefillConsumed={() => setAlertPrefill(null)} />
         ) : view === "screen" ? (

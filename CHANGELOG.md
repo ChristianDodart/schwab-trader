@@ -3,6 +3,23 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.70.0 — "Method tab: see your method's risks"
+
+- **A new Method tab that lenses your own trading method — read-only, advisory, and it
+  never places an order or tells you what to buy or sell.** Four views:
+  - **Concentration by underlying** — rolls a stock together with any leveraged/inverse
+    ETFs tied to it into one bet, so it flags a name that breaches your 5% cap *combined*
+    even when no single ticker does (the concentration a per-ticker view misses).
+  - **Downside stress** — marks the whole book (and each position) to market at further
+    drops (−10 / −25 / −50%), so the tail the "add more as it falls" ladder walks into is
+    visible before it happens.
+  - **Thesis-break watch** — warns (never sells) when a name is behaving like a broken
+    thesis the ladder would just keep buying: deep underwater from the first buy, held a
+    long time without closing out, or fallen clean past the bottom of your ladder.
+  - **Sizing check** — turns your own realized win rate and average win/loss into a Kelly
+    reference, so you can see whether the fixed $ lot sizes fit the edge your record shows.
+- Thresholds for the warnings live in the strategy config, so they're yours to tune.
+
 ## v0.69.0 — "Quarter-window for leveraged ETFs"
 
 - **Leveraged and inverse ETFs now measure against a 13-week window instead of 52.** These

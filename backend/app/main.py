@@ -226,6 +226,7 @@ async def post_enrich_tickers(body: EnrichBody) -> dict:
 # These imports MUST come after _selected/_csv_response/CsvImportBody/strategy and
 # _restart_stream are defined — the router modules import them from here. ---
 from .api import accounts as accounts_api  # noqa: E402
+from .api import analysis as analysis_api  # noqa: E402
 from .api import auth as auth_api  # noqa: E402
 from .api import config as config_api  # noqa: E402
 from .api import data as data_api  # noqa: E402
@@ -235,6 +236,7 @@ from .api import trading as trading_api  # noqa: E402
 
 app.include_router(data_api.router)
 app.include_router(config_api.router)
+app.include_router(analysis_api.router)
 app.include_router(auth_api.router)
 app.include_router(accounts_api.router)
 app.include_router(ledger_api.router)

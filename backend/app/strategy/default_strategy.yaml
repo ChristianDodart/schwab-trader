@@ -55,6 +55,12 @@ guardrails:
   max_position_pct_of_portfolio: 0.05   # keep each stock under 5%
   target_lots_deep: 6                    # ~6 lots deep on average
   cash_reserve_pct: 0.30                 # hold 30% of total available in reserve
+  # Advisory thesis-break thresholds (Method tab). Purely informational warnings — the
+  # ladder never auto-sells; these just surface names it would otherwise keep buying.
+  thesis_break_down_pct: 0.50            # flag a name down >=50% from its first buy
+  thesis_break_max_hold_days: 240        # flag a name held this long without closing out
+  # Downside scenarios for the ladder-stress view (Method tab).
+  stress_drops: [0.10, 0.25, 0.50]
 
 # --- Universe screening (informational for now)
 universe:

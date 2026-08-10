@@ -107,6 +107,19 @@ def test_bulk_plans_read_only(client):
         assert isinstance(j.get("items", j.get("rows", [])), list)
 
 
+def test_strategy_analysis_shape(client):
+    # Read-only method analysis must answer 200 with the expected shape even for an
+    # account with no open positions (the smoke CSV nets flat) — and never place anything.
+    r = client.get("/api/strategy-analysis")
+    assert r.status_code == 200
+    j = r.json()
+    for key in ("concentration", "stress", "thesis_breaks", "kelly", "held_count"):
+        assert key in j
+    assert isinstance(j["concentration"]["rows"], list)
+    assert isinstance(j["thesis_breaks"], list)
+    assert j["kelly"]["enough"] is False          # far fewer than min_trades closed
+
+
 def test_logs_recent_shape(client):
     r = client.get("/api/logs/recent")
     assert r.status_code == 200
