@@ -40,6 +40,101 @@ const S: Record<string, React.CSSProperties> = {
 const neg = (n: number): React.CSSProperties => ({ color: n < 0 ? "var(--neg)" : n > 0 ? "var(--pos)" : "var(--text-dim)" });
 const dropLabel = (d: number) => `−${Math.round(d * 100)}%`;
 
+// ---- Ladder backtest -------------------------------------------------------
+type BT = {
+  ok: boolean; reason?: string; symbol?: string; range?: string; bars?: number;
+  start_cash?: number; ending_equity?: number; total_return?: number;
+  buy_hold_equity?: number; buy_hold_return?: number; realized?: number; open_unrealized?: number;
+  round_trips?: number; win_rate?: number | null; max_lots_deep?: number; max_deployed?: number;
+  max_drawdown?: number; open_lots?: number;
+  curve?: { t: string | number; equity: number; hold: number | null }[];
+};
+
+function Curve({ pts }: { pts: NonNullable<BT["curve"]> }) {
+  const W = 640, H = 120, pad = 4;
+  const eq = pts.map((p) => p.equity);
+  const hold = pts.map((p) => p.hold).filter((h): h is number => h != null);
+  const lo = Math.min(...eq, ...hold), hi = Math.max(...eq, ...hold);
+  const span = hi - lo || 1;
+  const x = (i: number) => pad + (i / (pts.length - 1 || 1)) * (W - 2 * pad);
+  const y = (v: number) => pad + (1 - (v - lo) / span) * (H - 2 * pad);
+  const poly = (sel: (p: NonNullable<BT["curve"]>[number]) => number | null) =>
+    pts.map((p, i) => { const v = sel(p); return v == null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`; })
+      .filter(Boolean).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 120, display: "block" }} preserveAspectRatio="none" role="img" aria-label="Equity curve: strategy vs buy and hold">
+      <polyline points={poly((p) => p.hold)} fill="none" stroke="var(--text-faint)" strokeWidth={1} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+      <polyline points={poly((p) => p.equity)} fill="none" stroke="var(--accent)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+function BacktestCard() {
+  const [symbol, setSymbol] = useState("");
+  const [cash, setCash] = useState(5000);
+  const [rng, setRng] = useState("1Y");
+  const [res, setRes] = useState<BT | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const run = () => {
+    const sym = symbol.trim().toUpperCase();
+    if (!sym) return;
+    setLoading(true); setRes(null);
+    fetch(`${API}/backtest?symbol=${encodeURIComponent(sym)}&cash=${cash}&range_key=${rng}`)
+      .then((r) => r.json()).then((j) => setRes(j as BT))
+      .catch(() => setRes({ ok: false, reason: "Request failed." }))
+      .finally(() => setLoading(false));
+  };
+
+  const beat = res?.ok && (res.ending_equity ?? 0) >= (res.buy_hold_equity ?? 0);
+  return (
+    <section style={S.card}>
+      <h3 style={S.h}>Ladder backtest</h3>
+      <p style={S.sub}>
+        Replays your exact ladder rules against a symbol's daily history with a bankroll allocated to that one
+        name, vs putting the same money all-in and holding. Fills at the close; no fees/slippage/dividends — a
+        clean read on the mechanics, not a promise. Deep dips beyond your cash are skipped (the reserve running dry).
+      </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+        <input value={symbol} onChange={(e) => setSymbol(e.target.value)} placeholder="Symbol"
+          onKeyDown={(e) => e.key === "Enter" && run()} style={{ width: 110, textTransform: "uppercase" }} aria-label="Symbol" />
+        <select value={rng} onChange={(e) => setRng(e.target.value)} aria-label="History window">
+          <option value="1Y">1 year</option>
+          <option value="5Y">5 years</option>
+        </select>
+        <label style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)" }}>
+          Bankroll $<input type="number" value={cash} min={500} step={500}
+            onChange={(e) => setCash(Math.max(500, Number(e.target.value) || 0))}
+            style={{ width: 90, marginLeft: 4 }} aria-label="Bankroll dollars" />
+        </label>
+        <button className="btn btn-buy" disabled={loading || !symbol.trim()} onClick={run}>{loading ? "Running…" : "Run"}</button>
+      </div>
+      {res && !res.ok && <p style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)", margin: 0 }}>{res.reason}</p>}
+      {res && res.ok && (
+        <>
+          <table style={S.table}>
+            <tbody>
+              <tr><td style={S.tdL}>Ladder ending value</td><td style={S.td}><b>{usd(res.ending_equity!)}</b> <span style={neg(res.total_return!)}>({pct(res.total_return!)})</span></td></tr>
+              <tr><td style={S.tdL}>Buy &amp; hold (same $)</td><td style={S.td}>{usd(res.buy_hold_equity!)} <span style={neg(res.buy_hold_return!)}>({pct(res.buy_hold_return!)})</span></td></tr>
+              <tr><td style={S.tdL}>Max drawdown</td><td style={{ ...S.td, color: "var(--neg)" }}>−{pct(res.max_drawdown!)}</td></tr>
+              <tr><td style={S.tdL}>Round-trips · win rate</td><td style={S.td}>{res.round_trips} · {res.win_rate == null ? "—" : pct(res.win_rate)}</td></tr>
+              <tr><td style={S.tdL}>Deepest ladder · max deployed</td><td style={S.td}>{res.max_lots_deep} lots · {usd(res.max_deployed!)}</td></tr>
+              <tr><td style={S.tdL}>Still open at end</td><td style={S.td}>{res.open_lots} lots · {usd(res.open_unrealized!)} unrealized</td></tr>
+            </tbody>
+          </table>
+          {res.curve && res.curve.length > 1 && <div style={{ marginTop: 12 }}><Curve pts={res.curve} /></div>}
+          <p style={S.note}>
+            <span style={{ color: "var(--accent)" }}>— ladder</span> vs <span style={{ color: "var(--text-faint)" }}>·· buy &amp; hold</span>, over {res.bars} trading days.{" "}
+            {beat
+              ? "The ladder came out ahead here."
+              : "Buy-and-hold came out ahead here — the ladder's aim is smoother equity and a shallower drawdown, not a higher return in a name that mostly went up."}
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
 export function Method() {
   const [a, setA] = useState<Analysis | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -56,7 +151,14 @@ export function Method() {
   if (err) return <p style={{ color: "var(--neg)" }}>{err}</p>;
   if (!a) return <p style={{ color: "var(--text-dim)" }}>Analyzing your book…</p>;
   if (a.held_count === 0)
-    return <p style={{ color: "var(--text-dim)" }}>No open positions to analyze yet. The Method tab lenses your live book — come back once you're holding something.</p>;
+    return (
+      <div style={S.wrap}>
+        <p style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)", margin: 0 }}>
+          No open positions yet — the risk lenses need a live book. You can still backtest the method on any symbol below.
+        </p>
+        <BacktestCard />
+      </div>
+    );
 
   const cap = a.concentration.cap;
   const capDollars = a.kelly.enough ? (a.kelly.account_value ?? 0) * cap : null;
@@ -191,6 +293,8 @@ export function Method() {
           </>
         )}
       </section>
+
+      <BacktestCard />
     </div>
   );
 }

@@ -4,17 +4,17 @@ hands them to the pure functions in strategy/analysis.py. Places no orders; advi
 only. See the Method tab."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter
 from sqlalchemy import select
 
-from .. import config_store, grouping
+from .. import config_store, grouping, market_data
 from ..db import SessionLocal
 from ..db.models import CompletedTrade, Lot, Ticker
 from ..ledger import get_etf_links
 from ..schwab import hub
-from ..strategy import analysis
+from ..strategy import analysis, backtest
 from ._shared import _selected
 
 router = APIRouter()
@@ -98,3 +98,31 @@ async def strategy_analysis(account_hash: str | None = None) -> dict:
         "thesis_breaks": breaks,
         "kelly": analysis.kelly_sizing(wins, losses, avg_win, avg_loss, account_value, cfg),
     }
+
+
+@router.get("/api/backtest")
+async def backtest_endpoint(symbol: str, cash: float = 5000.0, range_key: str = "1Y") -> dict:
+    """Replay the ladder against a symbol's historical daily closes with `cash` allocated
+    to that one name. Read-only — fetches price history, runs the pure simulator, returns
+    stats + a downsampled equity curve (with a same-capital buy-and-hold benchmark)."""
+    sym = (symbol or "").strip().upper()
+    if not sym:
+        return {"ok": False, "reason": "no symbol"}
+    hist = await market_data.price_history(sym, range_key)
+    candles = [c for c in hist.get("candles", []) if c.get("close") is not None]
+    if not candles:
+        return {"ok": False, "reason": hist.get("error") or f"no price history for {sym}"}
+    closes = [c["close"] for c in candles]
+    labels = [datetime.fromtimestamp(c["time"], tz=timezone.utc).date().isoformat() for c in candles]
+    cfg = await config_store.get_strategy(await _selected())
+    res = backtest.simulate(closes, cfg, float(cash), labels=labels)
+    curve = res.get("curve", [])
+    if len(curve) > 150:                       # thin the curve for the wire; keep the last bar
+        step = (len(curve) + 149) // 150
+        thinned = curve[::step]
+        if (len(curve) - 1) % step:
+            thinned.append(curve[-1])
+        res["curve"] = thinned
+    res["symbol"] = sym
+    res["range"] = range_key
+    return res

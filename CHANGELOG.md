@@ -3,6 +3,21 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.71.0 — "Backtest your ladder"
+
+- **A backtest on the Method tab that replays your exact ladder rules against a stock's
+  history.** Pick a symbol, a window (1 or 5 years), and a bankroll, and it walks the real
+  rules bar by bar — ladder down on dips, sell last-in lots at their targets, skip buys
+  when the cash would run dry — then shows how it would have done vs simply buying the same
+  dollars and holding:
+  - Ending value and total return, next to the same-capital buy-and-hold result.
+  - **Max drawdown** — the worst peak-to-trough dip along the way (the tail the method's
+    "buy more as it falls" instinct walks into).
+  - Round-trips, win rate, how deep the ladder ever got, and the most capital it tied up.
+  - An equity curve of the ladder vs buy-and-hold.
+- It's the one tool that judges the method on evidence instead of feel. Fills are at the
+  daily close with no fees or dividends — a clean read on the mechanics, not a forecast.
+
 ## v0.70.0 — "Method tab: see your method's risks"
 
 - **A new Method tab that lenses your own trading method — read-only, advisory, and it

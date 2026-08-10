@@ -120,6 +120,15 @@ def test_strategy_analysis_shape(client):
     assert j["kelly"]["enough"] is False          # far fewer than min_trades closed
 
 
+def test_backtest_endpoint_graceful_without_token(client):
+    # No Schwab token in the test env → price history is empty; the endpoint must answer
+    # 200 with ok:false + a reason (never 500, never place anything).
+    r = client.get("/api/backtest", params={"symbol": "ZZT", "cash": 5000})
+    assert r.status_code == 200
+    j = r.json()
+    assert j["ok"] is False and "reason" in j
+
+
 def test_logs_recent_shape(client):
     r = client.get("/api/logs/recent")
     assert r.status_code == 200
