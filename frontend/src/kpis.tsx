@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usd } from "./format";
 import type { Dashboard } from "./types";
-import { IconSettings } from "./Icon";
+import { IconSettings, IconGrip, IconArrowUp, IconArrowDown, IconClose } from "./Icon";
 
 // Customizable header KPIs (W28-5). The top-right cluster is a set of selectable
 // metric boxes drawn from the dashboard payload + the cash summary. Which ones show
@@ -77,18 +77,35 @@ export function useKpiPrefs() {
     try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* ignore */ }
     setIds(next);
   };
-  const toggle = (id: string) =>
-    persist(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
+  const add = (id: string) => { if (!ids.includes(id)) persist([...ids, id]); };
+  const remove = (id: string) => persist(ids.filter((x) => x !== id));
+  const toggle = (id: string) => (ids.includes(id) ? remove(id) : add(id));
+  const move = (id: string, dir: -1 | 1) => {
+    const i = ids.indexOf(id), j = i + dir;
+    if (i < 0 || j < 0 || j >= ids.length) return;
+    const next = [...ids]; [next[i], next[j]] = [next[j], next[i]]; persist(next);
+  };
+  const reorder = (dragId: string, toIndex: number) => {
+    const from = ids.indexOf(dragId);
+    if (from < 0) return;
+    const next = [...ids];
+    next.splice(from, 1);
+    next.splice(Math.max(0, Math.min(toIndex, next.length)), 0, dragId);
+    persist(next);
+  };
   const reset = () => { try { localStorage.removeItem(KEY); } catch { /* ignore */ } setIds(DEFAULT_KPIS); };
-  return { ids, toggle, reset };
+  const available = KPI_CATALOG.filter((k) => !ids.includes(k.id));
+  return { ids, add, remove, toggle, move, reorder, reset, available };
 }
+export type KpiPrefs = ReturnType<typeof useKpiPrefs>;
 
-// Resolve the selected ids into renderable boxes (canonical order), dropping any whose
-// value isn't available yet.
+// Resolve the selected ids into renderable boxes, IN THE USER'S CHOSEN ORDER (drag-sorted),
+// dropping any whose value isn't available yet.
 export function visibleKpis(ids: string[], d: Dashboard, cash: KpiCash): VisibleKpi[] {
   const out: VisibleKpi[] = [];
-  for (const k of KPI_CATALOG) {
-    if (!ids.includes(k.id)) continue;
+  for (const id of ids) {
+    const k = KPI_CATALOG.find((c) => c.id === id);
+    if (!k) continue;
     const n = k.num(d, cash);
     if (n == null) continue;
     out.push({
@@ -100,12 +117,15 @@ export function visibleKpis(ids: string[], d: Dashboard, cash: KpiCash): Visible
   return out;
 }
 
-// Gear button + popover of checkboxes to choose which KPI boxes show.
-export function KpiPicker({ ids, toggle, reset, revealClass }: {
-  ids: string[]; toggle: (id: string) => void; reset: () => void;
-  revealClass?: string; // when set, the gear hides until its .gear-host is hovered
-}) {
+const labelOf = (id: string) => KPI_CATALOG.find((k) => k.id === id)?.label ?? id;
+
+// Gear button + popover to choose, REORDER (drag or arrows), and remove the header
+// widgets — the same customization the dashboard columns have.
+export function KpiPicker({ prefs }: { prefs: KpiPrefs }) {
   const [open, setOpen] = useState(false);
+  const [toAdd, setToAdd] = useState("");
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
@@ -119,25 +139,47 @@ export function KpiPicker({ ids, toggle, reset, revealClass }: {
   }, [open]);
 
   const close = () => { setOpen(false); btnRef.current?.focus(); };
+  const doAdd = () => { if (toAdd) { prefs.add(toAdd); setToAdd(""); } };
 
   return (
     <div ref={wrapRef} style={S.wrap}>
-      <button ref={btnRef} className={`btn btn-ghost btn-sm${revealClass ? " " + revealClass : ""}`} style={S.gear}
-        aria-label="Choose dashboard metrics" aria-expanded={open}
-        title="Choose which metrics show here" onClick={() => setOpen((o) => !o)}>
+      <button ref={btnRef} className="btn btn-ghost btn-sm" style={S.gear}
+        aria-label="Customize dashboard widgets" aria-expanded={open}
+        title="Customize widgets — choose, reorder, remove" onClick={() => setOpen((o) => !o)}>
         <IconSettings />
       </button>
       {open && (
-        <div style={S.pop} role="dialog" aria-label="Dashboard metrics"
+        <div style={S.pop} role="dialog" aria-label="Dashboard widgets"
           onKeyDown={(e) => { if (e.key === "Escape") close(); }}>
-          <div style={S.popHead}>Show metrics</div>
-          {KPI_CATALOG.map((k) => (
-            <label key={k.id} style={S.row} title={k.hint}>
-              <input type="checkbox" checked={ids.includes(k.id)} onChange={() => toggle(k.id)} />
-              <span>{k.label}</span>
-            </label>
-          ))}
-          <button className="btn btn-ghost btn-sm" style={S.reset} onClick={reset}>Reset to default</button>
+          <div style={S.popHead}>Widgets · drag to reorder</div>
+          <div style={S.list}>
+            {prefs.ids.map((id, i) => (
+              <div key={id}
+                style={{ ...S.item, ...(overId === id && dragId && dragId !== id ? S.itemOver : null),
+                  opacity: dragId === id ? 0.4 : 1 }}
+                draggable
+                onDragStart={(e) => { setDragId(id); e.dataTransfer.effectAllowed = "move"; }}
+                onDragOver={(e) => { e.preventDefault(); if (dragId && dragId !== id) setOverId(id); }}
+                onDragLeave={() => setOverId((o) => (o === id ? null : o))}
+                onDrop={(e) => { e.preventDefault(); if (dragId && dragId !== id) prefs.reorder(dragId, i); setDragId(null); setOverId(null); }}
+                onDragEnd={() => { setDragId(null); setOverId(null); }}>
+                <span style={S.grip} title="drag to reorder"><IconGrip /></span>
+                <span style={S.itemLabel} title={KPI_CATALOG.find((k) => k.id === id)?.hint}>{labelOf(id)}</span>
+                <button className="btn btn-ghost btn-sm" style={S.mv} disabled={i === 0} onClick={() => prefs.move(id, -1)} aria-label={`move ${labelOf(id)} up`}><IconArrowUp /></button>
+                <button className="btn btn-ghost btn-sm" style={S.mv} disabled={i === prefs.ids.length - 1} onClick={() => prefs.move(id, 1)} aria-label={`move ${labelOf(id)} down`}><IconArrowDown /></button>
+                <button className="btn btn-ghost btn-sm" style={S.rm} onClick={() => prefs.remove(id)} aria-label={`remove ${labelOf(id)}`}><IconClose /></button>
+              </div>
+            ))}
+            {prefs.ids.length === 0 && <div style={S.empty}>No widgets — add one below.</div>}
+          </div>
+          <div style={S.addRow}>
+            <select className="field" style={S.select} value={toAdd} onChange={(e) => setToAdd(e.target.value)}>
+              <option value="">Add a widget…</option>
+              {prefs.available.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
+            </select>
+            <button className="btn btn-primary btn-sm" onClick={doAdd} disabled={!toAdd}>Add</button>
+          </div>
+          <button className="btn btn-ghost btn-sm" style={S.reset} onClick={prefs.reset}>Reset to default</button>
         </div>
       )}
     </div>
@@ -146,14 +188,21 @@ export function KpiPicker({ ids, toggle, reset, revealClass }: {
 
 const S: Record<string, React.CSSProperties> = {
   wrap: { position: "relative", display: "flex", alignItems: "center", paddingLeft: 4, paddingRight: 4 },
-  // No inline padding — the .gear-reveal collapse controls padding (inline would override it).
   gear: { fontSize: "var(--fs-sm)", color: "var(--text-dim)" },
-  pop: { position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50, minWidth: 190,
+  pop: { position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50, width: 260,
     background: "var(--pop, var(--panel))", border: "1px solid var(--border-strong)", borderRadius: "var(--r-md)",
     padding: 8, boxShadow: "var(--shadow-pop)", display: "flex", flexDirection: "column", gap: 2 },
   popHead: { fontSize: "var(--fs-2xs)", textTransform: "uppercase", letterSpacing: "0.05em",
     color: "var(--text-faint)", padding: "2px 6px 4px" },
-  row: { display: "flex", alignItems: "center", gap: 8, padding: "4px 6px", borderRadius: "var(--r-sm)",
-    fontSize: "var(--fs-sm)", color: "var(--text)", cursor: "pointer" },
-  reset: { marginTop: 4, alignSelf: "flex-start", color: "var(--text-dim)" },
+  list: { maxHeight: 300, overflowY: "auto", padding: "2px 0" },
+  item: { display: "flex", alignItems: "center", gap: 3, padding: "3px 2px", borderRadius: "var(--r-sm)", cursor: "grab" },
+  itemOver: { boxShadow: "inset 0 2px 0 var(--accent)", background: "var(--panel-2)" },
+  grip: { color: "var(--text-faint)", fontSize: 13, cursor: "grab", userSelect: "none", display: "inline-flex" },
+  itemLabel: { flex: 1, fontSize: "var(--fs-sm)", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  mv: { color: "var(--text-dim)", padding: "1px 4px" },
+  rm: { color: "var(--text-faint)", padding: "1px 4px" },
+  empty: { fontSize: "var(--fs-sm)", color: "var(--text-dim)", padding: "6px 8px" },
+  addRow: { display: "flex", gap: 6, marginTop: 6, paddingTop: 8, borderTop: "1px solid var(--border-hairline)" },
+  select: { flex: 1, fontSize: "var(--fs-sm)" },
+  reset: { marginTop: 6, alignSelf: "flex-start", color: "var(--text-dim)" },
 };

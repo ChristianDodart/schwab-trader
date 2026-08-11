@@ -285,7 +285,7 @@ async def _fire(a: dict, symbol: str, px: float) -> None:
         msg += f" — {a['note']}"
     g = _gate(await get_notif_prefs(a.get("account_hash")), "alert", symbol)
     async with SessionLocal() as s:
-        n = Notification(alert_id=a["id"], symbol=symbol, message=msg, price=px, read=g["read"])
+        n = Notification(alert_id=a["id"], symbol=symbol, message=msg, price=px, read=g["read"], kind="alert")
         s.add(n)
         await s.flush()  # assign n.id
         nid = n.id
@@ -322,7 +322,7 @@ async def post_system_notification(symbol: str | None, message: str, price: floa
     Returns the id."""
     g = _gate(await get_notif_prefs(account_hash), category, symbol)
     async with SessionLocal() as s:
-        n = Notification(alert_id=None, symbol=symbol, message=message, price=price, read=g["read"])
+        n = Notification(alert_id=None, symbol=symbol, message=message, price=price, read=g["read"], kind=category)
         s.add(n)
         await s.flush()
         nid = n.id
@@ -357,7 +357,7 @@ async def _emit(symbol: str | None, message: str, price: float | None, alert_id=
                 account_hash: str | None = None) -> None:
     g = _gate(await get_notif_prefs(account_hash), "fill", symbol)
     async with SessionLocal() as s:
-        n = Notification(alert_id=alert_id, symbol=symbol, message=message, price=price, read=g["read"])
+        n = Notification(alert_id=alert_id, symbol=symbol, message=message, price=price, read=g["read"], kind="fill")
         s.add(n)
         await s.flush()
         nid = n.id
@@ -566,14 +566,26 @@ async def list_notifications(limit: int = 50) -> dict:
                 )
             )
         ).scalar() or 0
+        # Unread count per category, for the Notifications tab's per-type pills. NULL
+        # kind (legacy rows) buckets under "other" so nothing is silently dropped.
+        by_kind_rows = (
+            await s.execute(
+                select(Notification.kind, func.count())
+                .where(Notification.read.is_(False))
+                .group_by(Notification.kind)
+            )
+        ).all()
+        unread_by_kind: dict[str, int] = {}
+        for kind, cnt in by_kind_rows:
+            unread_by_kind[kind or "other"] = unread_by_kind.get(kind or "other", 0) + int(cnt)
         items = [{
             "id": n.id, "alert_id": n.alert_id, "symbol": n.symbol,
             "message": n.message,
             "price": float(n.price) if n.price is not None else None,
-            "read": n.read,
+            "read": n.read, "kind": n.kind,
             "created_at": _utc_iso(n.created_at),
         } for n in rows]
-    return {"notifications": items, "unread": int(unread)}
+    return {"notifications": items, "unread": int(unread), "unread_by_kind": unread_by_kind}
 
 
 async def mark_read(note_id: int) -> dict:

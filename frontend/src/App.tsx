@@ -20,6 +20,7 @@ import { tickerRiskColor } from "./columns";
 import { Ledger } from "./Ledger";
 import { NotificationsProvider, NotificationsTab } from "./Notifications";
 import { useNotifs } from "./notifications/store";
+import { KIND_ICON } from "./notifications/FeedPanel";
 import { Orders } from "./Orders";
 import { OrderTicket } from "./OrderTicket";
 import { PositionDetail } from "./PositionDetail";
@@ -112,8 +113,8 @@ export function App() {
   // Demo/showcase feed: when on, drives the dashboard display with simulated ticks +
   // fills so the themes/motion come alive on a closed market. Display-only, in-memory
   // (a reload turns it off), and it never touches the order path — bulk stays on `data`.
-  const [demoOn, setDemoOn] = useState(false);
-  const shown = useDemoFeed(data, demoOn);
+  const demoOn = false;   // demo/showcase mode retired from the UI (Aug 2026) — kept as a
+  const shown = useDemoFeed(data, demoOn);   // constant so downstream live/stale logic is unchanged
   // Prices are stale only when we're MEANT to be live (not demo) but Schwab isn't
   // answering — then dim the table + explain, so a frozen quote isn't mistaken for a real move.
   const pricesStale = !demoOn && data?.mode !== "demo" && live === false;
@@ -379,7 +380,6 @@ export function App() {
               <FeedTag mode={mode} />
               <LiveStatusPill />
               <MarketHoursBadge />
-              <DemoToggle on={demoOn} onToggle={() => setDemoOn((v) => !v)} />
             </div>
             {data && (() => {
               const kpis = visibleKpis(kpiPrefs.ids, shown ?? data, cashInfo);
@@ -393,9 +393,10 @@ export function App() {
                       ))}
                     </div>
                   )}
-                  {/* Gear lives OUTSIDE the cluster (which clips its rounded corners) and hides
-                      until you hover the KPI zone, then slides out — like the bulk-button gears. */}
-                  <KpiPicker ids={kpiPrefs.ids} toggle={kpiPrefs.toggle} reset={kpiPrefs.reset} revealClass="gear-reveal" />
+                  {/* Gear sits OUTSIDE the cluster (which clips its rounded corners). Always
+                      visible now — the old hover-reveal changed width on hover and reflowed
+                      the nav tabs into a wrap. A small persistent button is calmer. */}
+                  <KpiPicker prefs={kpiPrefs} />
                 </div>
               );
             })()}
@@ -426,7 +427,6 @@ export function App() {
 
         <UpdateBanner />
         <AuthBanner />
-        {demoOn && <DemoBanner onOff={() => setDemoOn(false)} />}
 
         {/* Browser-style find bar: hidden until Ctrl/Cmd+F, floats at the top-right,
             filters the dashboard by ticker, and closes on Esc — just like a browser. */}
@@ -656,12 +656,29 @@ export function App() {
   );
 }
 
-// Unread badge on the Notifications nav tab (replaces the old header bell). Lives inside
-// NotificationsProvider so it can read the live unread count.
+// Per-type unread pills on the Notifications nav tab — a separate bubble per category
+// (order fills, strategy triggers, price alerts, system) so the mix reads at a glance,
+// instead of one aggregate count. Same glyph/color language as the feed itself.
+const NOTIF_PILL_ORDER = ["fill", "trigger", "alert", "system", "other"];
 function NotifNavBadge() {
-  const { unread } = useNotifs();
-  if (!unread) return null;
-  return <span style={S.navBadge} title={`${unread} unread notification${unread === 1 ? "" : "s"}`}>{unread}</span>;
+  const { unreadByKind } = useNotifs();
+  const pills = NOTIF_PILL_ORDER
+    .map((k) => [k, unreadByKind[k] ?? 0] as const)
+    .filter(([, n]) => n > 0);
+  if (pills.length === 0) return null;
+  return (
+    <span style={S.notifPills}>
+      {pills.map(([k, n]) => {
+        const meta = KIND_ICON[k] ?? { glyph: "•", color: "var(--text-dim)", label: "Other" };
+        return (
+          <span key={k} style={{ ...S.notifPill, color: meta.color, borderColor: meta.color }}
+            title={`${n} unread ${meta.label.toLowerCase()}${n === 1 ? "" : "s"}`}>
+            <span aria-hidden="true">{meta.glyph}</span>{n}
+          </span>
+        );
+      })}
+    </span>
+  );
 }
 
 // Keyboard-shortcut cheat sheet (toggled with "?"). Reuses the modal overlay styling.
@@ -747,41 +764,6 @@ function KPI({ label, value, raw, n, color, first, hint, term }: { label: string
   );
 }
 
-// Demo/showcase toggle: turns the header dashboard into a self-animating demo (simulated
-// ticks + fills) so the themes/motion have something to show when the market is closed.
-// Purely visual, in-memory (a reload turns it off), and it never places an order.
-function DemoToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
-  return (
-    <button
-      className="btn btn-sm"
-      onClick={onToggle}
-      aria-pressed={on}
-      title={on
-        ? "Demo mode is on — simulated activity for showcasing. Click to stop."
-        : "Demo: simulate live ticks + fills to show the app off (no orders are placed)"}
-      style={on
-        ? { background: "var(--warn)", color: "var(--on-bright)", borderColor: "var(--warn)", fontWeight: 700 }
-        : { background: "transparent", color: "var(--text-dim)", borderColor: "var(--border-strong)" }}
-    >
-      {on ? "● Demo" : "Demo"}
-    </button>
-  );
-}
-
-function DemoBanner({ onOff }: { onOff: () => void }) {
-  return (
-    <div role="status" style={{
-      display: "flex", alignItems: "center", gap: 10, margin: "10px 0", padding: "8px 14px",
-      background: "var(--warn-bg)", border: "1px solid var(--warn-border)", borderRadius: "var(--r-md)",
-      color: "var(--text-muted)", fontSize: "var(--fs-sm)",
-    }}>
-      <span style={{ fontWeight: 700, letterSpacing: "0.04em", color: "var(--warn)" }}>DEMO</span>
-      <span>Prices and fills are simulated to show the app off — nothing here is live, and no orders are placed.</span>
-      <button className="btn btn-ghost btn-sm" style={{ marginLeft: "auto" }} onClick={onOff}>Turn off</button>
-    </div>
-  );
-}
-
 // Top 10 — quick glance at the day's most actionable names. Two lists from the held rows:
 // deepest dips (lowest LILO %, i.e. most below the last buy → buy-worthy) and biggest
 // last-position gains (profit ÷ cost → sell-worthy). Both clickable to drill in.
@@ -850,17 +832,22 @@ function Top10({ rows, onSelect }: { rows: DashboardRow[]; onSelect: (s: string)
 
 const S: Record<string, React.CSSProperties> = {
   header: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, rowGap: 12, flexWrap: "wrap" },
-  brandZone: { display: "flex", alignItems: "center", gap: 14, minWidth: 0, flexWrap: "wrap", rowGap: 10 },
+  // Left zone takes the leftover width and can shrink to nothing (minWidth 0) — its KPI
+  // cluster scrolls rather than pushing the nav. The right zone never shrinks, so the tabs
+  // keep their room and never wrap mid-row regardless of font size or widget count.
+  brandZone: { display: "flex", alignItems: "center", gap: 14, minWidth: 0, flex: "1 1 auto", flexWrap: "wrap", rowGap: 10 },
   h1: { fontSize: "var(--fs-xl)", fontWeight: 700, margin: 0, letterSpacing: "-0.01em", whiteSpace: "nowrap" },
-  headerRight: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 },
-  nav: { display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" },
+  headerRight: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flex: "0 0 auto", maxWidth: "100%" },
+  nav: { display: "flex", gap: 4, flexWrap: "nowrap", justifyContent: "flex-start", maxWidth: "100%", overflowX: "auto", overflowY: "hidden" },
   navBadge: { marginLeft: 6, background: "var(--warn)", color: "var(--on-bright)", fontSize: "var(--fs-2xs)", fontWeight: 700, borderRadius: "var(--r-pill)", padding: "0 6px", lineHeight: 1.6 },
+  notifPills: { display: "inline-flex", gap: 3, marginLeft: 6, flexWrap: "nowrap", verticalAlign: "middle" },
+  notifPill: { display: "inline-flex", alignItems: "center", gap: 2, fontSize: "var(--fs-2xs)", fontWeight: 700, lineHeight: 1.5, border: "1px solid", borderRadius: "var(--r-pill)", padding: "0 5px", background: "transparent" },
   rightZone: { display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", justifyContent: "flex-end" },
   statusZone: { display: "flex", alignItems: "center", gap: 10 },
   statusItem: { display: "inline-flex", alignItems: "center", gap: 5, fontSize: "var(--fs-xs)", color: "var(--text-dim)", whiteSpace: "nowrap" },
   dot: { width: 7, height: 7, borderRadius: "50%", display: "inline-block", flexShrink: 0 },
-  kpiZone: { display: "flex", alignItems: "center", gap: 2 },
-  kpiCluster: { display: "flex", alignItems: "stretch", border: "1px solid var(--border)", borderRadius: "var(--r-md)", overflow: "hidden" },
+  kpiZone: { display: "flex", alignItems: "center", gap: 2, minWidth: 0 },
+  kpiCluster: { display: "flex", alignItems: "stretch", border: "1px solid var(--border)", borderRadius: "var(--r-md)", minWidth: 0, maxWidth: "100%", overflowX: "auto", overflowY: "hidden" },
   kpi: { padding: "3px 14px", borderLeft: "1px solid var(--border-hairline)" },
   kpiLabel: { fontSize: "var(--fs-2xs)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-dim)" },
   kpiVal: { fontSize: "var(--fs-lg)", fontWeight: 600, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center" },

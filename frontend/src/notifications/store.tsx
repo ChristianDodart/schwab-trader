@@ -23,6 +23,7 @@ const DEFAULT_PREFS: NotifPrefs = {
 type Ctx = {
   notes: AppNote[];
   unread: number;
+  unreadByKind: Record<string, number>;   // per-category unread, for the nav pills
   pulse: boolean;
   alerts: Alert[];
   audit: AuditEvent[];
@@ -48,6 +49,7 @@ export function useNotifs(): Ctx {
 export function NotificationsProvider({ children, acctKey }: { children: React.ReactNode; acctKey?: string }) {
   const [notes, setNotes] = useState<AppNote[]>([]);
   const [unread, setUnread] = useState(0);
+  const [unreadByKind, setUnreadByKind] = useState<Record<string, number>>({});
   const [pulse, setPulse] = useState(false);
   const prevUnread = useRef(0);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -57,7 +59,7 @@ export function NotificationsProvider({ children, acctKey }: { children: React.R
 
   const loadNotes = useCallback(() =>
     fetch(`${API}/notifications`).then((r) => r.json())
-      .then((d) => { setNotes(d.notifications ?? []); setUnread(d.unread ?? 0); }).catch(() => {}), []);
+      .then((d) => { setNotes(d.notifications ?? []); setUnread(d.unread ?? 0); setUnreadByKind(d.unread_by_kind ?? {}); }).catch(() => {}), []);
   const loadAlerts = useCallback(() =>
     fetch(`${API}/alerts`).then((r) => r.json()).then((d) => setAlerts(d.alerts ?? [])).catch(() => {}), []);
   const loadAudit = useCallback(() =>
@@ -103,7 +105,11 @@ export function NotificationsProvider({ children, acctKey }: { children: React.R
         try {
           const n: AppNote = JSON.parse(ev.data);
           setNotes((prev) => [n, ...prev].slice(0, 100));
-          if (!n.read) setUnread((u) => u + 1);   // muted pushes arrive read → no badge
+          if (!n.read) {                            // muted pushes arrive read → no badge
+            setUnread((u) => u + 1);
+            const k = n.kind || "other";
+            setUnreadByKind((m) => ({ ...m, [k]: (m[k] ?? 0) + 1 }));
+          }
           fireDesktop(n);                          // respects n.desktop (server's prefs decision)
           if (n.sound) playNotifSound(n.kind);     // in-app chime (server decided per prefs)
           if (n.alert_id != null) loadAlerts();
@@ -117,7 +123,7 @@ export function NotificationsProvider({ children, acctKey }: { children: React.R
 
   const markAllRead = useCallback(() =>
     fetch(`${API}/notifications/read-all`, { method: "POST" })
-      .then(() => { setNotes((prev) => prev.map((n) => ({ ...n, read: true }))); setUnread(0); }).catch(() => {}), []);
+      .then(() => { setNotes((prev) => prev.map((n) => ({ ...n, read: true }))); setUnread(0); setUnreadByKind({}); }).catch(() => {}), []);
 
   const addAlert = useCallback(async (body: { symbol: string; direction: string; threshold: number; repeat: boolean }) => {
     try {
@@ -146,7 +152,7 @@ export function NotificationsProvider({ children, acctKey }: { children: React.R
   }, []);
 
   const value: Ctx = {
-    notes, unread, pulse, alerts, audit, desktopPerm, prefs,
+    notes, unread, unreadByKind, pulse, alerts, audit, desktopPerm, prefs,
     enableDesktop, markAllRead, loadAlerts, loadAudit, addAlert, removeAlert, savePrefs,
   };
   return <NotifCtx.Provider value={value}>{children}</NotifCtx.Provider>;

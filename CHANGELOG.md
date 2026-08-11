@@ -3,6 +3,21 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.72.0 — "A header that handles itself"
+
+- **The Notifications tab now shows a separate bubble per type** — order fills, strategy
+  triggers, and price alerts each get their own little count (e.g. ✓3 ▸5 !10), in the same
+  color/glyph language as the feed, instead of one lumped-together number. The mix reads
+  at a glance.
+- **Header widgets are now customizable like the columns are** — the gear opens a panel
+  where you drag to reorder them, nudge with arrows, remove, add, or reset. Your order
+  sticks.
+- **The Demo button is gone** from the header.
+- **The top bar no longer wraps on itself.** The nav tabs stay on one row regardless of
+  font size, how many widgets you show, or the window width — the widget strip shrinks and
+  scrolls instead of shoving the tabs into a second line, and the widget gear is always
+  present rather than popping out on hover (which used to force the wrap).
+
 ## v0.71.0 — "Backtest your ladder"
 
 - **A backtest on the Method tab that replays your exact ladder rules against a stock's

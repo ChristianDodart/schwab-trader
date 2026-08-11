@@ -17,7 +17,8 @@ function inferKind(n: Notification): "alert" | "trigger" | "fill" | "system" {
 }
 
 // Emoji-free glyphs (matches the app's ●/▲/▼ language), color-coded per type.
-const KIND_ICON: Record<string, { glyph: string; color: string; label: string }> = {
+// Exported so the Notifications nav tab can pill each unread category in the same language.
+export const KIND_ICON: Record<string, { glyph: string; color: string; label: string }> = {
   alert: { glyph: "!", color: "var(--warn)", label: "Price alert" },
   trigger: { glyph: "▸", color: "var(--accent)", label: "Strategy trigger" },
   fill: { glyph: "✓", color: "var(--pos)", label: "Order fill" },
