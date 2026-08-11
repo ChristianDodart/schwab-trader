@@ -313,10 +313,11 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     related: ["52wk_low_pct"],
   },
   "52wk_low_pct": {
-    term: "% of 52-week low",
-    oneLiner: "Where the price sits relative to its lowest point in the last year.",
-    howCalculated: "Current price ÷ 52-week low × 100 — e.g. 120% means it trades 20% above the " +
-      "year's low. For leveraged/inverse ETFs a 13-week (one-quarter) low is used instead " +
+    term: "% above 52-week low",
+    oneLiner: "How far above its lowest point in the last year the price is trading. 0% = sitting on the low.",
+    howCalculated: "(Current price ÷ 52-week low − 1) × 100 — normalized so the low reads 0%, not " +
+      "100% (the price can never be below its own 52-week low). E.g. 20% means it trades 20% above " +
+      "the year's low. For leveraged/inverse ETFs a 13-week (one-quarter) low is used instead " +
       "(daily-rebalancing decay makes a year-old low stale); a faint \"13w\" tag marks those rows.",
     source: "hybrid",
     related: ["52wk_high_pct"],

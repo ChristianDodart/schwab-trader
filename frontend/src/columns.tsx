@@ -158,7 +158,7 @@ export const DASH_COLUMN_LIST: DashCol[] = [
   // treatment as the average.
   { id: "median_52wk", label: "52wk Med", align: "right", render: (r) => <span style={{ color: "var(--text-muted)" }}>{usd0(r.median_52wk)}<WinTag r={r} /></span> },
   { id: "pct_of_high", label: "% of 52wk High", align: "right", term: "52wk_high_pct", render: (r) => r.pct_of_high == null ? null : <span>{pct0(r.pct_of_high)}<WinTag r={r} /></span> },
-  { id: "pct_of_low", label: "% of 52wk Low", align: "right", term: "52wk_low_pct", render: (r) => r.pct_of_low == null ? null : <span>{pct0(r.pct_of_low)}<WinTag r={r} /></span> },
+  { id: "pct_of_low", label: "% above 52wk Low", align: "right", term: "52wk_low_pct", render: (r) => r.pct_of_low == null ? null : <span>{pct0(r.pct_of_low)}<WinTag r={r} /></span> },
   { id: "lilo_pct", label: "LILO %", align: "right", watchNA: true, render: (r) => <Colored v={pct(r.lilo_pct)} n={r.lilo_pct} /> },
   { id: "last_pos_cost", label: "Last Pos Cost", align: "right", term: "cost_basis", watchNA: true, render: (r) => usd(r.last_pos_cost) },
   { id: "invested", label: "Invested", align: "right", term: "invested", watchNA: true, render: (r) => usd(r.invested) },

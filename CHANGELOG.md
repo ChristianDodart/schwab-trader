@@ -3,6 +3,13 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.75.0 — "Normalize the 52-week-low column"
+
+- **The "% of 52wk Low" column now reads from 0%, not 100%.** As you spotted, a price can
+  never be below its own 52-week low, so "% of low" was always ≥ 100% and never told you
+  much. It's now **"% above 52wk Low"** — the distance above the low, so **0% = sitting on
+  the low** and 20% means 20% above it. The hover definition explains the change.
+
 ## v0.74.0 — "% of 52-week low column"
 
 - **New "% of 52wk Low" dashboard column** — the mirror of "% of 52wk High": how far above
