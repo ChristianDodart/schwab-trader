@@ -15,6 +15,7 @@ export type DashboardRow = {
   avg_52wk: number | null;    // mean of daily closes over the past year ("where it spends most of its time")
   median_52wk: number | null; // median daily close over the past year (spike-robust "typical" price)
   pct_of_high: number | null;
+  pct_of_low: number | null;
   portfolio_pct: number | null;
   year_high: number | null;
   year_low: number | null;

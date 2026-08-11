@@ -310,7 +310,16 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
       "year-old high they may never revisit would make every reading look falsely cheap. A " +
       "faint \"13w\" tag marks those rows.",
     source: "hybrid",
-    related: [],
+    related: ["52wk_low_pct"],
+  },
+  "52wk_low_pct": {
+    term: "% of 52-week low",
+    oneLiner: "Where the price sits relative to its lowest point in the last year.",
+    howCalculated: "Current price ÷ 52-week low × 100 — e.g. 120% means it trades 20% above the " +
+      "year's low. For leveraged/inverse ETFs a 13-week (one-quarter) low is used instead " +
+      "(daily-rebalancing decay makes a year-old low stale); a faint \"13w\" tag marks those rows.",
+    source: "hybrid",
+    related: ["52wk_high_pct"],
   },
 };
 

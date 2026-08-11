@@ -6,7 +6,7 @@ import type { Dashboard, DashboardRow } from "./types";
 const row = (p: Partial<DashboardRow> & { symbol: string }): DashboardRow => ({
   name: null, sector: null, is_watch: false, positions: 1, shares: 100,
   invested: 4000, basis_per_share: 40, price: 42, current_value: 4200, unrealized: 200,
-  day_change: 10, lilo_pct: -2, avg_52wk: 45, median_52wk: 44, pct_of_high: 0.8,
+  day_change: 10, lilo_pct: -2, avg_52wk: 45, median_52wk: 44, pct_of_high: 0.8, pct_of_low: 1.3,
   portfolio_pct: 10, year_high: 52, year_low: 30, next_buy_price: 38, buy_mark: false,
   sell_mark: false, last_pos_cost: 2000, last_pos_profit: 100, log_profit: 0, trades: 3,
   year_profit: 0, year_trades: 0, avg_monthly: 0, first_buy_date: null, dividends: 0,

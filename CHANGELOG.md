@@ -3,6 +3,13 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.74.0 — "% of 52-week low column"
+
+- **New "% of 52wk Low" dashboard column** — the mirror of "% of 52wk High": how far above
+  its yearly low a name trades (e.g. 120% = 20% above the low). Add it from the column
+  manager. Like the other 52-week columns, leveraged/inverse ETFs use a 13-week window
+  (marked with a faint "13w" tag), and the label defines itself on hover.
+
 ## v0.73.0 — "Screen tab is now a Watchlist"
 
 - **The old Screen tab is now a Watchlist board.** We can't scan the whole market on the
