@@ -129,6 +129,17 @@ def test_backtest_endpoint_graceful_without_token(client):
     assert j["ok"] is False and "reason" in j
 
 
+def test_watchlist_board_shape(client):
+    # The smoke account has no watched tickers → an empty board, but the endpoint must
+    # answer 200 with the expected shape (rows list + the active universe rules).
+    r = client.get("/api/watchlist/board")
+    assert r.status_code == 200
+    j = r.json()
+    assert j["ok"] is True
+    assert isinstance(j["rows"], list)
+    assert "universe" in j and "market_cap_min" in j["universe"]
+
+
 def test_logs_recent_shape(client):
     r = client.get("/api/logs/recent")
     assert r.status_code == 200

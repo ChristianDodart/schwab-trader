@@ -69,8 +69,9 @@ function Curve({ pts }: { pts: NonNullable<BT["curve"]> }) {
   );
 }
 
-function BacktestCard() {
-  const [symbol, setSymbol] = useState("");
+function BacktestCard({ initialSymbol }: { initialSymbol?: string }) {
+  const [symbol, setSymbol] = useState(initialSymbol ?? "");
+  useEffect(() => { if (initialSymbol) setSymbol(initialSymbol); }, [initialSymbol]);
   const [cash, setCash] = useState(5000);
   const [rng, setRng] = useState("1Y");
   const [res, setRes] = useState<BT | null>(null);
@@ -135,7 +136,7 @@ function BacktestCard() {
   );
 }
 
-export function Method() {
+export function Method({ initialBacktest }: { initialBacktest?: string | null } = {}) {
   const [a, setA] = useState<Analysis | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -156,7 +157,7 @@ export function Method() {
         <p style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)", margin: 0 }}>
           No open positions yet — the risk lenses need a live book. You can still backtest the method on any symbol below.
         </p>
-        <BacktestCard />
+        <BacktestCard initialSymbol={initialBacktest ?? undefined} />
       </div>
     );
 
@@ -294,7 +295,7 @@ export function Method() {
         )}
       </section>
 
-      <BacktestCard />
+      <BacktestCard initialSymbol={initialBacktest ?? undefined} />
     </div>
   );
 }

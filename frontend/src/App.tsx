@@ -39,7 +39,7 @@ const WS_URL = wsUrl("/ws/dashboard");
 
 const NAV: { id: View; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
-  { id: "screen", label: "Screen" },
+  { id: "screen", label: "Watchlist" },
   { id: "ledger", label: "Ledger" },
   { id: "orders", label: "Orders" },
   { id: "rules", label: "Rules" },
@@ -54,6 +54,7 @@ export function App() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [connected, setConnected] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [backtestSymbol, setBacktestSymbol] = useState<string | null>(null);   // Watchlist → Method handoff
   const [view, setView] = useState<View>("dashboard");
   const [showHelp, setShowHelp] = useState(false);
   const [symQuery, setSymQuery] = useState("");        // Ctrl+F find-bar filter (by ticker)
@@ -532,13 +533,16 @@ export function App() {
         ) : view === "rules" ? (
           <FinancialRules key={acctKey} onDirtyChange={setSettingsDirty} />
         ) : view === "method" ? (
-          <Method key={acctKey} />
+          <Method key={acctKey} initialBacktest={backtestSymbol} />
         ) : view === "notifications" ? (
           <NotificationsTab prefill={alertPrefill} onPrefillConsumed={() => setAlertPrefill(null)} />
         ) : view === "screen" ? (
           <>
             {data && <SectorStrip rows={data.rows} />}
-            <Screener />
+            <Screener
+              onSelect={(s) => guardedNav(() => { setSelected(s); setView("dashboard"); })}
+              onBacktest={(s) => guardedNav(() => { setBacktestSymbol(s); setView("method"); })}
+            />
           </>
         ) : view === "ledger" ? (
           <Ledger key={acctKey} />

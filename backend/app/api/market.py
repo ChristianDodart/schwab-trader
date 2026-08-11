@@ -146,6 +146,13 @@ async def screen_symbol(symbol: str) -> dict:
     return await screener_svc.vet(symbol, await _selected())
 
 
+@router.get("/api/watchlist/board")
+async def watchlist_board() -> dict:
+    """The Watchlist tab: every watched name, vetted against the strategy universe and
+    scored for ladder fitness (volatility / liquidity / distance off high). Advisory."""
+    return await screener_svc.watchlist_board(await _selected())
+
+
 @router.get("/api/dashboard")
 async def dashboard() -> dict:
     """Stock Data view (selected account): one computed summary row per held ticker."""

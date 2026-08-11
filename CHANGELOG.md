@@ -3,6 +3,20 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.73.0 — "Screen tab is now a Watchlist"
+
+- **The old Screen tab is now a Watchlist board.** We can't scan the whole market on the
+  data we have, so instead of thin "discovery," this evaluates the names *you* care about:
+  - Add a symbol (or pull one from today's movers, tucked into a helper below).
+  - Each name is **vetted against your universe** — market-cap band, country, excluded
+    sectors, no ETFs — with a plain "fits" or a flag explaining why not.
+  - Each name is **scored for ladder fitness**: annualized volatility (does it swing enough
+    to cycle rungs?), average daily dollar volume (liquid enough to trade?), how far below
+    its high it sits, and a one-word read — good / hot / quiet / thin.
+  - One click to **Backtest** a name (jumps to the Method tab with it filled in) or open
+    its details.
+- Read-only and advisory throughout — nothing here places an order or recommends a buy.
+
 ## v0.72.0 — "A header that handles itself"
 
 - **The Notifications tab now shows a separate bubble per type** — order fills, strategy
