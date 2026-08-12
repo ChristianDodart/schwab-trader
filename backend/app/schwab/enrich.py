@@ -36,8 +36,15 @@ async def enrich_tickers(client) -> None:
                 continue
             ref = payload.get("reference", {}) or {}
             q = payload.get("quote", {}) or {}
+            fund = payload.get("fundamental", {}) or {}
             t.name = ref.get("description") or t.name
             t.year_high = q.get("52WeekHigh") or t.year_high
             t.year_low = q.get("52WeekLow") or t.year_low
+            # Market cap = shares outstanding × last price. Schwab ships sharesOutstanding in
+            # the quote's fundamental block; refreshed each run so the cap tracks price.
+            shares = fund.get("sharesOutstanding")
+            last = q.get("lastPrice") or q.get("mark") or q.get("closePrice")
+            if shares and last:
+                t.market_cap = float(shares) * float(last)
         await s.commit()
     log.info(f"updated {len(symbols)} tickers")

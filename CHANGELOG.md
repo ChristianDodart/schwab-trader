@@ -3,6 +3,14 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.77.0 — "Market Cap column now has values"
+
+- **Fixed the empty Market Cap column.** The value was never being stored — Schwab hands us
+  shares outstanding in the quote, but the app wasn't reading it. Ticker enrichment now
+  computes market cap (shares outstanding × price) from Schwab on startup (and from the FMP
+  profile when that's set), so the column fills in. Values appear after this update relaunches
+  the app.
+
 ## v0.76.0 — "Market cap column + smarter buy default"
 
 - **New Market Cap dashboard column** — add it from the column manager; shown compact

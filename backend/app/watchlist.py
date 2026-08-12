@@ -86,6 +86,8 @@ async def enrich_ticker(symbol: str, force: bool = False) -> dict:
             t.industry = p["industry"][:64]
         if p.get("country") and (force or not t.country):
             t.country = p["country"][:8]
+        if p.get("market_cap") and (force or not t.market_cap):
+            t.market_cap = p["market_cap"]
         await s.commit()
     return {"ok": True, "symbol": symbol, "sector": p.get("sector"),
             "industry": p.get("industry"), "country": p.get("country")}
