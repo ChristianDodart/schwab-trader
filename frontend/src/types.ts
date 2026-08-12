@@ -16,6 +16,8 @@ export type DashboardRow = {
   median_52wk: number | null; // median daily close over the past year (spike-robust "typical" price)
   pct_of_high: number | null;
   pct_of_low: number | null;
+  market_cap?: number | null;        // sharesOutstanding × price (FMP/Schwab)
+  first_buy_shares?: number | null;  // shares matching a rung-1 dollar size — prefills a fresh buy
   portfolio_pct: number | null;
   year_high: number | null;
   year_low: number | null;

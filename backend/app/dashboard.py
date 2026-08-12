@@ -226,6 +226,10 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
         "median_52wk": ref_median,
         "pct_of_high": round(price / year_high, 4) if has_price and year_high else None,
         "pct_of_low": round(price / year_low - 1, 4) if has_price and year_low else None,
+        "market_cap": _f(ticker.market_cap) if ticker and ticker.market_cap is not None else None,
+        # Shares that match a FIRST-position dollar size (rung-1 sizing tier) — prefills the
+        # buy ticket for a name you don't yet hold, instead of a bare 1 share.
+        "first_buy_shares": max(1, round(rules.sizing_dollars(0, cfg) / price)) if has_price else None,
         "portfolio_pct": round(invested / total_invested, 4) if total_invested else None,
         "year_high": year_high,
         "year_low": year_low,
@@ -392,7 +396,7 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
     # Watchlist tickers (no position in this account) -> watch rows, after held.
     for t in tickers.values():
         if t.watch and t.symbol not in by:
-            rows.append(_watch_row(t))
+            rows.append(_watch_row(t, cfg))
 
     # Flag rows that have a saved journal note (surfaces the note without opening detail).
     from .ledger import get_notes
@@ -454,7 +458,7 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
     }
 
 
-def _watch_row(ticker: Ticker) -> dict:
+def _watch_row(ticker: Ticker, cfg: StrategyConfig) -> dict:
     quote = hub.latest.get(ticker.symbol, {})
     price = quote.get("last")
     price = _f(price) if price is not None else None
@@ -470,6 +474,8 @@ def _watch_row(ticker: Ticker) -> dict:
         "median_52wk": ref_median,
         "pct_of_high": round(price / year_high, 4) if has_price and year_high else None,
         "pct_of_low": round(price / year_low - 1, 4) if has_price and year_low else None,
+        "market_cap": _f(ticker.market_cap) if ticker.market_cap is not None else None,
+        "first_buy_shares": max(1, round(rules.sizing_dollars(0, cfg) / price)) if has_price else None,
         "portfolio_pct": None, "year_high": year_high, "year_low": year_low,
         "ref_window_weeks": ref_weeks,
         "next_buy_price": None, "buy_mark": False, "sell_mark": False,

@@ -3,6 +3,15 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.76.0 — "Market cap column + smarter buy default"
+
+- **New Market Cap dashboard column** — add it from the column manager; shown compact
+  ($1.23T / $45.6B / $780M).
+- **Buying a name you don't hold now defaults to a first ladder position, not 1 share.**
+  The buy ticket prefills the quantity to roughly a rung-1 dollar size ÷ the price (e.g.
+  ~$500 worth), so a fresh entry starts at the size your ladder actually intends. You can
+  still edit it before placing.
+
 ## v0.75.0 — "Normalize the 52-week-low column"
 
 - **The "% of 52wk Low" column now reads from 0%, not 100%.** As you spotted, a price can

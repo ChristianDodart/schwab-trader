@@ -58,6 +58,13 @@ const Dash = () => null;
 // Null-safe money/percent for dashboard cells: empty instead of the global "—".
 const usd0 = (n: number | null | undefined) => (n == null ? null : usd(n));
 const pct0 = (n: number | null | undefined) => (n == null ? null : pct(n));
+// Compact market-cap: $1.23T / $45.6B / $780M.
+const capFmt = (n: number | null | undefined) =>
+  n == null ? null
+    : n >= 1e12 ? `$${(n / 1e12).toFixed(2)}T`
+    : n >= 1e9 ? `$${(n / 1e9).toFixed(1)}B`
+    : n >= 1e6 ? `$${(n / 1e6).toFixed(0)}M`
+    : usd(n);
 
 // A faint "13w" tag on the avg/median/high/low cells of a leveraged/inverse ETF — those
 // use a 13-week window instead of 52 (daily-rebalancing decay makes a full year stale),
@@ -167,6 +174,7 @@ export const DASH_COLUMN_LIST: DashCol[] = [
   { id: "year_trades", label: "Trades (YTD)", align: "right", watchNA: true, render: (r) => num(r.year_trades) },
   { id: "portfolio_pct", label: "Portfolio %", align: "right", watchNA: true, render: (r) => <PortfolioPct r={r} /> },
   { id: "sector", label: "Sector", align: "left", prov: "text", render: (r) => r.sector ? <span style={{ color: "var(--text-muted)" }}>{r.sector}</span> : <Dash /> },
+  { id: "market_cap", label: "Market Cap", align: "right", render: (r) => <span style={{ color: "var(--text-muted)" }}>{capFmt(r.market_cap)}</span> },
   // additional available columns (not in the default layout)
   { id: "positions", label: "Positions", align: "right", watchNA: true, render: (r) => num(r.positions) },
   { id: "shares", label: "Shares", align: "right", prov: "schwab", watchNA: true, render: (r) => num(r.shares) },

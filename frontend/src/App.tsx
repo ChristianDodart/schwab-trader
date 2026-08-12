@@ -345,7 +345,8 @@ export function App() {
     });
   };
   const buyWatch = (row: DashboardRow) =>
-    setWatchTicket({ symbol: row.symbol, side: "BUY", order_type: "LIMIT", quantity: 1, limit_price: row.price ?? 0 });
+    // Default the size to a first ladder position (rung-1 dollars ÷ price), not a bare 1 share.
+    setWatchTicket({ symbol: row.symbol, side: "BUY", order_type: "LIMIT", quantity: row.first_buy_shares ?? 1, limit_price: row.price ?? 0 });
   const onAlert = (row: DashboardRow) => {
     setAlertPrefill({ symbol: row.symbol, price: row.price });
     setView("notifications");   // the alert form lives on the Notifications tab now
