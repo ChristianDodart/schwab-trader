@@ -1,5 +1,5 @@
-"""Auth & identity endpoints: Schwab token status/re-auth, per-profile API
-credentials (Schwab + FMP), and profile management."""
+"""Auth & identity endpoints: Schwab token status/re-auth, per-profile Schwab API
+credentials, and profile management."""
 from __future__ import annotations
 
 import asyncio
@@ -56,22 +56,6 @@ async def set_schwab_creds(body: SchwabCredsBody) -> dict:
     """Save this install's own Schwab developer-app creds (blank secret keeps the
     existing one). Takes effect on the next client build."""
     return await credentials_svc.set_creds(body.client_id, body.client_secret, body.callback_url)
-
-
-class FmpKeyBody(BaseModel):
-    key: str
-
-
-@router.get("/api/fmp-status")
-async def get_fmp_status() -> dict:
-    """Whether an optional Financial Modeling Prep key is configured (never the key)."""
-    return await credentials_svc.fmp_status()
-
-
-@router.post("/api/fmp-key")
-async def set_fmp_key(body: FmpKeyBody) -> dict:
-    """Save the optional FMP key (Fernet-encrypted). Powers sector/industry/country auto-tagging."""
-    return await credentials_svc.set_fmp_key(body.key)
 
 
 class ReceivedUrlBody(BaseModel):

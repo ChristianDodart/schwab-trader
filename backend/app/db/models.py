@@ -163,15 +163,17 @@ class AppSetting(Base):
 
 
 class AccountConfig(Base):
-    """Per-account configuration: strategy overrides, trading enablement, tax.
+    """Per-account configuration: strategy overrides + tax settings.
 
     strategy_json holds a full strategy config as JSON; NULL means "use the
-    YAML defaults". trading_enabled gates order placement on this account.
+    YAML defaults".
     """
 
     __tablename__ = "account_config"
 
     account_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    # Retained for schema compatibility only — the trading gate was removed (orders
+    # always route to the selected account); this column is no longer read.
     trading_enabled: Mapped[bool] = mapped_column(default=False)
     strategy_json: Mapped[str | None] = mapped_column()
     tax_filing: Mapped[str] = mapped_column(String(16), default="single")

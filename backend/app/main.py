@@ -12,7 +12,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 
 from . import accounts as accounts_svc
 from . import backup as backup_svc
@@ -21,14 +20,13 @@ from . import ledger as ledger_svc
 from . import notifications as notifications_svc
 from . import profiles as profiles_svc
 from . import rebuild as rebuild_svc
-from . import watchlist as watchlist_svc
 from .config import settings
 from .logsetup import setup_logging
 from .api._shared import _selected
 
 setup_logging(settings.data_dir)  # before anything logs — file + console + diagnostics ring
 
-from .dashboard import build_dashboard, invalidate_dashboard_cache
+from .dashboard import build_dashboard
 from .db import init_db
 from .schwab import hub, run_activity_resync, run_quote_stream
 from .schwab import auth as auth_mod
@@ -204,22 +202,6 @@ def _restart_stream() -> None:
     if old is not None:
         old.cancel()
     app.state.stream_task = asyncio.create_task(run_quote_stream())
-
-
-class EnrichBody(BaseModel):
-    force: bool = False
-
-
-# Distinct from the module-level `enrich_tickers` imported from .schwab.enrich (the
-# startup quote-enrichment routine) — this endpoint drives the FMP sector/country
-# tagging. They must NOT share a name: a same-named endpoint here would rebind the
-# module global and make _enrich_on_startup call this instead of the import.
-@app.post("/api/tickers/enrich")
-async def post_enrich_tickers(body: EnrichBody) -> dict:
-    """Auto-tag every ticker's sector/industry/country from FMP (fills missing; force re-fetches)."""
-    res = await watchlist_svc.enrich_all(force=body.force)
-    invalidate_dashboard_cache()  # sector shows on the dashboard
-    return res
 
 
 # --- HTTP endpoint routers (split out of this module; see app/api/__init__.py).

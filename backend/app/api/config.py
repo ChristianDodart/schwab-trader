@@ -129,7 +129,6 @@ async def test_phone_notify() -> dict:
 
 
 class ConfigBody(BaseModel):
-    trading_enabled: bool | None = None
     tax_filing: str | None = None
     tax_state_rate: float | None = None
     strategy: dict | None = None
@@ -160,7 +159,7 @@ async def post_config(body: ConfigBody) -> dict:
         extra["other_annual_income"] = body.other_annual_income
     return await config_store.set_config(
         body.account_hash or await _selected(),
-        trading_enabled=body.trading_enabled, tax_filing=body.tax_filing,
+        tax_filing=body.tax_filing,
         tax_state_rate=body.tax_state_rate, strategy=body.strategy, **extra,
     )
 

@@ -32,7 +32,7 @@ async def post_select_account(body: SelectAccountBody) -> dict:
 
 @router.get("/api/accounts/trading")
 async def get_trading_account() -> dict:
-    """The account orders go to (the selected account, if trading-enabled)."""
+    """The account orders go to (the selected account)."""
     return {"trading_hash": await accounts_svc.get_trading_account()}
 
 
@@ -50,12 +50,12 @@ async def account_margin() -> dict:
 
 @router.post("/api/account/rebuild")
 async def account_rebuild() -> dict:
-    """Rebuild the trading account's lots + completed trades from real Schwab fills
-    (LIFO). Targets get_trading_account() — selected AND trading-enabled — so it can
-    never run against the managed LLC account. fetch+write are serialized in resync."""
+    """Rebuild the selected account's lots + completed trades from real Schwab fills
+    (LIFO). Targets get_trading_account() — the selected account. fetch+write are
+    serialized in resync."""
     target = await accounts_svc.get_trading_account()
     if not target:
-        return {"ok": False, "error": "select a trading-enabled account first (Settings)"}
+        return {"ok": False, "error": "no account selected"}
     return await rebuild_svc.resync_account(target)
 
 

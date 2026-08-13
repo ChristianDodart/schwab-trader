@@ -16,7 +16,7 @@ export type DashboardRow = {
   median_52wk: number | null; // median daily close over the past year (spike-robust "typical" price)
   pct_of_high: number | null;
   pct_of_low: number | null;
-  market_cap?: number | null;        // sharesOutstanding × price (FMP/Schwab)
+  market_cap?: number | null;        // sharesOutstanding × price (Schwab)
   first_buy_shares?: number | null;  // shares matching a rung-1 dollar size — prefills a fresh buy
   portfolio_pct: number | null;
   year_high: number | null;
@@ -313,38 +313,6 @@ export type Mover = {
   change: number | null;
   pct_change: number | null;
   volume: number | null;
-};
-
-export type Candidate = {
-  symbol: string;
-  name: string | null;
-  sector: string | null;
-  industry: string | null;
-  country: string | null;
-  market_cap: number | null;
-  beta: number | null;
-  is_etf: boolean;
-  risk?: string;
-  last: number | null;
-  pct_change: number | null;
-  in_movers: boolean;
-  passes: boolean;
-  reasons: GuardrailCheck[];
-};
-export type CandidateScreen = {
-  ok: boolean;
-  error?: string;
-  count?: number;
-  passing?: number;
-  pool_note?: string;
-  filters?: {
-    market_cap_min?: number | null;
-    market_cap_max?: number | null;
-    country?: string;
-    exclude?: string[];
-    no_etfs?: boolean;
-  };
-  candidates?: Candidate[];
 };
 
 export type GuardrailCheck = {

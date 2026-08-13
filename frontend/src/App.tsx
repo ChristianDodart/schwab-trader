@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usd, pct } from "./format";
-import { ProfilePanel, ContextChip } from "./ProfilePanel";
+import { ProfileAccountMenu } from "./ProfileAccountMenu";
 import { AuthBanner, LiveStatusPill, useLiveness } from "./AuthBanner";
-import { FirstRun } from "./FirstRun";
 import { ReauthButton } from "./Reauth";
 import { UpdateBanner } from "./UpdateBanner";
 import { matchesRule, type SignalRule } from "./signals";
@@ -43,10 +42,9 @@ const NAV: { id: View; label: string }[] = [
   { id: "rules", label: "Rules" },
   { id: "method", label: "Method" },
   { id: "notifications", label: "Notifications" },
-  { id: "profile", label: "Profile" },
   { id: "settings", label: "Settings" },
 ];
-type View = "dashboard" | "ledger" | "orders" | "rules" | "method" | "notifications" | "profile" | "settings";
+type View = "dashboard" | "ledger" | "orders" | "rules" | "method" | "notifications" | "settings";
 
 export function App() {
   const [data, setData] = useState<Dashboard | null>(null);
@@ -403,7 +401,7 @@ export function App() {
           {/* Right cluster: the profile/account chip sits in the very top-right corner,
               with the primary nav tabs directly beneath it. */}
           <div style={S.headerRight}>
-            <ContextChip acctKey={acctKey} onOpen={() => guardedNav(() => setView("profile"))} />
+            <ProfileAccountMenu acctKey={acctKey} onSelectAccount={onAccountChange} />
             <nav style={S.nav} aria-label="Primary">
               {NAV.map((t) => (
                 <button
@@ -446,8 +444,6 @@ export function App() {
               onClick={() => { setSymQuery(""); setFindOpen(false); }}><IconClose /></button>
           </div>
         )}
-
-        {view === "dashboard" && <FirstRun nav={(v) => guardedNav(() => setView(v as View))} />}
 
         {view === "dashboard" && (
         <div style={S.subbar}>
@@ -525,8 +521,6 @@ export function App() {
 
         {view === "settings" ? (
           <Settings key={acctKey} onDirtyChange={setSettingsDirty} />
-        ) : view === "profile" ? (
-          <ProfilePanel acctKey={acctKey} onAccountChange={onAccountChange} />
         ) : view === "rules" ? (
           <FinancialRules key={acctKey} onDirtyChange={setSettingsDirty} />
         ) : view === "method" ? (

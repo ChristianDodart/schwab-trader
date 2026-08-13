@@ -19,12 +19,11 @@ _DEFAULTS = StrategyConfig.load()
 
 
 async def _ensure(account_hash: str) -> AccountConfig:
-    # New accounts are born trading-DISABLED — trading is an explicit per-account
-    # opt-in via the Settings toggle (never auto-enabled by account type).
+    # Auto-create a config row on first access (defaults from the model).
     async with SessionLocal() as s:
         row = await s.get(AccountConfig, account_hash)
         if row is None:
-            # Atomic seed: two concurrent callers (get_config + trading_enabled on the
+            # Atomic seed: two concurrent callers (e.g. get_config + get_strategy on the
             # same tick) would otherwise both INSERT the same PK → IntegrityError.
             from .db import dialect_insert
             await s.execute(
@@ -61,15 +60,9 @@ async def get_strategy(account_hash: str | None) -> StrategyConfig:
     return cfg
 
 
-async def trading_enabled(account_hash: str | None) -> bool:
-    if not account_hash:
-        return False
-    return bool((await _ensure(account_hash)).trading_enabled)
-
-
 def _no_account_config() -> dict:
     return {
-        "account_hash": "", "trading_enabled": False, "tax_filing": "single",
+        "account_hash": "", "tax_filing": "single",
         "tax_state_rate": 0.045, "year_end_goal": None, "other_annual_income": None,
         "strategy": _DEFAULTS.to_mapping(), "strategy_is_default": True,
     }
@@ -82,7 +75,6 @@ async def get_config(account_hash: str) -> dict:
     strat = await get_strategy(account_hash)
     return {
         "account_hash": account_hash,
-        "trading_enabled": row.trading_enabled,
         "tax_filing": row.tax_filing,
         "tax_state_rate": float(row.tax_state_rate),
         "year_end_goal": float(row.year_end_goal) if row.year_end_goal is not None else None,
@@ -187,7 +179,7 @@ async def set_symbol_override(account_hash: str, symbol: str, ov: dict | None) -
 _UNSET = object()
 
 
-async def set_config(account_hash: str, *, trading_enabled=None, tax_filing=None,
+async def set_config(account_hash: str, *, tax_filing=None,
                      tax_state_rate=None, strategy=None,
                      year_end_goal=_UNSET, other_annual_income=_UNSET) -> dict:
     if not account_hash:
@@ -195,8 +187,6 @@ async def set_config(account_hash: str, *, trading_enabled=None, tax_filing=None
     await _ensure(account_hash)
     async with SessionLocal() as s:
         row = await s.get(AccountConfig, account_hash)
-        if trading_enabled is not None:
-            row.trading_enabled = bool(trading_enabled)
         if tax_filing is not None:
             row.tax_filing = tax_filing
         if tax_state_rate is not None:

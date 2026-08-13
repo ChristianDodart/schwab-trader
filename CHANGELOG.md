@@ -3,6 +3,26 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.82.0 — "Settings & profile cleanup"
+
+- **Switch profile and account from one dropdown on the top-right pill.** Click your
+  profile/account pill (top right) to switch profile OR account — and add / rename / remove
+  profiles — all in one menu, with each account's value and day P/L shown inline. The separate
+  Profile tab is gone; re-authorizing Schwab now lives in Settings.
+- **Backups keep only the newest 3** (was 14) — each new backup deletes the oldest, and your
+  existing extras prune down to 3 automatically on the next launch.
+- **Taxes moved to the Predictive tab** — filing status and state rate are now edited right
+  where the tax projection is shown, instead of in Settings.
+- **Removed the trade-enabling toggle and its gate.** Orders always route to your selected
+  account now — a silently-blocked order is never the expected behavior.
+- **Removed the FMP (company-data) integration entirely** — the card, the key, and automatic
+  sector/country tagging. Market cap still comes from Schwab, and you can still tag a stock's
+  sector by hand from its detail page (so the sector guardrail keeps working).
+- **Removed the setup guide.**
+- **Settings tidied:** the two Schwab cards (credentials + connection) are merged into one;
+  the run-in-tray toggle moved into Appearance; and the now-pointless "Save settings" button
+  is gone (every settings card saves itself).
+
 ## v0.81.0 — "Uniform two-column layout"
 
 - **One consistent card layout across Rules, Method, Profile, and Settings.** The previous

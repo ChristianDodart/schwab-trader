@@ -151,24 +151,3 @@ async def set_creds(client_id: str | None = None, client_secret: str | None = No
     from .schwab.auth import reset_client
     reset_client()  # new creds take effect on the next get_client()
     return status()
-
-
-# --- Financial Modeling Prep (optional, per-install) — powers company profile
-# --- auto-tagging (sector/industry/country). Stored Fernet-encrypted like the secret.
-_K_FMP = "fmp_api_key"
-
-
-async def get_fmp_key() -> str | None:
-    """The stored FMP key (decrypted), or None if unset."""
-    return _decrypt_secret(await _raw_get(_K_FMP))
-
-
-async def set_fmp_key(key: str) -> dict:
-    if key and key.strip():
-        await _raw_set(_K_FMP, _encrypt_secret(key.strip()))
-    return await fmp_status()
-
-
-async def fmp_status() -> dict:
-    """Secret-free view: whether an FMP key is configured (never returns the key)."""
-    return {"configured": bool(await get_fmp_key())}

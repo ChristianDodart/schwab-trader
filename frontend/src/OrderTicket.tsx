@@ -53,7 +53,7 @@ export function OrderTicket({
   const [acct, setAcct] = useState<Acct | null>(null);
   const [acctLoaded, setAcctLoaded] = useState(false);
   const [placing, setPlacing] = useState(false);
-  const [result, setResult] = useState<{ ok?: boolean; error?: string; detail?: string; http?: number; order_id?: string; needs_verify?: boolean; needs_confirm?: boolean; warning?: string; trading_disabled?: boolean } | null>(null);
+  const [result, setResult] = useState<{ ok?: boolean; error?: string; detail?: string; http?: number; order_id?: string; needs_verify?: boolean; needs_confirm?: boolean; warning?: string } | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -378,7 +378,7 @@ export function OrderTicket({
           <div style={S.acct}>
             {!acctLoaded ? "Resolving trading account…"
               : acct ? <>Trading on <b>{acct.mask} · {acct.type}</b></>
-              : <span style={S.warn}><IconWarning /> No trading-enabled account. Enable trading for an account in Settings.</span>}
+              : <span style={S.warn}><IconWarning /> No trading account selected.</span>}
           </div>
 
           {!result ? (
@@ -409,7 +409,7 @@ export function OrderTicket({
                   </div>
                 ) : <div>Submitted ✓ — order id not returned. <b>Verify it in the Orders tab.</b></div>
               ) : (
-                <div style={{ color: "var(--neg)" }}>Failed: {result.trading_disabled && acct ? `${acct.mask} ` : ""}{result.error || result.detail || `order failed (HTTP ${result.http ?? "?"})`}</div>
+                <div style={{ color: "var(--neg)" }}>Failed: {result.error || result.detail || `order failed (HTTP ${result.http ?? "?"})`}</div>
               )}
               {result.warning && <div style={S.muted}>{result.warning}</div>}
               <button className="btn btn-secondary" style={{ marginTop: 12 }} onClick={onClose}>Close</button>

@@ -14,7 +14,6 @@ import asyncio
 import time
 from datetime import datetime, timezone
 
-from . import risk as risk_mod
 from .schwab.auth import get_client
 
 _MOVER_INDEXES = {
@@ -161,86 +160,6 @@ async def movers(index: str = "EQUITY_ALL", sort: str = "PERCENT_CHANGE_UP") -> 
     return _store(key, {"index": index, "sort": sort, "movers": rows})
 
 
-# ---------------- candidate-pool screen (free: movers + watchlist, FMP-classified) ----------------
-
-async def screen_candidates(account_hash: str = "", index: str = "EQUITY_ALL",
-                            sort: str = "PERCENT_CHANGE_UP", pool_limit: int = 40) -> dict:
-    """Screen a POOL — today's movers (index/sort) + the watchlist — against the strategy
-    universe (cap band, country, excluded sectors, no ETFs). Each name is classified via
-    an FMP profile (day-cached). This is NOT a whole-market scan (Schwab has no screener
-    and FMP's is paywalled) — it's a free filter over names already in front of you."""
-    from . import config_store, credentials, fmp
-    from .db import SessionLocal
-    from .db.models import Ticker
-    from sqlalchemy import select as _select
-
-    if not await credentials.get_fmp_key():
-        return {"ok": False, "candidates": [],
-                "error": "Add a free FMP key under Settings — it classifies each name (sector/country/cap) so the filter can run."}
-
-    cfg = await config_store.get_strategy(account_hash)
-    uni = cfg.universe
-    cap_min, cap_max = uni.get("market_cap_min"), uni.get("market_cap_max")
-    want_country = str(uni.get("country", "US")).upper()
-    excl = [x.lower() for x in (uni.get("exclude") or [])]
-
-    mv = await movers(index, sort)
-    mv_rows = {m["symbol"]: m for m in mv.get("movers", []) if m.get("symbol")}
-    async with SessionLocal() as s:
-        watch = (await s.execute(_select(Ticker.symbol).where(Ticker.watch.is_(True)))).scalars().all()
-    symbols = list(dict.fromkeys([*mv_rows.keys(), *watch]))[:pool_limit]
-
-    sem = asyncio.Semaphore(5)  # be polite to FMP; day-cache makes re-runs cheap
-
-    async def _profile(sym: str):
-        async with sem:
-            return sym, await fmp.profile(sym)
-
-    profiles = dict(await asyncio.gather(*[_profile(s) for s in symbols])) if symbols else {}
-
-    candidates = []
-    for sym in symbols:
-        p = profiles.get(sym) or {}
-        mvr = mv_rows.get(sym, {})
-        mc, sector, industry = p.get("market_cap"), p.get("sector"), p.get("industry")
-        country, is_etf = p.get("country"), p.get("is_etf")
-        blob = " ".join(filter(None, [sector, industry])).lower()
-        excl_hit = next((x for x in excl if x in blob), None) if blob else None
-        cap_ok = mc is not None and cap_min is not None and cap_max is not None and cap_min <= mc <= cap_max
-        country_ok = bool(country) and country.upper() == want_country
-        reasons = [
-            {"label": "Market cap band", "status": "pass" if cap_ok else ("fail" if mc is not None else "manual"),
-             "detail": f"${mc/1e9:.2f}B" if mc else "unknown"},
-            {"label": f"Country {want_country}", "status": "pass" if country_ok else ("fail" if country else "manual"),
-             "detail": country or "unknown"},
-            {"label": "Sector allowed", "status": "fail" if excl_hit else ("pass" if blob else "manual"),
-             "detail": (sector or "unknown") + (f" — excluded ({excl_hit})" if excl_hit else "")},
-        ]
-        if is_etf:
-            reasons.append({"label": "Individual stock", "status": "fail", "detail": "ETF, not a company"})
-        passes = bool(cap_ok and country_ok and not excl_hit and not is_etf)
-        candidates.append({
-            "symbol": sym, "name": p.get("name") or mvr.get("name"),
-            "sector": sector, "industry": industry, "country": country,
-            "market_cap": mc, "beta": p.get("beta"), "is_etf": bool(is_etf),
-            "risk": risk_mod.classify(p.get("name") or sym, industry, mc, is_etf=bool(is_etf)),
-            "last": mvr.get("last"), "pct_change": mvr.get("pct_change"),
-            "in_movers": sym in mv_rows,
-            "passes": passes, "reasons": reasons,
-        })
-    # passing first, then biggest cap (a proxy for "most established")
-    candidates.sort(key=lambda c: (not c["passes"], -(c["market_cap"] or 0)))
-    return {"ok": True, "index": index, "sort": sort, "count": len(candidates),
-            "passing": sum(1 for c in candidates if c["passes"]),
-            "pool_note": f"{len(mv_rows)} movers + {len(watch)} watchlist (deduped, capped at {pool_limit})",
-            # The active universe rules, so the UI can show WHY names pass/fail as chips.
-            "filters": {
-                "market_cap_min": cap_min, "market_cap_max": cap_max,
-                "country": want_country, "exclude": uni.get("exclude") or [], "no_etfs": True,
-            },
-            "candidates": candidates}
-
-
 # ---------------- fundamentals / guardrail vet ----------------
 
 def _num(x):
@@ -352,17 +271,15 @@ async def vet(symbol: str, account_hash: str = "") -> dict:
     else:
         checks.append({"label": "Market cap band", "status": "manual",
                        "detail": "market cap unavailable"})
-    # Classification (sector/industry/country) isn't in Schwab data. Prefer a live FMP
-    # profile (works for ANY symbol), falling back to the stored tag (Ticker.sector).
-    from . import fmp
+    # Classification (sector/industry/country) isn't in Schwab data — it comes from the
+    # user-maintained stored tags (the Ticker row), tagged manually on the dashboard.
     from .db import SessionLocal
     from .db.models import Ticker
-    prof = await fmp.profile(symbol)
     async with SessionLocal() as s:
         trow = await s.get(Ticker, symbol)
-    sector = (prof.get("sector") if prof else None) or (trow.sector if trow else None)
-    industry = (prof.get("industry") if prof else None) or (trow.industry if trow else None)
-    country = (prof.get("country") if prof else None) or (trow.country if trow else None)
+    sector = trow.sector if trow else None
+    industry = trow.industry if trow else None
+    country = trow.country if trow else None
     base = {**base, "sector": sector, "industry": industry, "country": country}
 
     want_country = str(uni.get("country", "US")).upper()
@@ -372,7 +289,7 @@ async def vet(symbol: str, account_hash: str = "") -> dict:
                        "detail": country})
     else:
         checks.append({"label": f"Country = {want_country}", "status": "manual",
-                       "detail": "unknown — add an FMP key to auto-classify"})
+                       "detail": "unknown — tag the sector/country on the dashboard"})
     excl = uni.get("exclude") or []
     if excl:
         blob = " ".join(filter(None, [sector, industry]))
@@ -385,7 +302,7 @@ async def vet(symbol: str, account_hash: str = "") -> dict:
             })
         else:
             checks.append({"label": f"Not in: {', '.join(excl)}", "status": "manual",
-                           "detail": "no sector — add an FMP key or tag it on the dashboard"})
+                           "detail": "no sector — tag it on the dashboard"})
 
     # Profitability (LAW: prefer companies motivated/able to grow value) — pass when
     # earnings or net margin are positive; only shown when we have the data.

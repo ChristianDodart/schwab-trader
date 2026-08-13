@@ -1,7 +1,7 @@
 """Bulk actions — harvest profitable last-positions (sell) and bulk-buy (dips or
 fresh entries). The UI builds a plan (read-only), the user reviews + confirms,
 then these place orders ONE BY ONE through the guarded orders.place_order path
-(selected+trading-enabled account, SELL fail-closed held-shares, stop-direction).
+(selected account, SELL fail-closed held-shares, stop-direction).
 
 Each plan flags which candidates QUALIFY for auto-selection (configurable
 thresholds in `bulk_prefs`); the UI pre-checks those but every candidate stays
@@ -95,18 +95,13 @@ def _last_lot(lots: list[Lot]) -> Lot:
     return max(lots, key=lambda l: l.rung)  # highest rung = last-in (LIFO)
 
 
-async def _not_trading(account_hash: str) -> bool:
-    """The selected account can't place orders — planning would only mislead."""
-    return await accounts_svc.get_trading_account() != account_hash
-
-
 async def sell_plan(account_hash: str) -> dict:
     """EVERY held last position, so the user can manually pick any to sell. `qualifies`
     marks the profitable ones whose gain% meets the auto-select threshold (those are
     pre-checked); positions at a loss are returned too, unchecked, with a note. Sell is
     marketable @ current price."""
-    if await _not_trading(account_hash):
-        return {"ok": True, "mode": hub.mode, "count": 0, "candidates": [], "note": "account is not trading-enabled"}
+    if not account_hash:
+        return {"ok": True, "mode": hub.mode, "count": 0, "candidates": [], "note": "no account selected"}
     prefs = await get_prefs()
     min_gain = prefs["sell_min_gain_pct"]
     by = await _lots_by_symbol(account_hash)
@@ -142,8 +137,8 @@ async def buy_plan(account_hash: str) -> dict:
     (fresh entries). `qualifies` marks held positions that have dipped >= buy_dip_pct
     below their last buy (auto-selected). New/undipped rows are selectable but not
     auto-checked. Sizing follows the strategy tier; buys are marketable @ current."""
-    if await _not_trading(account_hash):
-        return {"ok": True, "mode": hub.mode, "count": 0, "candidates": [], "note": "account is not trading-enabled"}
+    if not account_hash:
+        return {"ok": True, "mode": hub.mode, "count": 0, "candidates": [], "note": "no account selected"}
     prefs = await get_prefs()
     dip = prefs["buy_dip_pct"]
     cfg = await config_store.get_strategy(account_hash)
@@ -197,8 +192,8 @@ async def exit_plan(account_hash: str) -> dict:
     sell fills at the limit OR BETTER, so resting at the last-buy price never fills BELOW
     it (if the market is already higher it fills near the market; if lower it rests until
     it recovers). NOTHING is auto-selected (qualifies is always False)."""
-    if await _not_trading(account_hash):
-        return {"ok": True, "mode": hub.mode, "count": 0, "candidates": [], "note": "account is not trading-enabled"}
+    if not account_hash:
+        return {"ok": True, "mode": hub.mode, "count": 0, "candidates": [], "note": "no account selected"}
     prefs = await get_prefs()
     off = prefs["exit_offset_pct"] / 100.0
     by = await _lots_by_symbol(account_hash)

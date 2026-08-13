@@ -7,8 +7,6 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
-from sqlalchemy import select
-
 from .db import SessionLocal, dialect_insert as pg_insert
 from .db.models import Ticker
 from .schwab import hub, subscribe
@@ -55,58 +53,7 @@ async def add_ticker(symbol: str) -> dict:
         })
 
     live = await subscribe(symbol)
-    try:  # best-effort auto-tag sector/industry/country (no-op without an FMP key)
-        await enrich_ticker(symbol)
-    except Exception:
-        pass
     return {"ok": True, "symbol": symbol, "live": live}
-
-
-async def enrich_ticker(symbol: str, force: bool = False) -> dict:
-    """Auto-fill a ticker's sector/industry/country from FMP. Fills only EMPTY fields
-    unless force=True (so a manual tag isn't clobbered). No-op without an FMP key."""
-    from . import fmp
-    symbol = (symbol or "").strip().upper()
-    async with SessionLocal() as s:
-        t = await s.get(Ticker, symbol)
-        if t is None:
-            return {"ok": False, "symbol": symbol, "error": "unknown ticker"}
-        if not force and t.sector and t.country:
-            return {"ok": True, "symbol": symbol, "skipped": True}
-    p = await fmp.profile(symbol)
-    if not p:
-        return {"ok": False, "symbol": symbol, "error": "no FMP data (check the key / symbol)"}
-    async with SessionLocal() as s:
-        t = await s.get(Ticker, symbol)
-        if t is None:
-            return {"ok": False, "symbol": symbol, "error": "unknown ticker"}
-        if p.get("sector") and (force or not t.sector):
-            t.sector = p["sector"][:48]
-        if p.get("industry") and (force or not t.industry):
-            t.industry = p["industry"][:64]
-        if p.get("country") and (force or not t.country):
-            t.country = p["country"][:8]
-        if p.get("market_cap") and (force or not t.market_cap):
-            t.market_cap = p["market_cap"]
-        await s.commit()
-    return {"ok": True, "symbol": symbol, "sector": p.get("sector"),
-            "industry": p.get("industry"), "country": p.get("country")}
-
-
-async def enrich_all(force: bool = False) -> dict:
-    """Auto-tag every known ticker (fills missing classification; force re-fetches all).
-    Profiles are day-cached so re-running is cheap on the free FMP quota."""
-    from . import credentials
-    if not await credentials.get_fmp_key():
-        return {"ok": False, "error": "No FMP key set — add one under Settings."}
-    async with SessionLocal() as s:
-        symbols = (await s.execute(select(Ticker.symbol))).scalars().all()
-    updated = 0
-    for sym in symbols:
-        r = await enrich_ticker(sym, force=force)
-        if r.get("ok") and not r.get("skipped"):
-            updated += 1
-    return {"ok": True, "checked": len(symbols), "updated": updated}
 
 
 async def set_sector(symbol: str, sector: str | None) -> dict:

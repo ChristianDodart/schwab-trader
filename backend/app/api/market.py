@@ -132,14 +132,6 @@ async def movers(index: str = "EQUITY_ALL", sort: str = "PERCENT_CHANGE_UP") -> 
     return await screener_svc.movers(index, sort)
 
 
-@router.get("/api/screener/candidates")
-async def screen_candidates(index: str = "EQUITY_ALL", sort: str = "PERCENT_CHANGE_UP") -> dict:
-    """Screen a candidate POOL (today's movers + your watchlist) against the strategy
-    universe — cap band, country, sector-exclusion, no-ETF. Free (Schwab movers + FMP
-    profiles), not a whole-market scan."""
-    return await screener_svc.screen_candidates(await _selected(), index, sort)
-
-
 @router.get("/api/screen/{symbol}")
 async def screen_symbol(symbol: str) -> dict:
     """Fundamentals for one symbol + pass/fail vs the selected account's guardrails."""

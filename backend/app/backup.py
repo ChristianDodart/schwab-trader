@@ -22,7 +22,7 @@ from .config import settings
 
 log = logging.getLogger(__name__)
 
-_KEEP = 14                    # newest N backups survive rotation
+_KEEP = 3                     # newest N backups survive rotation
 _INTERVAL_S = 24 * 3600.0
 _PREFIX = "schwab_trader-"
 
@@ -104,6 +104,9 @@ async def run_backup_scheduler() -> None:
     if _db_path() is None:
         log.info("non-SQLite database — scheduler idle.")
         return
+    # Prune any excess from a previous (higher) retention setting immediately on
+    # launch, before the first new backup writes.
+    await asyncio.to_thread(_rotate_sync)
     while True:
         try:
             res = await run_backup()

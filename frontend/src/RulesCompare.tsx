@@ -14,7 +14,6 @@ type OvAccount = { hash: string; label: string; live: boolean };
 type OvProfile = { name: string; accounts: OvAccount[] };
 // The strategy shape we compare (a subset of the full config).
 type Cfg = {
-  trading_enabled?: boolean;
   strategy_is_default?: boolean;
   strategy?: {
     sizing_tiers?: { dollars: number }[];
@@ -26,7 +25,7 @@ type Cfg = {
 };
 
 const ROWS = [
-  "Trading enabled", "Sell target", "Buy-ladder drops", "Sizing ($ / next buy)",
+  "Sell target", "Buy-ladder drops", "Sizing ($ / next buy)",
   "Max position % of portfolio", "Cash reserve %", "Deployment scaling", "Rules source",
 ] as const;
 
@@ -39,7 +38,6 @@ function summarize(cfg: Cfg | undefined): Record<string, string> {
   const g = s.guardrails ?? {};
   const num = (k: string) => (typeof g[k] === "number" ? `${g[k] as number}%` : "—");
   return {
-    "Trading enabled": cfg.trading_enabled ? "yes" : "no",
     "Sell target": sell,
     "Buy-ladder drops": (s.buy_ladder?.drops ?? []).map((d) => `${d.drop_pct}%`).join(" / ") || "—",
     "Sizing ($ / next buy)": (s.sizing_tiers ?? []).map((t) => usd(t.dollars)).join(" / ") || "—",

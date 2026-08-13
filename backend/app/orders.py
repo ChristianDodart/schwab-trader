@@ -2,8 +2,7 @@
 
 Human-in-the-loop: nothing executes automatically; the UI order ticket is the
 confirm step. Server-side safety rails:
-  - Orders only on the SELECTED account, and only when it is trading-enabled
-    (per-account toggle) — never an account you're not viewing, never the LLC.
+  - Orders only on the SELECTED account — never an account you're not viewing.
   - SELL refused unless held shares are positively confirmed >= quantity
     (fail-CLOSED — an unreadable position blocks the sell; no accidental shorts).
   - STOP/STOP_LIMIT refused if the stop is on the wrong side of the last price
@@ -157,17 +156,13 @@ async def place_order(symbol: str, side: str, quantity: int,
     if client is None:
         return {"ok": False, "error": "no Schwab token"}
 
-    # --- HARD GUARD: orders only on the SELECTED account, and only if it is
-    # trading-enabled. get_trading_account() = selected-if-enabled, else None.
-    # A client-supplied account_hash may not diverge from the selected account.
+    # --- HARD GUARD: orders only on the SELECTED account. A client-supplied
+    # account_hash may not diverge from the selected account.
     target = await accounts_svc.get_trading_account()
     if not target:
-        # trading_disabled flag lets the UI name WHICH account (it knows the mask) —
-        # the server only has the opaque hash, not the account number.
-        return {"ok": False, "trading_disabled": True,
-                "error": "This account isn't enabled for trading — turn it on in Settings → Account."}
+        return {"ok": False, "error": "No Schwab account selected."}
     if account_hash and account_hash != target:
-        return {"ok": False, "error": "orders may only be placed on the selected (trading-enabled) account"}
+        return {"ok": False, "error": "orders may only be placed on the selected account"}
 
     try:
         builder = _build_order(symbol, side, quantity, order_type, limit_price,
@@ -381,9 +376,9 @@ async def replace_order(order_id, new_quantity: int | None = None,
     replace — the broker cancels the original and books the replacement in one
     operation, so there is never a moment with no order resting.
 
-    Same posture as place_order: hard guards (selected + trading-enabled account,
-    working single-leg LIMIT only), then the same soft rails on the NEW terms
-    (fat-finger, notional, sell-held). place_order itself is untouched.
+    Same posture as place_order: hard guards (selected account, working single-leg
+    LIMIT only), then the same soft rails on the NEW terms (fat-finger, notional,
+    sell-held). place_order itself is untouched.
     """
     client = get_client()
     if client is None:
@@ -391,10 +386,9 @@ async def replace_order(order_id, new_quantity: int | None = None,
 
     target = await accounts_svc.get_trading_account()
     if not target:
-        return {"ok": False, "trading_disabled": True,
-                "error": "This account isn't enabled for trading — turn it on in Settings → Account."}
+        return {"ok": False, "error": "No Schwab account selected."}
     if account_hash and account_hash != target:
-        return {"ok": False, "error": "orders may only be modified on the selected (trading-enabled) account"}
+        return {"ok": False, "error": "orders may only be placed on the selected account"}
 
     try:
         orig = await asyncio.to_thread(lambda: client.get_order(order_id, target).json() or {})

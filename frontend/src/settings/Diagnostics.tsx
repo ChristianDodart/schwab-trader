@@ -7,7 +7,7 @@ type Diag = {
   version?: string; dataDir?: string; dbBytes?: number | null;
   database?: string; streamMode?: string;
   schwab?: { verified_live?: boolean | null; message?: string; last_checked_ago_s?: number | null; latency_ms?: number | null };
-  fmp?: boolean; lastBackup?: string | null;
+  lastBackup?: string | null;
 };
 
 export function Diagnostics() {
@@ -24,14 +24,13 @@ export function Diagnostics() {
       fetch(`${ROOT}/health`).then((r) => r.json()),
       fetch(`${API}/auth/status`).then((r) => r.json()),
       fetch(`${API}/backups`).then((r) => r.json()),
-      fetch(`${API}/fmp-status`).then((r) => r.json()),
-    ]).then(([ver, health, auth, backups, fmp]) => {
+    ]).then(([ver, health, auth, backups]) => {
       const g = <T,>(r: PromiseSettledResult<T>): T | undefined => (r.status === "fulfilled" ? r.value : undefined);
-      const v = g(ver) as any, h = g(health) as any, a = g(auth) as any, b = g(backups) as any, f = g(fmp) as any;
+      const v = g(ver) as any, h = g(health) as any, a = g(auth) as any, b = g(backups) as any;
       setD({
         version: v?.version ?? h?.version, dataDir: v?.data_dir,
         dbBytes: b?.db_bytes, database: h?.database, streamMode: h?.stream_mode,
-        schwab: a, fmp: !!f?.configured, lastBackup: b?.backups?.[0]?.at ?? null,
+        schwab: a, lastBackup: b?.backups?.[0]?.at ?? null,
       });
     }).finally(() => setBusy(false));
   };
@@ -49,7 +48,6 @@ export function Diagnostics() {
     ["Database", d.database === "connected" ? "Connected" : (d.database || "—"), d.database === "connected" ? "ok" : "bad"],
     ["Schwab API", schwabLabel(), d.schwab?.verified_live ? "ok" : "warn"],
     ["Quote stream", streamLabel(d.streamMode), d.streamMode === "schwab" ? "ok" : d.streamMode === "reauth" ? "bad" : "muted"],
-    ["Company data (FMP)", d.fmp ? "Configured ✓" : "Not set", d.fmp ? "ok" : "muted"],
     ["Last backup", d.lastBackup ? new Date(d.lastBackup).toLocaleString() : "none yet", d.lastBackup ? "ok" : "warn"],
   ] : [];
   const color = (t: string) => ({ ok: "var(--pos)", warn: "var(--warn)", bad: "var(--neg)", muted: "var(--text-faint)" }[t] || "var(--text)");

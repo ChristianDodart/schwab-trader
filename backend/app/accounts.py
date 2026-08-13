@@ -153,13 +153,8 @@ async def select_account(account_hash: str) -> dict:
 
 
 async def get_trading_account() -> str | None:
-    """The account orders go to: the SELECTED account, but only if it is
-    trading-enabled (per-account toggle in config). Otherwise None."""
-    from . import config_store  # lazy (config_store has no top-level accounts import)
-    selected = await get_setting(_sel_key())
-    if selected and await config_store.trading_enabled(selected):
-        return selected
-    return None
+    """The account orders go to: the SELECTED account (no trading gate)."""
+    return await get_setting(_sel_key())   # the selected account; no trading gate
 
 
 async def held_shares(account_hash: str, symbol: str) -> float | None:

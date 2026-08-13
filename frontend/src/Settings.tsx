@@ -1,73 +1,20 @@
-// Settings orchestrator (split in W27-4): owns the account config state + dirty
-// tracking and composes the section components that live in src/settings/.
-import { useEffect, useState } from "react";
+// Settings page: composes the self-saving section cards in src/settings/. Each card
+// persists its own change (theme, tray, Schwab creds/connection, backups), so this page
+// has no page-level Save and is never "dirty".
+import { useEffect } from "react";
 import { ConnectionStatus } from "./Reauth";
-import { useToast } from "./Toast";
-import { API } from "./api";
-
 import { Tip } from "./Tip";
-import { AccountSection } from "./settings/AccountSection";
 import { Appearance } from "./settings/Appearance";
 import { Backups } from "./settings/Backups";
 import { DataHealth } from "./settings/DataHealth";
 import { DesktopSection } from "./settings/DesktopSection";
 import { Diagnostics } from "./settings/Diagnostics";
-import { FmpKey } from "./settings/FmpKey";
 import { SchwabCreds } from "./settings/SchwabCreds";
-import { SetupGuideReset } from "./settings/SetupGuideReset";
-import { TaxSection } from "./settings/TaxSection";
 import { WhatsNew } from "./settings/WhatsNew";
 
-type Config = {
-  account_hash: string;
-  trading_enabled: boolean;
-  tax_filing: string;
-  tax_state_rate: number;
-};
-
 export function Settings({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void } = {}) {
-  const [c, setC] = useState<Config | null>(null);
-  const [saved, setSaved] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const toast = useToast();
-
-  useEffect(() => {
-    fetch(`${API}/config`).then((r) => r.json()).then(setC).catch(() => {});
-  }, []);
-
-  // Publish dirty state to the parent (App guards tab/account switches on it);
-  // clear it on unmount so a stale flag can't block navigation later.
-  useEffect(() => { onDirtyChange?.(dirty); }, [dirty]);
-  useEffect(() => () => onDirtyChange?.(false), []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Warn on browser close/refresh while there are unsaved edits.
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
-
-  if (!c) return <p style={S.note}>Loading settings…</p>;
-  const set = (patch: Partial<Config>) => { setC({ ...c, ...patch }); setSaved(false); setDirty(true); };
-
-  const save = () => {
-    fetch(`${API}/config`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        trading_enabled: c.trading_enabled,
-        tax_filing: c.tax_filing,
-        tax_state_rate: c.tax_state_rate,
-      }),
-    })
-      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((j) => {
-        if (!j || j.error) throw new Error("bad response");
-        setC(j); setSaved(true); setDirty(false);
-      })
-      .catch(() => toast("Couldn't save settings — check the values and try again.", "error"));
-  };
+  // Every card self-saves, so this page is never dirty — report clean once for App's guard.
+  useEffect(() => { onDirtyChange?.(false); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="card-grid">
@@ -78,39 +25,20 @@ export function Settings({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) =
 
       <Section title="Appearance" info="Pick a color theme for the app. Themes change color only — layout, spacing, and motion are identical across all of them, and every theme meets WCAG AA contrast. 'Follow system' tracks your OS light/dark setting; an explicit pick always wins. Your choice is saved on this install and applies before the window even paints.">
         <Appearance />
+        {window.desktop?.isDesktop && <DesktopSection />}
       </Section>
 
-      {window.desktop?.isDesktop && (
-        <Section title="Desktop" info="Behavior of the desktop app window. 'Run in the system tray' keeps the app alive in the background when you minimize or close it — handy for a trading app you want quietly watching (live updates and price alerts keep working) without a taskbar button. Turn it off to go back to the classic behavior where closing the window quits.">
-          <DesktopSection />
-        </Section>
-      )}
-
-      <Section title="Schwab API credentials" info="Your Schwab developer-app key + secret (from developer.schwab.com) and callback URL. Stored on THIS install (overrides .env), so each person/install uses their own app. Set these first, then connect each profile under Schwab connection.">
+      <Section title="Schwab" info="Your Schwab developer app key/secret + callback URL (stored on this install), and the connection to the ACTIVE profile. Re-authorize weekly to keep the live feed and trading working.">
         <SchwabCreds />
-      </Section>
-
-      <Section title="Schwab connection" info="Schwab's refresh token expires every 7 days. Re-authorize the ACTIVE profile here to keep its live feed and trading working — no terminal needed.">
+        <div style={{ height: 1, background: "var(--border)", margin: "12px 0" }} />
         <ConnectionStatus />
-      </Section>
-
-      <Section title="Company data (Financial Modeling Prep)" info="Optional free API key from financialmodelingprep.com. Schwab has no sector/industry/country data, so this auto-tags your tickers — making the Screener's sector-exclusion and country guardrails work automatically. Free tier covers this; the whole-market screener is paywalled.">
-        <FmpKey />
-      </Section>
-
-      <Section title="Account" info="Controls whether this account may place orders. The managed (LLC) account stays off; enable only the account you actually trade through the API.">
-        <AccountSection enabled={c.trading_enabled} onChange={(v) => set({ trading_enabled: v })} />
-      </Section>
-
-      <Section title="Taxes" info="Used to estimate taxes on the Ledger. Filing status picks the federal bracket table; state rate is your flat state income-tax rate (day-trade gains are short-term = ordinary income).">
-        <TaxSection filing={c.tax_filing} stateRate={c.tax_state_rate} onChange={set} />
       </Section>
 
       <Section title="Data health & import" info="The app rebuilds your ladder and realized history from a durable fill ledger: recent trades sync from Schwab automatically, and one Transactions CSV export backfills years of history in a single upload (trades, deposits, and dividends are all routed from the same file). Re-importing is always safe — nothing double-counts.">
         <DataHealth />
       </Section>
 
-      <Section title="Data & backups" info="Your entire trading history lives in one local database file. The app backs it up automatically on startup and daily (keeping the newest 14), using a method that's safe while the app is running. Backups exclude the Schwab connection — after restoring, just reconnect.">
+      <Section title="Data & backups" info="Your entire trading history lives in one local database file. The app backs it up automatically on startup and daily (keeping the newest 3), using a method that's safe while the app is running. Backups exclude the Schwab connection — after restoring, just reconnect.">
         <Backups />
       </Section>
 
@@ -118,24 +46,10 @@ export function Settings({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) =
         <WhatsNew />
       </Section>
 
-      <Section title="Setup guide" info="The step-by-step checklist shown on the dashboard of a fresh install (connect, pick an account, import history, review rules). Bring it back any time.">
-        <SetupGuideReset />
-      </Section>
-
       <Section title="About & diagnostics" info="Build version + a live health snapshot. Use “Copy diagnostics” to paste the whole picture into a support message.">
         <Diagnostics />
       </Section>
 
-      <div style={S.actions}>
-        <button className="btn btn-primary" onClick={save}>Save settings</button>
-        <span aria-live="polite">
-          {dirty ? (
-            <span style={S.dirtyMsg}>● Unsaved changes</span>
-          ) : saved ? (
-            <span style={S.savedMsg}>✓ Saved</span>
-          ) : null}
-        </span>
-      </div>
     </div>
   );
 }

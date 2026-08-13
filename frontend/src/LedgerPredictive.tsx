@@ -7,6 +7,7 @@ import type { LedgerProjection as Projection } from "./types";
 
 import { API } from "./api";
 import { IconEdit } from "./Icon";
+import { TaxSection } from "./settings/TaxSection";
 
 export function LedgerPredictive() {
   const [p, setP] = useState<Projection | null>(null);
@@ -21,7 +22,7 @@ export function LedgerPredictive() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const saveConfig = (patch: Record<string, number | null>) =>
+  const saveConfig = (patch: Record<string, number | string | null>) =>
     fetch(`${API}/config`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
@@ -104,10 +105,11 @@ export function LedgerPredictive() {
         <Row k="Total estimated tax" v={usd(t.total_tax)} hi accent="var(--neg)" sub={`${pct(t.effective_rate)} effective`} />
         <EditRow label="Your other annual income (e.g. salary)" value={p.other_annual_income || null} placeholder="0"
           onSave={(n) => saveConfig({ other_annual_income: n })} allowZero />
+        <TaxSection filing={t.filing} stateRate={t.state_rate} onChange={(patch) => saveConfig(patch)} />
         <p style={S.fine}>
           Day-trading profits are <b>short-term</b> gains, taxed as ordinary income. They stack on top of your other income,
           so the federal figure is the extra tax the gains add at your real marginal rate — <b>tax(income + gains) − tax(income)</b>.
-          Filing status &amp; state rate come from Settings. This estimates full-year tax on the projected gain; it's not tax advice.
+          Filing status &amp; state rate are edited right here. This estimates full-year tax on the projected gain; it's not tax advice.
         </p>
       </Panel>
     </div>
