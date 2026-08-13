@@ -312,6 +312,7 @@ export function DashboardTable({
                 bulk && isChecked && "selected",
                 r.buy_mark ? "row-buy" : r.sell_mark ? "row-sell" : "",
                 flash && "row-flash",
+                rowIdx % 2 === 1 && "row-alt", // zebra: alternate on the visible row index
               ].filter(Boolean).join(" ");
               return (
                 <Fragment key={r.symbol}>

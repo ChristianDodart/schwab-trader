@@ -76,6 +76,47 @@ const WinTag = ({ r }: { r: DashboardRow }) =>
       title="Leveraged/inverse ETF — a 13-week (one-quarter) window; a full-year figure is skewed by daily-rebalancing decay">13w</span>
   ) : null;
 
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+// A compact 52-week range bar: where the live price sits between the year low and
+// high, with a faint median tick as a spike-robust "typical" reference. Null when we
+// lack the endpoints (no history) or the range is degenerate (high <= low).
+const RangeBar = ({ r }: { r: DashboardRow }) => {
+  const low = r.year_low, high = r.year_high, price = r.price, med = r.median_52wk;
+  if (low == null || high == null || price == null || high <= low) return null;
+  const pos = clamp01((price - low) / (high - low));
+  const medPos = med != null ? clamp01((med - low) / (high - low)) : null;
+  const title = `low ${usd(low)} · ${med != null ? `med ${usd(med)} · ` : ""}high ${usd(high)}`;
+  return (
+    <>
+      <span style={{ display: "inline-block", width: 120, verticalAlign: "middle" }} title={title}>
+        {/* track */}
+        <span style={{ position: "relative", display: "block", width: "100%", height: 5, marginTop: 3,
+          borderRadius: "var(--r-sm)", background: "var(--panel-2)" }}>
+          {/* filled portion 0 -> pos */}
+          <span style={{ position: "absolute", left: 0, top: 0, height: 5, width: `${pos * 100}%`,
+            borderRadius: "var(--r-sm)", background: "color-mix(in srgb, var(--accent) 30%, transparent)" }} />
+          {/* faint median tick */}
+          {medPos != null && (
+            <span aria-hidden="true" style={{ position: "absolute", left: `${medPos * 100}%`, top: -4,
+              width: 2, height: 13, marginLeft: -1, background: "var(--text-faint)" }} />
+          )}
+          {/* current-price dot — bordered so it reads on the track */}
+          <span aria-hidden="true" style={{ position: "absolute", left: `${pos * 100}%`, top: "50%",
+            width: 10, height: 10, marginLeft: -5, marginTop: -5, borderRadius: "var(--r-pill)",
+            background: "var(--text)", border: "2px solid var(--panel)", boxSizing: "border-box" }} />
+        </span>
+        {/* low / high endpoints, tiny + subtle */}
+        <span style={{ display: "flex", justifyContent: "space-between", marginTop: 1,
+          fontSize: "var(--fs-2xs)", color: "var(--text-faint)", fontVariantNumeric: "tabular-nums" }}>
+          <span>{`$${Math.round(low)}`}</span>
+          <span>{`$${Math.round(high)}`}</span>
+        </span>
+      </span>
+      <WinTag r={r} />
+    </>
+  );
+};
+
 // RULE 10 from the sheet: keep every stock under 5% of the portfolio. Flag any
 // held position at/over this so over-concentration is visible at a glance.
 export const CONCENTRATION_CAP = 0.05;
@@ -166,6 +207,10 @@ export const DASH_COLUMN_LIST: DashCol[] = [
   { id: "median_52wk", label: "52wk Med", align: "right", render: (r) => <span style={{ color: "var(--text-muted)" }}>{usd0(r.median_52wk)}<WinTag r={r} /></span> },
   { id: "pct_of_high", label: "% of 52wk High", align: "right", term: "52wk_high_pct", render: (r) => r.pct_of_high == null ? null : <span>{pct0(r.pct_of_high)}<WinTag r={r} /></span> },
   { id: "pct_of_low", label: "% above 52wk Low", align: "right", term: "52wk_low_pct", render: (r) => r.pct_of_low == null ? null : <span>{pct0(r.pct_of_low)}<WinTag r={r} /></span> },
+  // Where today's price sits across the past year at a glance: a mini bar with the low
+  // and high as endpoints, a median tick, and a price dot. Combines pct_of_high/low +
+  // median into one scannable visual.
+  { id: "range", label: "52-week range", align: "left", term: "52wk_low_pct", render: (r) => <RangeBar r={r} /> },
   { id: "lilo_pct", label: "LILO %", align: "right", watchNA: true, render: (r) => <Colored v={pct(r.lilo_pct)} n={r.lilo_pct} /> },
   { id: "last_pos_cost", label: "Last Pos Cost", align: "right", term: "cost_basis", watchNA: true, render: (r) => usd(r.last_pos_cost) },
   { id: "invested", label: "Invested", align: "right", term: "invested", watchNA: true, render: (r) => usd(r.invested) },
@@ -199,16 +244,16 @@ export const DASH_COLUMNS: Record<string, DashCol> = Object.fromEntries(
 //
 // Default layout (order + which columns show). Ticker renders first; these follow.
 export const DEFAULT_DASH_COLS = [
-  "price", "last_pos_profit", "lilo_pct", "pct_of_high",        // shown by default
+  "price", "last_pos_profit", "lilo_pct", "range",             // shown by default
   "current_value", "unrealized", "day_change", "invested",     // folded by default (below)
-  "basis_per_share", "portfolio_pct", "avg_52wk", "median_52wk",
+  "basis_per_share", "portfolio_pct", "avg_52wk",
   "last_pos_cost", "year_profit", "avg_monthly", "year_trades",
 ];
 // Which of the default columns start FOLDED (behind the chevron). Everything after the
 // first four essentials. The user can change this per-column in the Columns manager.
 export const DEFAULT_DASH_FOLDED = [
   "current_value", "unrealized", "day_change", "invested",
-  "basis_per_share", "portfolio_pct", "avg_52wk", "median_52wk",
+  "basis_per_share", "portfolio_pct", "avg_52wk",
   "last_pos_cost", "year_profit", "avg_monthly", "year_trades",
 ];
 // Simple view: holdings-only, a compact fixed set (no folding, no ƒ marks).

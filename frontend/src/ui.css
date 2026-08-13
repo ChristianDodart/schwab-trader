@@ -271,9 +271,19 @@ select.field { height: auto !important; min-height: 30px; padding-top: 3px; padd
 .rowlink:hover { background: color-mix(in srgb, var(--panel-2) 60%, transparent); }
 .rowlink:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .rowlink.selected { background: var(--panel-2); box-shadow: inset 0 1px 0 var(--surface-hi); }
-/* signal edge-accents so a flagged row separates at a glance */
-.row-buy > td:first-child, .row-buy > th:first-child { box-shadow: inset 3px 0 0 var(--pos-strong); }
-.row-sell > td:first-child, .row-sell > th:first-child { box-shadow: inset 3px 0 0 var(--neg-strong); }
+/* signal edge-accents: a clear 3px colored left stripe so a flagged row separates at
+   a glance. The stripe color matches its inline chip so each signal reads as one color:
+   green edge = ▲BUY, red edge = ▼SELL (--neg is weighted for a thin rule vs the chip's
+   filled --neg-strong). */
+.row-buy > td:first-child, .row-buy > th:first-child { box-shadow: inset 3px 0 0 var(--pos); }
+.row-sell > td:first-child, .row-sell > th:first-child { box-shadow: inset 3px 0 0 var(--neg); }
+
+/* zebra striping so long tables stay easy to scan row-to-row. --surface-hi is a subtle
+   theme-safe overlay that reads on any ground. Selected + hover carry a higher-specificity
+   override below so they still win over the zebra ground. */
+.tbl tbody tr.row-alt { background: var(--surface-hi); }
+.tbl tbody tr.rowlink:hover { background: color-mix(in srgb, var(--panel-2) 60%, transparent); }
+.tbl tbody tr.rowlink.selected { background: var(--panel-2); }
 
 /* fill flash: a one-shot wash on a row whose position just changed (a fill).
    anim.tsx sets --flash-tint per direction (buy = green, sell = rose). Brief, so

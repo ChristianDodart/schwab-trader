@@ -3,6 +3,28 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.83.0 — "Dashboard redesign"
+
+- **A full-width account band sits under the top bar.** Your account value leads at hero
+  size with today's change (and today's %) beside it, your customizable KPI widgets follow,
+  and a capital-deployment meter (how much of your cash is in the market) is pushed to the
+  right. The KPI cluster moved out of the cramped header into this calmer, wider row.
+- **A "52-week range" bar replaces three separate columns.** One compact bar shows where the
+  live price sits between the year low and high, with a faint tick for the typical (median)
+  level and a dot for the current price — so you read a stock's position at a glance instead
+  of comparing three percentages. The old "52wk Med", "% of 52wk High", and "% above 52wk Low"
+  columns are still available to add back from the Columns menu.
+- **Flagged rows now carry a colored left edge.** A green edge marks a BUY signal and a red
+  edge a SELL signal — matching the inline chips — so an actionable row separates from the
+  list even before you read it.
+- **Zebra striping and a clearer hover** make long position tables easier to track across.
+- **An "at a glance" strip sits below the table** with three cards — Today (day P/L), Capital
+  deployment, and Needs attention (the tickers currently flagged BUY or SELL). Hidden in the
+  minimal Simple view.
+
+Every new element uses your selected theme's colors, so it recolors across all appearance
+themes just like the rest of the app.
+
 ## v0.82.0 — "Settings & profile cleanup"
 
 - **Switch profile and account from one dropdown on the top-right pill.** Click your

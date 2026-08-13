@@ -10,10 +10,11 @@ import { ColumnManager } from "./ColumnManager";
 import { ConfirmDialog } from "./Modal";
 import { DASH_COLUMNS, DASH_COLUMN_LIST, DEFAULT_DASH_COLS, DEFAULT_DASH_FOLDED, SIMPLE_DASH_COLS, useColumnPrefs, useFoldPrefs } from "./columns";
 import { KpiPicker, useKpiPrefs, visibleKpis } from "./kpis";
-import { Term, useGlossaryFigures } from "./GlossaryUI";
-import { CountUp } from "./anim";
+import { useGlossaryFigures } from "./GlossaryUI";
 import { useDemoFeed } from "./demo";
 import { DashboardTable } from "./DashboardTable";
+import { AccountBand } from "./AccountBand";
+import { DashboardStrip } from "./DashboardStrip";
 import { tickerRiskColor } from "./columns";
 import { Ledger } from "./Ledger";
 import { NotificationsProvider, NotificationsTab } from "./Notifications";
@@ -377,25 +378,8 @@ export function App() {
               <LiveStatusPill />
               <MarketHoursBadge />
             </div>
-            {data && (() => {
-              const kpis = visibleKpis(kpiPrefs.ids, shown ?? data, cashInfo);
-              return (
-                <div className="gear-host" style={S.kpiZone}>
-                  {kpis.length > 0 && (
-                    <div style={S.kpiCluster}>
-                      {kpis.map((k, i) => (
-                        <KPI key={k.id} label={k.label} value={k.value} raw={k.raw} n={k.n} color={k.color}
-                          first={i === 0} hint={k.hint} term={k.term} />
-                      ))}
-                    </div>
-                  )}
-                  {/* Gear sits OUTSIDE the cluster (which clips its rounded corners). Always
-                      visible now — the old hover-reveal changed width on hover and reflowed
-                      the nav tabs into a wrap. A small persistent button is calmer. */}
-                  <KpiPicker prefs={kpiPrefs} />
-                </div>
-              );
-            })()}
+            {/* KPI glance moved out of the header into the full-width AccountBand row
+                below (rendered under the top bar). The status pills stay here. */}
           </div>
 
           {/* Right cluster: the profile/account chip sits in the very top-right corner,
@@ -420,6 +404,22 @@ export function App() {
             </nav>
           </div>
         </header>
+
+        {/* Full-width account band — its own row beneath the top bar (dashboard only).
+            Holds the hero account value + today's change, the customizable KPI widgets
+            (with the picker gear), and a right-pushed capital-deployment meter. */}
+        {view === "dashboard" && data && (
+          <div style={{ marginTop: 14 }}>
+            <AccountBand
+              accountValue={margin?.account_value ?? ((data.total_value ?? 0) + (cashInfo?.cash ?? 0))}
+              dayChange={data.total_day_change ?? null}
+              invested={data.total_invested}
+              cash={cashInfo?.cash ?? null}
+              kpis={visibleKpis(kpiPrefs.ids, shown ?? data, cashInfo)}
+              picker={<KpiPicker prefs={kpiPrefs} />}
+            />
+          </div>
+        )}
 
         <UpdateBanner />
         <AuthBanner />
@@ -600,6 +600,14 @@ export function App() {
                         )}
                       />
                     </div>
+                    {/* Bottom "at a glance" strip — three summary cards below the table.
+                        Shown on All / To-Do (this is the non-"top" branch); hidden in the
+                        deliberately minimal Simple view. */}
+                    {!simple && data && (
+                      <div style={{ marginTop: 24 }}>
+                        <DashboardStrip data={shown ?? data} cash={cashInfo} />
+                      </div>
+                    )}
                   </>
                 )}
               </>
@@ -732,23 +740,6 @@ function FeedTag({ mode }: { mode?: string }) {
     );
   }
   return null;
-}
-
-function KPI({ label, value, raw, n, color, first, hint, term }: { label: string; value: string; raw?: number; n?: number | null; color?: string; first?: boolean; hint?: string; term?: string }) {
-  // `color` (explicit) wins; otherwise derive from the sign of `n` (▲/▼ signed metric).
-  const c = color ?? (n == null || n === 0 ? "var(--text)" : n > 0 ? "var(--pos)" : "var(--neg)");
-  // When the metric has a glossary term, the label itself is the hoverable definition —
-  // no native `title` (the Term supplies the explanation). Otherwise keep the tooltip.
-  return (
-    <div className="kpi-box" style={{ ...S.kpi, ...(first ? { borderLeft: "none" } : null), ...(!term && hint ? { cursor: "help" } : null) }} title={term ? undefined : hint}>
-      <div style={S.kpiLabel}>{term ? <Term id={term}>{label}</Term> : label}</div>
-      <div style={{ ...S.kpiVal, color: c }} aria-label={value}>
-        {n != null && n !== 0 && <span aria-hidden="true" style={{ fontSize: "0.68em", marginRight: 3 }}>{n > 0 ? "▲" : "▼"}</span>}
-        {/* Roll the figure on a meaningful change (a fill, a deposit); snap on ticks. */}
-        {raw != null ? <CountUp value={raw} format={usd} aria-hidden="true" /> : value}
-      </div>
-    </div>
-  );
 }
 
 // Top 10 — quick glance at the day's most actionable names. Two lists from the held rows:
