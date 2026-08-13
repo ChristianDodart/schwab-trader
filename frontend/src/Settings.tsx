@@ -70,7 +70,7 @@ export function Settings({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) =
   };
 
   return (
-    <div style={S.wrap}>
+    <div className="card-grid">
       <p style={S.scope}>
         Account settings for the selected account. Your buy/sell rules now live in the
         {" "}<b>Rules</b> tab. Tip: press <kbd style={{ fontFamily: "monospace", border: "1px solid var(--border-strong)", borderRadius: "var(--r-sm)", padding: "0 5px" }}>?</kbd> anywhere for keyboard shortcuts.

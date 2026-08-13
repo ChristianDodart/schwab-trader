@@ -3,6 +3,15 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.81.0 — "Uniform two-column layout"
+
+- **One consistent card layout across Rules, Method, Profile, and Settings.** The previous
+  grid packed in as many columns as fit — which sprawled into five cramped, ragged columns on
+  a wide monitor. Replaced it with a calm two-column system: a capped, centered content width,
+  card tops aligned, even gutters, and a single column on a narrow window. Wide/table cards
+  (like the Method backtest) span the full width. Fixes the uneven heights and the little
+  first-row offset.
+
 ## v0.80.0 — "Cleanup sweep"
 
 - **Removed the Watchlist tab** and all its code. It wasn't earning its place. (The

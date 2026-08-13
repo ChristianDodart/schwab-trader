@@ -14,7 +14,7 @@ export function ProfilePanel({ acctKey, onAccountChange }: {
   onAccountChange: (hash: string) => void;
 }) {
   return (
-    <div style={S.wrap}>
+    <div className="card-grid">
       <p style={S.scope}>
         Choose who you're trading as and which of that login's accounts is active. Orders
         always route to the selected, trading-enabled account.

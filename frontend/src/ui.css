@@ -16,6 +16,25 @@
 }
 .app-container { max-width: 1680px; margin-inline: auto; }
 
+/* --- config-page card layout (Rules / Method / Profile / Settings) ---
+   One calm, uniform system across every settings-style page: a single column when narrow,
+   two capped & centered columns on desktop. Card tops align; the grid gap is the ONLY
+   vertical spacing (per-card top margins are zeroed). Full-width rows — page intros, save
+   bars, and wide/table cards — use .card-grid-wide (or an inline grid-column: 1 / -1). */
+.card-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  max-width: 1320px;
+  margin: 12px auto 0;
+}
+@media (min-width: 880px) {
+  .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.card-grid > * { margin-top: 0 !important; }
+.card-grid-wide { grid-column: 1 / -1; }
+
 /* --- titles --- */
 .page-title { font-size: var(--fs-xl); font-weight: var(--fw-semibold); margin: 0; letter-spacing: -0.015em; }
 .section-title {

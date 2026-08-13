@@ -153,7 +153,7 @@ export function Method({ initialBacktest }: { initialBacktest?: string | null } 
   if (!a) return <p style={{ color: "var(--text-dim)" }}>Analyzing your book…</p>;
   if (a.held_count === 0)
     return (
-      <div style={S.wrap}>
+      <div className="card-grid">
         <p style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)", margin: 0, gridColumn: "1 / -1" }}>
           No open positions yet — the risk lenses need a live book. You can still backtest the method on any symbol below.
         </p>
@@ -165,7 +165,7 @@ export function Method({ initialBacktest }: { initialBacktest?: string | null } 
   const capDollars = a.kelly.enough ? (a.kelly.account_value ?? 0) * cap : null;
 
   return (
-    <div style={S.wrap}>
+    <div className="card-grid">
       <p style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)", margin: 0, gridColumn: "1 / -1" }}>
         Read-only risk lenses on your ladder method and current book, as of {a.as_of}. <b>Advisory only</b> —
         nothing here places an order or tells you what to buy or sell.

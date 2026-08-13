@@ -83,7 +83,7 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
     </>
   );
   if (mode === "compare") return <div style={S.wrapWide}>{header}<RulesCompare /></div>;
-  if (!c) return <div style={S.wrap}>{header}<p style={S.note}>Loading your rules…</p></div>;
+  if (!c) return <div className="card-grid" style={{ paddingBottom: 60 }}>{header}<p style={S.note}>Loading your rules…</p></div>;
   const st = c.strategy;
   const setStrat = (patch: Partial<Strategy>) => {
     setC({ ...c, strategy: { ...st, ...patch } }); setSaved(false); setDirty(true);
@@ -140,7 +140,7 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
   };
 
   return (
-    <div style={S.wrap}>
+    <div className="card-grid" style={{ paddingBottom: 60 }}>
       {header}
       <p style={{ ...S.intro, gridColumn: "1 / -1" }}>
         This is the playbook behind every <b>buy</b> and <b>sell</b> suggestion. Changing a rule changes what the app
