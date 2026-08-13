@@ -11,7 +11,6 @@ is NOT computable here; we screen on market cap (sharesOutstanding * price) inst
 from __future__ import annotations
 
 import asyncio
-import math
 import time
 from datetime import datetime, timezone
 
@@ -240,92 +239,6 @@ async def screen_candidates(account_hash: str = "", index: str = "EQUITY_ALL",
                 "country": want_country, "exclude": uni.get("exclude") or [], "no_etfs": True,
             },
             "candidates": candidates}
-
-
-# ---------------- watchlist board: universe fit + ladder fitness ----------------
-# Pure, unit-tested helpers for the Watchlist tab — vet a name against the strategy
-# universe and score how well its price behaviour suits the ladder (needs enough
-# swing to cycle rungs and enough liquidity to trade). Advisory only.
-
-def universe_verdict(market_cap, sector, is_etf: bool, uni: dict) -> dict:
-    """Does a name fit the strategy universe (cap band, ex-sectors, no ETFs)? Returns
-    {passes, reasons} — reasons is the list of what disqualifies it (empty = passes)."""
-    reasons = []
-    if is_etf:
-        reasons.append("ETF (outside your stock universe)")
-    cap_min, cap_max = uni.get("market_cap_min"), uni.get("market_cap_max")
-    if market_cap is not None and cap_min and cap_max:
-        if market_cap < cap_min:
-            reasons.append(f"below ${cap_min/1e9:g}B floor")
-        elif market_cap > cap_max:
-            reasons.append(f"above ${cap_max/1e9:g}B ceiling")
-    excl = [str(x).lower() for x in (uni.get("exclude") or [])]
-    if sector and any(x in sector.lower() for x in excl):
-        reasons.append(f"excluded sector ({sector})")
-    return {"passes": not reasons, "reasons": reasons}
-
-
-def ladder_fitness(closes: list, volumes: list) -> dict:
-    """Score how well a name's price history suits the LIFO ladder, from daily closes +
-    volumes. Returns annualized volatility (does it swing enough to cycle rungs?), average
-    daily $ volume (liquid enough to trade?), % below its high, and a coarse label:
-    thin (illiquid) / quiet (won't cycle) / hot (cycles a lot, high decay risk) / good."""
-    cl = [float(c) for c in closes if c and float(c) > 0]
-    if len(cl) < 20:
-        return {"ok": False}
-    rets = [math.log(cl[i] / cl[i - 1]) for i in range(1, len(cl))]
-    mean = sum(rets) / len(rets)
-    var = sum((r - mean) ** 2 for r in rets) / len(rets)
-    vol = math.sqrt(var) * math.sqrt(252)          # annualized
-    dv = [float(closes[i]) * float(volumes[i] or 0)
-          for i in range(len(closes)) if i < len(volumes) and closes[i]]
-    avg_dv = sum(dv) / len(dv) if dv else 0.0
-    hi = max(cl)
-    pct_off_high = 1 - cl[-1] / hi if hi else 0.0
-    if avg_dv < 500_000:
-        label = "thin"
-    elif vol < 0.25:
-        label = "quiet"
-    elif vol > 0.80:
-        label = "hot"
-    else:
-        label = "good"
-    return {"ok": True, "volatility": round(vol, 4), "avg_dollar_vol": round(avg_dv),
-            "pct_off_high": round(pct_off_high, 4), "label": label}
-
-
-async def watchlist_board(account_hash: str = "") -> dict:
-    """The Watchlist tab's candidate board: every watched name, vetted against the
-    strategy universe + scored for ladder fitness. Read-only; advisory."""
-    from sqlalchemy import select
-
-    from . import config_store, grouping, market_data
-    from .db import SessionLocal
-    from .db.models import Ticker
-
-    cfg = await config_store.get_strategy(account_hash)
-    uni = cfg.universe
-    async with SessionLocal() as s:
-        tickers = (await s.execute(select(Ticker).where(Ticker.watch.is_(True))
-                                   .order_by(Ticker.symbol))).scalars().all()
-    tickers = tickers[:40]                          # bound the fan-out of history calls
-
-    async def _row(t: Ticker) -> dict:
-        mc = _num(t.market_cap) if t.market_cap is not None else None
-        is_etf = grouping.is_leveraged_etf(t.name, t.industry) or "ETF" in (t.name or "").upper()
-        hist = await market_data.price_history(t.symbol, "1Y")
-        candles = [c for c in hist.get("candles", []) if c.get("close") is not None]
-        fit = ladder_fitness([c["close"] for c in candles], [c.get("volume") or 0 for c in candles])
-        return {"symbol": t.symbol, "name": t.name, "sector": t.sector, "market_cap": mc,
-                "is_etf": is_etf, "universe": universe_verdict(mc, t.sector, is_etf, uni),
-                "fitness": fit}
-
-    rows = await asyncio.gather(*[_row(t) for t in tickers]) if tickers else []
-    rows = list(rows)
-    rows.sort(key=lambda r: (not r["universe"]["passes"], -(r["fitness"].get("avg_dollar_vol") or 0)))
-    return {"ok": True, "rows": rows, "universe": {
-        "market_cap_min": uni.get("market_cap_min"), "market_cap_max": uni.get("market_cap_max"),
-        "country": uni.get("country"), "exclude": uni.get("exclude") or []}}
 
 
 # ---------------- fundamentals / guardrail vet ----------------

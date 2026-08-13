@@ -3,6 +3,23 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.80.0 — "Cleanup sweep"
+
+- **Removed the Watchlist tab** and all its code. It wasn't earning its place. (The
+  market-hours badge in the header stays.)
+- **Removed XIRR and the "if it were all X" benchmark** — the annualized-return card, the
+  benchmark line on the account-value chart, and the benchmark picker in Settings — trimming
+  metrics that added more noise than signal.
+- **Deposits/withdrawals and dividends now start collapsed** on the Ledger, so the view
+  isn't clogged by default. Click either header to expand; the import/refresh buttons stay put.
+- **Activity tab:** the profit calendar now sits **above** the by-period table. **Trades tab:**
+  the per-symbol breakdown now sits **above** the closed-trades list.
+- **Removed the "Screening universe" section from Rules** — it had no real use. Your saved
+  universe settings are untouched.
+- **Wider, side-by-side layouts.** Rules, Method, Profile, and Settings now arrange their
+  cards in a responsive grid that uses the full window width instead of a narrow left column.
+- Label tidy-ups: "Equity (your money)" → "Equity", "Debt (borrowed)" → "Debt".
+
 ## v0.79.0 — "Re-pull all history (heal mis-synced transfers)"
 
 - **New "Re-pull all history" button** on the deposits/withdrawals panel. It re-fetches your

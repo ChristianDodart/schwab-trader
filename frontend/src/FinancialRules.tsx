@@ -71,8 +71,8 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
   // while `c` is loading.
   const header = (
     <>
-      <h2 className="page-title" style={{ marginTop: 4 }}>Financial Rules</h2>
-      <div style={S.modeToggle} role="tablist" aria-label="Rules view">
+      <h2 className="page-title" style={{ marginTop: 4, gridColumn: "1 / -1" }}>Financial Rules</h2>
+      <div style={{ ...S.modeToggle, gridColumn: "1 / -1" }} role="tablist" aria-label="Rules view">
         {(["account", "compare"] as const).map((m) => (
           <button key={m} role="tab" aria-selected={mode === m} onClick={() => setMode(m)}
             style={{ ...S.modeBtn, ...(mode === m ? S.modeBtnActive : null) }}>
@@ -120,9 +120,8 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
     setDs({ tiers: ds.tiers.map((t, j) => (j === i ? { ...t, [f]: v } : t)) });
   const rmDeploy = (i: number) => setDs({ tiers: ds.tiers.filter((_, j) => j !== i) });
 
-  // ---- guardrails / universe (edit known keys, preserve the rest) ----
+  // ---- guardrails (edit known keys, preserve the rest) ----
   const setGuard = (k: string, v: number) => setStrat({ guardrails: { ...st.guardrails, [k]: v } });
-  const setUni = (k: string, v: unknown) => setStrat({ universe: { ...st.universe, [k]: v } });
 
   const save = () => {
     const strategy: Strategy = {
@@ -143,14 +142,14 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
   return (
     <div style={S.wrap}>
       {header}
-      <p style={S.intro}>
+      <p style={{ ...S.intro, gridColumn: "1 / -1" }}>
         This is the playbook behind every <b>buy</b> and <b>sell</b> suggestion. Changing a rule changes what the app
         recommends — it <b>never places an order on its own</b>; you always review and confirm each one.
         {" "}Rules apply to the <b>selected account</b> and are currently <b>{c.strategy_is_default ? "the defaults" : "customized"}</b>.
       </p>
 
       {findings && (
-        <div style={findings.length ? S.healthWarn : S.healthOk}>
+        <div style={{ ...(findings.length ? S.healthWarn : S.healthOk), gridColumn: "1 / -1" }}>
           {findings.length === 0 ? (
             <span><IconCheck /> Rules look consistent.</span>
           ) : (
@@ -267,28 +266,7 @@ export function FinancialRules({ onDirtyChange }: { onDirtyChange?: (dirty: bool
         </Field>
       </Rule>
 
-      {/* ---------------- UNIVERSE ---------------- */}
-      <Rule title="Screening universe — what you’ll trade"
-        desc="The kind of companies you want. Used by the Screener’s vetting checklist. Market-cap band and excluded sectors become pass/fail checks (sector uses the tag you set on each ticker).">
-        <Field label="Market cap — minimum ($)">
-          <MoneyInput value={gnum(st.universe, "market_cap_min", 1e9)} onChange={(v) => setUni("market_cap_min", v)} wide />
-        </Field>
-        <Field label="Market cap — maximum ($)">
-          <MoneyInput value={gnum(st.universe, "market_cap_max", 3e10)} onChange={(v) => setUni("market_cap_max", v)} wide />
-        </Field>
-        <Field label="Country">
-          <input className="field" style={S.select} value={String(st.universe.country ?? "US")}
-            onChange={(e) => setUni("country", e.target.value)} />
-        </Field>
-        <Field label="Exclude sectors (comma-separated)"
-          hint="A ticker tagged with one of these fails the Screener’s exclusion check. Match is case-insensitive substring, e.g. “china, biotech”.">
-          <input className="field" style={{ ...S.select, width: 240, textAlign: "left" }}
-            value={(Array.isArray(st.universe.exclude) ? (st.universe.exclude as string[]) : []).join(", ")}
-            onChange={(e) => setUni("exclude", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} />
-        </Field>
-      </Rule>
-
-      <div style={S.saveBar}>
+      <div style={{ ...S.saveBar, gridColumn: "1 / -1" }}>
         <button className="btn btn-primary" onClick={save}>Save rules</button>
         <span aria-live="polite">
           {dirty ? <span style={S.dirty}>● Unsaved changes</span>
@@ -436,7 +414,7 @@ function MultInput({ value, onChange }: { value: number; onChange: (v: number) =
 }
 
 const S: Record<string, React.CSSProperties> = {
-  wrap: { marginTop: 12, maxWidth: 640, paddingBottom: 60 },
+  wrap: { marginTop: 12, paddingBottom: 60, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14, alignItems: "start" },
   wrapWide: { marginTop: 12, maxWidth: 1100, paddingBottom: 60 },
   modeToggle: { display: "inline-flex", gap: 2, padding: 3, background: "var(--panel-2)",
     border: "1px solid var(--border)", borderRadius: "var(--r-md)", margin: "6px 0 14px" },

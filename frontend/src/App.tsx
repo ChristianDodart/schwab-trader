@@ -5,7 +5,6 @@ import { AuthBanner, LiveStatusPill, useLiveness } from "./AuthBanner";
 import { FirstRun } from "./FirstRun";
 import { ReauthButton } from "./Reauth";
 import { UpdateBanner } from "./UpdateBanner";
-import { SectorStrip } from "./SectorStrip";
 import { matchesRule, type SignalRule } from "./signals";
 import { BulkGear, BulkReviewModal, useBulk } from "./Bulk";
 import { ColumnManager } from "./ColumnManager";
@@ -24,7 +23,7 @@ import { KIND_ICON } from "./notifications/FeedPanel";
 import { Orders } from "./Orders";
 import { OrderTicket } from "./OrderTicket";
 import { PositionDetail } from "./PositionDetail";
-import { Screener, MarketHoursBadge } from "./Screener";
+import { MarketHoursBadge } from "./MarketHoursBadge";
 import { Settings } from "./Settings";
 import { FinancialRules } from "./FinancialRules";
 import { Method } from "./Method";
@@ -39,7 +38,6 @@ const WS_URL = wsUrl("/ws/dashboard");
 
 const NAV: { id: View; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
-  { id: "screen", label: "Watchlist" },
   { id: "ledger", label: "Ledger" },
   { id: "orders", label: "Orders" },
   { id: "rules", label: "Rules" },
@@ -48,13 +46,12 @@ const NAV: { id: View; label: string }[] = [
   { id: "profile", label: "Profile" },
   { id: "settings", label: "Settings" },
 ];
-type View = "dashboard" | "screen" | "ledger" | "orders" | "rules" | "method" | "notifications" | "profile" | "settings";
+type View = "dashboard" | "ledger" | "orders" | "rules" | "method" | "notifications" | "profile" | "settings";
 
 export function App() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [connected, setConnected] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
-  const [backtestSymbol, setBacktestSymbol] = useState<string | null>(null);   // Watchlist → Method handoff
   const [view, setView] = useState<View>("dashboard");
   const [showHelp, setShowHelp] = useState(false);
   const [symQuery, setSymQuery] = useState("");        // Ctrl+F find-bar filter (by ticker)
@@ -533,17 +530,9 @@ export function App() {
         ) : view === "rules" ? (
           <FinancialRules key={acctKey} onDirtyChange={setSettingsDirty} />
         ) : view === "method" ? (
-          <Method key={acctKey} initialBacktest={backtestSymbol} />
+          <Method key={acctKey} />
         ) : view === "notifications" ? (
           <NotificationsTab prefill={alertPrefill} onPrefillConsumed={() => setAlertPrefill(null)} />
-        ) : view === "screen" ? (
-          <>
-            {data && <SectorStrip rows={data.rows} />}
-            <Screener
-              onSelect={(s) => guardedNav(() => { setSelected(s); setView("dashboard"); })}
-              onBacktest={(s) => guardedNav(() => { setBacktestSymbol(s); setView("method"); })}
-            />
-          </>
         ) : view === "ledger" ? (
           <Ledger key={acctKey} />
         ) : view === "orders" ? (

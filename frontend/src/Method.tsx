@@ -24,7 +24,7 @@ type Analysis = {
 };
 
 const S: Record<string, React.CSSProperties> = {
-  wrap: { display: "flex", flexDirection: "column", gap: 16, maxWidth: 900 },
+  wrap: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, alignItems: "start" },
   card: { background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px 16px" },
   h: { margin: "0 0 4px", fontSize: "var(--fs-md)", fontWeight: 700 },
   sub: { margin: "0 0 12px", color: "var(--text-dim)", fontSize: "var(--fs-sm)" },
@@ -89,7 +89,7 @@ function BacktestCard({ initialSymbol }: { initialSymbol?: string }) {
 
   const beat = res?.ok && (res.ending_equity ?? 0) >= (res.buy_hold_equity ?? 0);
   return (
-    <section style={S.card}>
+    <section style={{ ...S.card, gridColumn: "1 / -1" }}>
       <h3 style={S.h}>Ladder backtest</h3>
       <p style={S.sub}>
         Replays your exact ladder rules against a symbol's daily history with a bankroll allocated to that one
@@ -154,7 +154,7 @@ export function Method({ initialBacktest }: { initialBacktest?: string | null } 
   if (a.held_count === 0)
     return (
       <div style={S.wrap}>
-        <p style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)", margin: 0 }}>
+        <p style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)", margin: 0, gridColumn: "1 / -1" }}>
           No open positions yet — the risk lenses need a live book. You can still backtest the method on any symbol below.
         </p>
         <BacktestCard initialSymbol={initialBacktest ?? undefined} />
@@ -166,13 +166,13 @@ export function Method({ initialBacktest }: { initialBacktest?: string | null } 
 
   return (
     <div style={S.wrap}>
-      <p style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)", margin: 0 }}>
+      <p style={{ color: "var(--text-dim)", fontSize: "var(--fs-sm)", margin: 0, gridColumn: "1 / -1" }}>
         Read-only risk lenses on your ladder method and current book, as of {a.as_of}. <b>Advisory only</b> —
         nothing here places an order or tells you what to buy or sell.
       </p>
 
       {/* 1) Concentration by true underlying */}
-      <section style={S.card}>
+      <section style={{ ...S.card, gridColumn: "1 / -1" }}>
         <h3 style={S.h}>Concentration by underlying</h3>
         <p style={S.sub}>
           A stock and any leveraged/inverse ETFs tied to it are one bet. Rolled up, here's your true
@@ -201,7 +201,7 @@ export function Method({ initialBacktest }: { initialBacktest?: string | null } 
       </section>
 
       {/* 2) Downside / ladder-depth stress */}
-      <section style={S.card}>
+      <section style={{ ...S.card, gridColumn: "1 / -1" }}>
         <h3 style={S.h}>Downside stress</h3>
         <p style={S.sub}>
           What a further drop does to the book — the tail the “add more as it falls” ladder walks into.
@@ -261,7 +261,7 @@ export function Method({ initialBacktest }: { initialBacktest?: string | null } 
       </section>
 
       {/* 4) Sizing sanity check (Kelly reference) */}
-      <section style={S.card}>
+      <section style={{ ...S.card, gridColumn: "1 / -1" }}>
         <h3 style={S.h}>Sizing check</h3>
         <p style={S.sub}>
           A reference from your own realized record — not advice. The Kelly criterion turns your win rate and

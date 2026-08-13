@@ -12,12 +12,6 @@ import type { CashFlowRow, LedgerHistoric as Historic, MarginSummary } from "./t
 
 import { API } from "./api";
 type CapGains = { rows: { period: string; cap_gains: number; trade_count: number }[]; total_cap_gains: number };
-type Benchmark = {
-  available: boolean; reason?: string; symbol?: string;
-  your_value?: number; benchmark_value?: number;
-  your_xirr_pct?: number | null; benchmark_xirr_pct?: number | null;
-  series?: { day: string; value: number }[];
-};
 type DivRow = { day: string; amount: number; symbol: string | null; type?: string; schwab_txn_id?: string | null };
 type Dividends = { rows: DivRow[]; summary: { total: number; ytd: number | null; year: number | null; count: number } };
 type HealthReport = {
@@ -49,7 +43,6 @@ export function LedgerHistoric() {
   const [scope, setScope] = useState<Period>(ALL_TIME);
   const [h, setH] = useState<Historic | null>(null);
   const [cg, setCg] = useState<CapGains | null>(null);
-  const [bench, setBench] = useState<Benchmark | null>(null);
   const [div, setDiv] = useState<Dividends | null>(null);
   const [margin, setMargin] = useState<MarginSummary | null>(null);
   const [cgGrain, setCgGrain] = useState<"month" | "week">("month");
@@ -74,12 +67,6 @@ export function LedgerHistoric() {
     fetch(`${API}/account/margin`)
       .then((r) => r.json())
       .then((j) => { if (seqRef.current === my && j) setMargin(j); })
-      .catch(() => {});
-    // Benchmark is all-time + account-level (not scope-dependent), but reload it alongside
-    // so an account switch refreshes it. Fails soft: available:false just hides the card.
-    fetch(`${API}/ledger/benchmark`)
-      .then((r) => r.json())
-      .then((j) => { if (seqRef.current === my && j) setBench(j); })
       .catch(() => {});
     // Dividends are account-level all-time (not scope-dependent); reload with the ledger.
     fetch(`${API}/ledger/dividends`)
@@ -198,7 +185,7 @@ export function LedgerHistoric() {
       </div>
 
       {/* ---- Printable one-pager (hidden on screen; only the .print-only block prints) ---- */}
-      <PrintSummary h={h} bench={bench} div={div} />
+      <PrintSummary h={h} div={div} />
 
       <ReconciliationCard />
 
@@ -236,19 +223,7 @@ export function LedgerHistoric() {
               sub={h.withdrawn_all_time < 0 ? `+ ${usd(-h.withdrawn_all_time)} already withdrawn` : undefined} />
             <Card label="Total gain" value={usd(h.gain_vs_contributed)} accent={moneyColor(h.gain_vs_contributed)} term="roi"
               sub={h.roi_pct != null ? `${h.roi_pct > 0 ? "+" : ""}${h.roi_pct}% on peak capital` : undefined} />
-            <Card label="Annualized (XIRR)" term="xirr"
-              value={h.xirr_pct != null ? `${h.xirr_pct > 0 ? "+" : ""}${h.xirr_pct}%` : "—"}
-              accent={h.xirr_pct != null ? moneyColor(h.xirr_pct) : undefined}
-              sub={h.xirr_pct != null ? "per year, money-weighted" : "needs ~1 month of history"} />
-            {bench?.available && bench.benchmark_value != null && <BenchmarkCard b={bench} />}
           </div>
-          {bench?.available && bench.benchmark_value != null && (
-            <p style={S.fine}>
-              "If it were all {bench.symbol}" invests your exact deposits (same dates, same amounts) into{" "}
-              {bench.symbol} buy-and-hold instead — an honest yardstick for whether the active strategy is
-              earning its keep.
-            </p>
-          )}
         </>
       )}
 
@@ -280,6 +255,7 @@ export function LedgerHistoric() {
 
       {/* ---- Deposit log ---- */}
       <Panel
+        collapsible defaultOpen={false}
         title="Outside money (deposits & withdrawals)"
         right={
           <span style={{ display: "flex", gap: 6 }}>
@@ -367,6 +343,7 @@ export function LedgerHistoric() {
 
       {/* ---- Dividends / income ---- */}
       <Panel
+        collapsible defaultOpen={false}
         title="Dividends & income"
         right={
           <span style={{ display: "flex", gap: 6 }}>
@@ -418,9 +395,7 @@ export function LedgerHistoric() {
 
       {/* ---- Account value over time (nightly snapshots, scoped) ---- */}
       <Panel title="Account value over time">
-        <EquityCurve series={h.series}
-          benchmark={bench?.available ? bench.series : undefined}
-          benchmarkLabel={bench?.symbol} />
+        <EquityCurve series={h.series} />
       </Panel>
 
       {/* ---- Capital gains by period (scoped) ---- */}
@@ -443,9 +418,6 @@ export function LedgerHistoric() {
   );
 }
 
-// "If it were all SPY": what the same dated deposits would be worth in the benchmark,
-// with the value tinted by whether the active strategy is ahead of (green) or behind
-// (red) simply holding the index.
 // Reconciliation verdict — the "is this accurate?" answer, right where the numbers
 // live. Runs the same checks as Settings → Data health (share counts vs Schwab, cost
 // basis, the global cash identity) and reduces them to one strip: green when
@@ -527,25 +499,9 @@ const RC: Record<string, React.CSSProperties> = {
   text: { color: "var(--text-muted)", lineHeight: 1.45 },
 };
 
-function BenchmarkCard({ b }: { b: Benchmark }) {
-  const yours = b.your_value ?? 0;
-  const idx = b.benchmark_value ?? 0;
-  const diff = yours - idx;
-  const ahead = diff >= 0;
-  const xirr = b.benchmark_xirr_pct;
-  const sub = [
-    xirr != null ? `${xirr > 0 ? "+" : ""}${xirr}%/yr` : null,
-    `you're ${ahead ? "ahead" : "behind"} by ${usd(Math.abs(diff))}`,
-  ].filter(Boolean).join(" · ");
-  return (
-    <Card label={`If it were all ${b.symbol}`} value={usd(idx)} term="benchmark"
-      accent={ahead ? "var(--pos)" : "var(--neg)"} sub={sub} />
-  );
-}
-
 // Hidden on screen; the only thing that prints (see .print-only in ui.css). A clean
 // one-pager of the since-inception numbers + capital-by-year + dividends for records.
-function PrintSummary({ h, bench, div }: { h: Historic; bench: Benchmark | null; div: Dividends | null }) {
+function PrintSummary({ h, div }: { h: Historic; div: Dividends | null }) {
   const now = h.now, r = h.realized;
   const rowsFig: [string, string][] = [
     ["Account value", usd(now.account_value)],
@@ -553,8 +509,6 @@ function PrintSummary({ h, bench, div }: { h: Historic; bench: Benchmark | null;
     ...(h.withdrawn_all_time < 0 ? [["Withdrawn (all-time)", usd(h.withdrawn_all_time)] as [string, string]] : []),
     ...(h.gain_vs_contributed != null ? [["Total gain", usd(h.gain_vs_contributed)] as [string, string]] : []),
     ...(h.roi_pct != null ? [["Simple ROI", `${h.roi_pct}%`] as [string, string]] : []),
-    ...(h.xirr_pct != null ? [["Annualized (XIRR)", `${h.xirr_pct}%/yr`] as [string, string]] : []),
-    ...(bench?.available ? [[`If it were all ${bench.symbol}`, `${usd(bench.benchmark_value)}${bench.benchmark_xirr_pct != null ? ` (${bench.benchmark_xirr_pct}%/yr)` : ""}`] as [string, string]] : []),
     ["Realized capital gains (all-time)", usd(r.cap_gains)],
     ["Dividends (all-time)", usd(div?.summary.total ?? 0)],
   ];
@@ -655,8 +609,8 @@ function MarginPanel({ m }: { m: MarginSummary }) {
         sub="settled cash + borrowing — what an order can actually use" />
       {m.is_margin && (
         <>
-          <Row k="Equity (your money)" v={usd(m.equity)} />
-          <Row k="Debt (borrowed)" v={usd(m.debt)} accent={m.debt ? "var(--neg)" : undefined} term="margin_debt"
+          <Row k="Equity" v={usd(m.equity)} />
+          <Row k="Debt" v={usd(m.debt)} accent={m.debt ? "var(--neg)" : undefined} term="margin_debt"
             sub={m.debt ? "margin loan carried against positions" : "no margin loan"} />
           <Row k="Leverage" v={m.leverage == null ? "—" : `${m.leverage.toFixed(2)}×`} term="leverage"
             accent={m.leverage != null && m.leverage > 1.5 ? "var(--warn)" : undefined}

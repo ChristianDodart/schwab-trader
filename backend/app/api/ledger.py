@@ -1,5 +1,5 @@
-"""Ledger endpoints (/api/ledger/*) plus the benchmark-symbol setting, the
-positions rollup, and the daily balance snapshot pair."""
+"""Ledger endpoints (/api/ledger/*) plus the positions rollup and the daily
+balance snapshot pair."""
 from __future__ import annotations
 
 import logging
@@ -57,29 +57,6 @@ async def ledger_historic(start: str | None = None, end: str | None = None) -> d
     return await ledger_svc.build_historic(
         acct, ledger_svc._parse_date(start), ledger_svc._parse_date(end)
     )
-
-
-@router.get("/api/ledger/benchmark")
-async def ledger_benchmark() -> dict:
-    """Buy-and-hold benchmark: what the account's own dated contributions would be worth
-    in the chosen benchmark instead. {available: False, reason} when not computable."""
-    return await ledger_svc.build_benchmark(await _selected(), await ledger_svc.get_benchmark_symbol())
-
-
-@router.get("/api/benchmark-symbol")
-async def get_benchmark_symbol() -> dict:
-    """The chosen buy-and-hold benchmark ticker (default SPY)."""
-    return {"symbol": await ledger_svc.get_benchmark_symbol()}
-
-
-class BenchmarkSymbolBody(BaseModel):
-    symbol: str
-
-
-@router.post("/api/benchmark-symbol")
-async def set_benchmark_symbol(body: BenchmarkSymbolBody) -> dict:
-    """Set the benchmark ticker used by the since-inception comparison."""
-    return await ledger_svc.set_benchmark_symbol(body.symbol)
 
 
 @router.get("/api/ledger/trades")

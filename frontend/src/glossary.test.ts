@@ -20,7 +20,7 @@ describe("glossary registry", () => {
 
   it("computed/hybrid money terms explain how they're calculated", () => {
     // A number the app derives should say how — otherwise the 'Source' promise is empty.
-    const mustExplain = ["invested", "unrealized_pl", "realized_pl", "leverage", "deployed_pct", "xirr"];
+    const mustExplain = ["invested", "unrealized_pl", "realized_pl", "leverage", "deployed_pct"];
     for (const id of mustExplain) {
       expect(GLOSSARY[id]?.howCalculated, `${id}.howCalculated`).toBeTruthy();
     }

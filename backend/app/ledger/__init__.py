@@ -26,19 +26,15 @@ from ._shared import (
     _today,
 )
 from .analytics import (
-    _BENCH_TTL_S,
     _FED_BRACKETS,
-    _K_BENCH,
     FED_FLAT_RATE,
     SHEET_ANCHOR,
     START_BALANCE_2025,
-    _bench_cache,
     _best_worst_periods,
     _progressive_federal,
     _tax,
     _weekdays,
     build_activity,
-    build_benchmark,
     build_cap_gains,
     build_historic,
     build_positions,
@@ -48,8 +44,6 @@ from .analytics import (
     build_trades,
     compute_drawdown,
     compute_streaks,
-    get_benchmark_symbol,
-    set_benchmark_symbol,
 )
 from .income import (
     _CSV_DEDUP_WINDOW_DAYS,

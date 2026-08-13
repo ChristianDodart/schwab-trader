@@ -78,6 +78,8 @@ export function LedgerActivity({ onDayClick }: { onDayClick?: (iso: string) => v
           hint="Profit booked by the sells in this span — (sell price minus that lot's buy price) times shares, summed across every closed trade (LIFO, matching the ladder)." />
       </div>
 
+      <PLCalendar onDayClick={onDayClick} />
+
       <Panel
         title="By period"
         right={
@@ -122,8 +124,6 @@ export function LedgerActivity({ onDayClick }: { onDayClick?: (iso: string) => v
           </div>
         )}
       </Panel>
-
-      <PLCalendar onDayClick={onDayClick} />
     </div>
   );
 }

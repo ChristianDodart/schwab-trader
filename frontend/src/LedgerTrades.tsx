@@ -112,6 +112,43 @@ export function LedgerTrades({ initialScope }: { initialScope?: Period } = {}) {
 
       {s.count > 0 && <StreakStats d={d} />}
 
+      {d.by_symbol.length > 1 && (
+        <Panel title="By symbol">
+          <p style={S.fine}>Click a symbol for its full history in this period — every close, win rate, and cumulative P/L.</p>
+          <div style={{ overflowX: "auto" }}>
+            <table className="tbl">
+              <thead>
+                <tr><th className="left">Symbol</th><th>Trades</th><th>Win rate</th><th>Total P/L</th></tr>
+              </thead>
+              <tbody>
+                {d.by_symbol.map((r) => (
+                  <Fragment key={r.symbol}>
+                    <tr className="rowlink" tabIndex={0} role="button" aria-expanded={openSym === r.symbol}
+                      aria-label={`${r.symbol} — ${openSym === r.symbol ? "hide" : "show"} its trade history`}
+                      onClick={() => setOpenSym(openSym === r.symbol ? null : r.symbol)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenSym(openSym === r.symbol ? null : r.symbol); } }}>
+                      <td className="left"><b>{r.symbol}</b> <span style={{ color: "var(--text-faint)" }} aria-hidden="true">{openSym === r.symbol ? <IconChevronDown size={13} /> : <IconChevronRight size={13} />}</span></td>
+                      <td style={{ textAlign: "right" }}>{r.count}</td>
+                      <td style={{ textAlign: "right" }}>{pct(r.win_rate)}</td>
+                      <td style={{ textAlign: "right", color: moneyColor(r.total_profit), fontVariantNumeric: "tabular-nums" }}>
+                        {r.total_profit > 0 ? "+" : ""}{usd(r.total_profit)}
+                      </td>
+                    </tr>
+                    {openSym === r.symbol && (
+                      <tr>
+                        <td colSpan={4} style={{ padding: 0 }}>
+                          <SymbolReport symbol={r.symbol} scope={scope} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      )}
+
       <Panel
         title="Closed trades"
         right={
@@ -170,43 +207,6 @@ export function LedgerTrades({ initialScope }: { initialScope?: Period } = {}) {
           </div>
         )}
       </Panel>
-
-      {d.by_symbol.length > 1 && (
-        <Panel title="By symbol">
-          <p style={S.fine}>Click a symbol for its full history in this period — every close, win rate, and cumulative P/L.</p>
-          <div style={{ overflowX: "auto" }}>
-            <table className="tbl">
-              <thead>
-                <tr><th className="left">Symbol</th><th>Trades</th><th>Win rate</th><th>Total P/L</th></tr>
-              </thead>
-              <tbody>
-                {d.by_symbol.map((r) => (
-                  <Fragment key={r.symbol}>
-                    <tr className="rowlink" tabIndex={0} role="button" aria-expanded={openSym === r.symbol}
-                      aria-label={`${r.symbol} — ${openSym === r.symbol ? "hide" : "show"} its trade history`}
-                      onClick={() => setOpenSym(openSym === r.symbol ? null : r.symbol)}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenSym(openSym === r.symbol ? null : r.symbol); } }}>
-                      <td className="left"><b>{r.symbol}</b> <span style={{ color: "var(--text-faint)" }} aria-hidden="true">{openSym === r.symbol ? <IconChevronDown size={13} /> : <IconChevronRight size={13} />}</span></td>
-                      <td style={{ textAlign: "right" }}>{r.count}</td>
-                      <td style={{ textAlign: "right" }}>{pct(r.win_rate)}</td>
-                      <td style={{ textAlign: "right", color: moneyColor(r.total_profit), fontVariantNumeric: "tabular-nums" }}>
-                        {r.total_profit > 0 ? "+" : ""}{usd(r.total_profit)}
-                      </td>
-                    </tr>
-                    {openSym === r.symbol && (
-                      <tr>
-                        <td colSpan={4} style={{ padding: 0 }}>
-                          <SymbolReport symbol={r.symbol} scope={scope} />
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
-      )}
     </div>
   );
 }

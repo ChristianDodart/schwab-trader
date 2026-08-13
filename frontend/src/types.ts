@@ -110,7 +110,6 @@ export type LedgerHistoric = {
   contributions_recorded: number;
   gain_vs_contributed: number | null;
   roi_pct: number | null;        // gain_vs_contributed / deposited_all_time (simple, timing-blind)
-  xirr_pct: number | null;       // money-weighted annual return (accounts for WHEN money went in)
   series: { day: string; balance: number; capital_gains: number }[];
 };
 export type Trade = {

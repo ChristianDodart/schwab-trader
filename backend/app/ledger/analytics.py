@@ -1,19 +1,15 @@
 """Realized/positions/projection/tax analytics — the summary, historic (fact),
-prediction, trade-journal, and benchmark builders, plus their pure stat helpers."""
+prediction, and trade-journal builders, plus their pure stat helpers."""
 from __future__ import annotations
 
 import logging
-import time
 from datetime import date, timedelta
 
 from sqlalchemy import case, func, select
 
-from .. import benchmark as benchmark_calc
 from .. import config_store
-from .. import market_data
-from .. import xirr as xirr_calc
-from ..db import SessionLocal, dialect_insert as pg_insert
-from ..db.models import AppSetting, CashFlow, CompletedTrade, DailyBalance, Lot
+from ..db import SessionLocal
+from ..db.models import CashFlow, CompletedTrade, DailyBalance, Lot
 from ..schwab import hub
 from ..strategy import rules
 from ._shared import _GRAINS, _f, _period_key, _today
@@ -696,8 +692,7 @@ async def build_historic(account_hash: str, from_date: date | None = None,
     # reached. Gross deposits overstate the base when money cycles out and back in
     # (withdraw 100k then redeposit 50k isn't 50k of NEW capital); net understates it
     # after withdrawals. The peak is the most of YOUR money that was ever in the
-    # account at once — the honest denominator. (XIRR below is the timing-correct
-    # headline; this simple % is the quick-read companion.)
+    # account at once — the honest denominator.
     running = peak_net_contributed = 0.0
     for _cd, _ca in sorted(cap_rows, key=lambda t: t[0]):
         running += _f(_ca)
@@ -708,19 +703,6 @@ async def build_historic(account_hash: str, from_date: date | None = None,
         round(gain_vs_contributed / roi_base * 100, 1)
         if gain_vs_contributed is not None and roi_base > 0 else None
     )
-    # Money-weighted return (XIRR): each contribution as a dated OUTFLOW (-amount), plus
-    # today's account value as the terminal INFLOW — so the % reflects WHEN money went in,
-    # not just how much. Simple ROI above ignores timing; this doesn't. Needs a live value
-    # and ~a month of history (annualizing a few days is noise). None when not computable.
-    xirr_pct = None
-    if acct_value is not None and cap_rows:
-        span_days = (today - min(cd for cd, _ in cap_rows)).days
-        if span_days >= 30:
-            flows = [(cd, -_f(ca)) for (cd, ca) in cap_rows]
-            flows.append((today, _f(acct_value)))
-            r = xirr_calc.xirr(flows)
-            if r is not None:
-                xirr_pct = round(r * 100, 1)
 
     return {
         "as_of": today.isoformat(),
@@ -750,109 +732,8 @@ async def build_historic(account_hash: str, from_date: date | None = None,
         "contributions_recorded": int(all_time_count or 0),
         "gain_vs_contributed": gain_vs_contributed,
         "roi_pct": roi_pct,
-        "xirr_pct": xirr_pct,
         "series": [
             {"day": r.day.isoformat(), "balance": _f(r.balance), "capital_gains": _f(r.capital_gains)}
             for r in series
         ],
     }
-
-
-_K_BENCH = "benchmark_symbol"
-
-
-async def get_benchmark_symbol() -> str:
-    """The user's chosen buy-and-hold benchmark ticker (default SPY)."""
-    async with SessionLocal() as s:
-        row = await s.get(AppSetting, _K_BENCH)
-    return (row.value.strip().upper() if row and row.value else "SPY") or "SPY"
-
-
-async def set_benchmark_symbol(symbol: str) -> dict:
-    sym = (symbol or "").strip().upper()[:8] or "SPY"
-    async with SessionLocal() as s:
-        await s.execute(
-            pg_insert(AppSetting).values(key=_K_BENCH, value=sym)
-            .on_conflict_do_update(index_elements=[AppSetting.key], set_={"value": sym})
-        )
-        await s.commit()
-    _bench_cache.clear()  # symbol changed → drop any cached comparison
-    return {"symbol": sym}
-
-
-# Per-(account, symbol) benchmark cache. 5Y history + the sim is relatively heavy and the
-# comparison barely moves minute-to-minute, so a short TTL keeps the Ledger view snappy
-# across scope changes without a stale-looking number. Only successful results are cached
-# (a transient throttle retries next time). Cleared when the symbol setting changes.
-_bench_cache: dict[tuple[str, str], tuple[float, dict]] = {}
-_BENCH_TTL_S = 300
-
-
-async def build_benchmark(account_hash: str, symbol: str = "SPY") -> dict:
-    """What the account's OWN dated contributions would be worth in `symbol` (buy-and-hold)
-    — an apples-to-apples yardstick for the real account's return (same cash in/out, same
-    dates, different vehicle). Degrades to {available: False, reason} whenever it can't be
-    done honestly: no contributions, blocked/unknown account value, missing benchmark
-    history, or a deposit that predates the available price history."""
-    from datetime import datetime, timezone
-
-    from .. import accounts as accounts_svc
-
-    symbol = (symbol or "SPY").upper()
-    ckey = (account_hash, symbol)
-    hit = _bench_cache.get(ckey)
-    if hit and (time.time() - hit[0]) < _BENCH_TTL_S:
-        return hit[1]
-
-    today = _today()
-    async with SessionLocal() as s:
-        cap_rows = (
-            await s.execute(select(CashFlow.day, CashFlow.amount).where(CashFlow.account_hash == account_hash))
-        ).all()
-    if not cap_rows:
-        return {"available": False, "reason": "no contributions recorded"}
-
-    bals = await accounts_svc.account_balances(account_hash)
-    acct_value = None if bals.get("blocked") else bals.get("account_value")
-    if acct_value is None:
-        snap = await latest_balance(account_hash)
-        if not snap.get("balance_blocked"):
-            acct_value = snap.get("balance")
-    if acct_value is None:
-        return {"available": False, "reason": "account value unavailable"}
-
-    hist = await market_data.price_history(symbol, "5Y")
-    candles = hist.get("candles") or []
-    if not candles:
-        return {"available": False, "reason": hist.get("error") or "no benchmark history"}
-    closes = sorted(
-        (
-            (datetime.fromtimestamp(c["time"], timezone.utc).date(), float(c["close"]))
-            for c in candles if c.get("close")
-        ),
-        key=lambda x: x[0],
-    )
-    last_price = closes[-1][1] if closes else None
-    cashflows = [(cd, _f(ca)) for (cd, ca) in cap_rows]
-    sim = benchmark_calc.simulate(cashflows, closes, last_price)
-    if sim is None:
-        earliest = min(cd for cd, _ in cap_rows)
-        return {"available": False,
-                "reason": f"{symbol} price history doesn't reach back to {earliest.isoformat()}"}
-
-    your_flows = [(cd, -_f(ca)) for (cd, ca) in cap_rows] + [(today, _f(acct_value))]
-    your_r = xirr_calc.xirr(your_flows)
-    spy_r = xirr_calc.xirr(sim["flows"])
-    series = [{"day": d.isoformat(), "value": v} for d, v in benchmark_calc.value_series(cashflows, closes)]
-    result = {
-        "available": True,
-        "symbol": symbol,
-        "as_of": today.isoformat(),
-        "your_value": round(_f(acct_value), 2),
-        "benchmark_value": sim["value"],
-        "your_xirr_pct": round(your_r * 100, 1) if your_r is not None else None,
-        "benchmark_xirr_pct": round(spy_r * 100, 1) if spy_r is not None else None,
-        "series": series,
-    }
-    _bench_cache[ckey] = (time.time(), result)  # cache successes only
-    return result

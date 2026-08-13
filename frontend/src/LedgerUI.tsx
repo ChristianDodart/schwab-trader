@@ -6,6 +6,7 @@ import { usd } from "./format";
 import { API } from "./api";
 import { Tip } from "./Tip";
 import { Term } from "./GlossaryUI";
+import { IconChevronDown, IconChevronRight } from "./Icon";
 
 // The selected account + active profile, resolved for print headers so a saved/
 // printed page identifies WHOSE account it is. Fetched once; degrades to a plain
@@ -157,14 +158,35 @@ export function Card({ label, value, sub, big, accent, hint, term }: {
   );
 }
 
-export function Panel({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
+export function Panel({ title, children, right, collapsible, defaultOpen }: {
+  title: string; children: React.ReactNode; right?: React.ReactNode;
+  collapsible?: boolean; defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen ?? true);
+  if (!collapsible) {
+    return (
+      <section className="panel" style={S.panel}>
+        <div style={S.panelHead}>
+          <h3 className="section-title" style={{ margin: 0 }}>{title}</h3>
+          {right}
+        </div>
+        {children}
+      </section>
+    );
+  }
   return (
     <section className="panel" style={S.panel}>
       <div style={S.panelHead}>
-        <h3 className="section-title" style={{ margin: 0 }}>{title}</h3>
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span aria-hidden="true" style={{ display: "inline-flex", color: "var(--text-faint)" }}>
+            {open ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+          </span>
+          <h3 className="section-title" style={{ margin: 0 }}>{title}</h3>
+        </button>
         {right}
       </div>
-      {children}
+      {open && children}
     </section>
   );
 }

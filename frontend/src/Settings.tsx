@@ -9,7 +9,6 @@ import { Tip } from "./Tip";
 import { AccountSection } from "./settings/AccountSection";
 import { Appearance } from "./settings/Appearance";
 import { Backups } from "./settings/Backups";
-import { BenchmarkPicker } from "./settings/BenchmarkPicker";
 import { DataHealth } from "./settings/DataHealth";
 import { DesktopSection } from "./settings/DesktopSection";
 import { Diagnostics } from "./settings/Diagnostics";
@@ -107,10 +106,6 @@ export function Settings({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) =
         <TaxSection filing={c.tax_filing} stateRate={c.tax_state_rate} onChange={set} />
       </Section>
 
-      <Section title="Benchmark" info="The buy-and-hold yardstick for the Ledger's 'If it were all …' comparison — what your exact deposits would be worth in this ticker instead of actively traded.">
-        <BenchmarkPicker />
-      </Section>
-
       <Section title="Data health & import" info="The app rebuilds your ladder and realized history from a durable fill ledger: recent trades sync from Schwab automatically, and one Transactions CSV export backfills years of history in a single upload (trades, deposits, and dividends are all routed from the same file). Re-importing is always safe — nothing double-counts.">
         <DataHealth />
       </Section>
@@ -158,12 +153,12 @@ function Section({ title, info, children }: { title: string; info?: string; chil
 }
 
 const S: Record<string, React.CSSProperties> = {
-  wrap: { marginTop: 16, maxWidth: 560 },
-  scope: { color: "var(--text-dim)", fontSize: "var(--fs-sm)", marginBottom: 8 },
+  wrap: { marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14, alignItems: "start" },
+  scope: { color: "var(--text-dim)", fontSize: "var(--fs-sm)", marginBottom: 8, gridColumn: "1 / -1" },
   section: { background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", padding: 16, marginTop: 12 },
   h3: { margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 },
   infoIcon: { fontSize: "var(--fs-2xs)", color: "var(--accent-quiet)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-pill)", padding: "0 5px", cursor: "help", textTransform: "none", letterSpacing: 0 },
-  actions: { display: "flex", alignItems: "center", gap: 12, marginTop: 16 },
+  actions: { display: "flex", alignItems: "center", gap: 12, marginTop: 16, gridColumn: "1 / -1" },
   savedMsg: { color: "var(--pos)", fontSize: "var(--fs-md)" },
   dirtyMsg: { color: "var(--warn)", fontSize: "var(--fs-sm)", fontWeight: 600 },
   note: { color: "var(--text-faint)", fontSize: "var(--fs-sm)", marginTop: 16 },

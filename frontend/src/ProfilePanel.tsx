@@ -93,8 +93,8 @@ export function ContextChip({ acctKey, onOpen }: { acctKey: string; onOpen: () =
 }
 
 const S: Record<string, React.CSSProperties> = {
-  wrap: { marginTop: 16, maxWidth: 560 },
-  scope: { color: "var(--text-dim)", fontSize: "var(--fs-sm)", marginBottom: 8, lineHeight: 1.5 },
+  wrap: { marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14, alignItems: "start" },
+  scope: { color: "var(--text-dim)", fontSize: "var(--fs-sm)", marginBottom: 8, lineHeight: 1.5, gridColumn: "1 / -1" },
   section: { background: "var(--panel)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", padding: 16, marginTop: 12 },
   h3: { margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 },
   infoIcon: { fontSize: "var(--fs-2xs)", color: "var(--accent-quiet)", border: "1px solid var(--border-strong)", borderRadius: "var(--r-pill)", padding: "0 5px", cursor: "help", textTransform: "none", letterSpacing: 0 },
