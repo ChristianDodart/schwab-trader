@@ -219,8 +219,11 @@ export function DashboardTable({
   const showFoldToggle = !simple && foldDefs.length > 0;
   const colSpan = 1 /* ticker */ + defs.length + (bulk ? 1 : 0) + (showFoldToggle ? 1 : 0);
   const toggleFold = () => onToggleCollapse?.();
-  // The chevron header cell (rendered after the fold columns so it hugs the right edge:
-  // when folded the fold columns are 0-width, so it lands right after the essentials).
+  // The chevron header cell, rendered BETWEEN the essential columns and the fold columns
+  // so it stays pinned right after the essentials: when collapsed the fold columns are
+  // 0-width and it sits at the right edge; when expanded the columns roll out to ITS right
+  // instead of pushing it off the right edge of a wide, horizontally-scrolling table (where
+  // it used to become unreachable — you could fold out but never back in).
   const FoldToggleTh = () => (
     <th className="foldtoggle" style={S.foldToggleTh}>
       <button className="btn btn-ghost btn-sm" style={S.foldToggleBtn} aria-expanded={!collapsed}
@@ -288,8 +291,8 @@ export function DashboardTable({
                 <HeaderCell id="symbol" label="Ticker" align="left" {...hProps} />
               )}
               {shownDefs.map((c) => <HeaderCell key={c.id} id={c.id} label={c.label} align={c.align} term={c.term} {...hProps} />)}
-              {foldDefs.map((c) => <HeaderCell key={c.id} id={c.id} label={c.label} align={c.align} term={c.term} fold {...hProps} />)}
               {showFoldToggle && <FoldToggleTh />}
+              {foldDefs.map((c) => <HeaderCell key={c.id} id={c.id} label={c.label} align={c.align} term={c.term} fold {...hProps} />)}
             </tr>
           </thead>
           <tbody>
@@ -394,12 +397,12 @@ export function DashboardTable({
                   {shownDefs.map((c) => (
                     <td key={c.id} style={{ textAlign: c.align }}>{cellFor(c, r)}</td>
                   ))}
+                  {showFoldToggle && <td className="foldtoggle" />}
                   {foldDefs.map((c) => (
                     <td key={c.id} className={"foldcol" + (collapsed ? " folded" : "")} style={{ textAlign: c.align }}>
                       <span className="foldwrap">{cellFor(c, r)}</span>
                     </td>
                   ))}
-                  {showFoldToggle && <td className="foldtoggle" />}
                 </tr>
                 {isOpen && renderDetail && (
                   <tr>

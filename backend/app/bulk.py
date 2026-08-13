@@ -179,12 +179,12 @@ async def buy_plan(account_hash: str) -> dict:
     cands.sort(key=lambda c: (not c["qualifies"], c["symbol"]))
     # Advisory: what you can actually deploy now, so the review modal can flag a SELECTED
     # total that exceeds it. Uses tradable_funds (settled/non-marginable) — the real
-    # constraint — not Reg-T buying power, which overstates it and gets orders rejected.
+    # constraint that orders are enforced against, not a looser margin figure.
     # Informational only; never blocks (margin rules are the broker's job).
     try:
         from . import accounts as accounts_svc
         ms = await accounts_svc.margin_summary(account_hash)
-        tradable = None if ms.get("blocked") else (ms.get("tradable_funds") or ms.get("buying_power"))
+        tradable = None if ms.get("blocked") else ms.get("tradable_funds")
     except Exception:
         tradable = None
     return {"ok": True, "mode": hub.mode, "buying_power": tradable,

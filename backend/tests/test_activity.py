@@ -152,6 +152,17 @@ def test_dedup_heals_christians_july_cluster():
     assert plan_transfer_dedup(rows) == [7]
 
 
+def test_dedup_keeps_two_real_same_day_same_amount_transfers():
+    # Schwab genuinely reports two $1000 deposits both posting 07-01 (Christian's account).
+    # Same day + same amount + same source is NOT a duplicate — deleting one drops real
+    # money. Both must survive.
+    rows = [
+        _cf(4, "2026-07-01", 1000, "schwab", "a"),
+        _cf(5, "2026-07-01", 1000, "schwab", "b"),
+    ]
+    assert plan_transfer_dedup(rows) == []
+
+
 def test_dedup_is_idempotent():
     rows = [
         _cf(7, "2026-07-07", 1000, "csv"),

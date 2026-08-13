@@ -33,7 +33,6 @@ export interface GlossaryFigures {
   maintenance?: number | null;
   maintCushion?: number | null;
   tradableFunds?: number | null;
-  buyingPower?: number | null;
   harvestable?: number | null;
   dayChange?: number | null;
 }
@@ -79,16 +78,9 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   available_to_trade: {
     term: "Available to trade",
     oneLiner: "What you can actually put into an order right now.",
-    howItWorks: "Settled cash plus borrowing against fully-paid stock — Schwab's 'Settled Funds' / 'Funds Available to Withdraw'. This is the real limit: orders above it get rejected, so it's usually smaller than the looser Reg-T buying power.",
+    howItWorks: "Settled cash plus borrowing against fully-paid stock — Schwab's 'Settled Funds' / 'Funds Available to Withdraw'. This is the real limit: orders above it get rejected.",
     source: "schwab",
-    related: ["reg_t_buying_power", "cash"],
-  },
-  reg_t_buying_power: {
-    term: "Reg-T buying power",
-    oneLiner: "The looser margin buying power, assuming every security is marginable.",
-    howItWorks: "Bigger than 'Available to trade' because it assumes you can borrow up to the 25% maintenance floor on everything. Sizing an order to this number often gets rejected — which is why the app plans against Available to trade instead.",
-    source: "schwab",
-    related: ["available_to_trade", "leverage", "maintenance_cushion"],
+    related: ["cash"],
   },
 
   // ---- position value / P&L ----
@@ -149,7 +141,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     oneLiner: "Money you've borrowed against your positions.",
     howItWorks: "Interest accrues on it daily. Shown as 'Debt on Owned' — a negative margin balance at Schwab.",
     source: "schwab",
-    related: ["leverage", "maintenance_cushion", "reg_t_buying_power"],
+    related: ["leverage", "maintenance_cushion"],
   },
   leverage: {
     term: "Leverage",

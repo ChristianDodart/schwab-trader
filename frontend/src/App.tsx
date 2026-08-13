@@ -187,7 +187,6 @@ export function App() {
       maintenance: margin?.maintenance_requirement ?? null,
       maintCushion: margin?.maint_cushion ?? null,
       tradableFunds: margin?.tradable_funds ?? null,
-      buyingPower: margin?.buying_power ?? null,
       harvestable: data?.harvestable ?? null,
       dayChange: data?.total_day_change ?? null,
     });

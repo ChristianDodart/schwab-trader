@@ -203,8 +203,7 @@ export function LedgerHistoric() {
         <Card label="Invested" value={usd(now.invested_market)} term="invested"
           sub={`cost ${usd(now.invested_cost)} · unreal ${usd(now.unrealized_pl)}`} />
         <Card label="Cash" value={usd(now.cash)} term="cash" />
-        <Card label="Available to trade" value={usd(now.tradable_funds ?? now.buying_power)} term="available_to_trade"
-          sub={now.buying_power == null ? undefined : `Reg-T buying power ${usd(now.buying_power)}`} />
+        <Card label="Available to trade" value={usd(now.tradable_funds)} term="available_to_trade" />
       </div>
       {now.source !== "live" && (
         <p style={S.warn}>Live balances unavailable{now.note ? ` (${now.note})` : ""} — showing the last saved snapshot. Reconnect under Settings → Schwab connection.</p>
@@ -637,10 +636,8 @@ function MarginPanel({ m }: { m: MarginSummary }) {
         </div>
       )}
       <Row k="Long market value" v={usd(m.long_market_value)} sub="what's in the market right now" />
-      <Row k="Available to trade" v={usd(m.tradable_funds ?? m.buying_power)} term="available_to_trade"
+      <Row k="Available to trade" v={usd(m.tradable_funds)} term="available_to_trade"
         sub="settled cash + borrowing — what an order can actually use" />
-      <Row k="Reg-T buying power" v={usd(m.buying_power)} term="reg_t_buying_power"
-        sub={m.margin_buying_power != null ? `margin ${usd(m.margin_buying_power)}` : "looser margin figure (often rejects if used in full)"} />
       {m.is_margin && (
         <>
           <Row k="Equity (your money)" v={usd(m.equity)} />
@@ -654,7 +651,7 @@ function MarginPanel({ m }: { m: MarginSummary }) {
           {cushionLow && <p style={S.warn}>Maintenance cushion is thin — a further drop could trigger a margin call. Consider trimming leverage.</p>}
         </>
       )}
-      <p style={S.fine}>Live from Schwab, point-in-time and mark-to-market. Buying power and margin figures drift intraday with prices and Reg-T.</p>
+      <p style={S.fine}>Live from Schwab, point-in-time and mark-to-market. Available-to-trade and margin figures drift intraday with prices.</p>
     </Panel>
   );
 }

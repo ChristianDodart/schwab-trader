@@ -127,6 +127,10 @@ def plan_transfer_dedup(rows: list[dict], window_days: int = 4) -> list:
     and are never deleted; csv-only history outside the ~60-day Schwab window has no
     Schwab twin, so it's untouched. Idempotent: after one pass nothing matches again.
 
+    Note deliberately NOT deduped: two same-amount transfers on the SAME day from the same
+    source. Schwab genuinely reports these (e.g. two $1,000 MoneyLink deposits both posting
+    07/01), so collapsing them would delete real money — they are kept as distinct rows.
+
     Each row: {id, day (date | ISO str), amount, source, schwab_txn_id}."""
     from datetime import date as _date
 

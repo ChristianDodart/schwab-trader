@@ -3,6 +3,28 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.78.0 — "Reg-T removed; transfer-sign + fold-arrow fixes"
+
+- **Removed "Reg-T buying power" from the whole app.** It was a looser figure you can't
+  actually trade against in practice, so next to "Available to trade" (the real limit) it
+  only added noise. It's gone from the dashboard KPI widgets, the Ledger balance cards, the
+  balance-fields diagnostic, and the hover glossary. "Available to trade" is unchanged and
+  is still exactly what every affordability check uses.
+- **Fixed phantom deposits from mis-signed transfers.** A deposit/withdrawal's direction
+  now comes from the transaction's signed amount, not its Schwab type code. Schwab files
+  some withdrawals under an "electronic funds" type the app was treating as always-incoming,
+  which turned those withdrawals into phantom deposits — e.g. a −$20,000 withdrawal also
+  showed as a +$20,000 deposit, so a real withdrawal looked like an offsetting pair and the
+  deposit total was overstated. New pulls are signed correctly, and a full re-pull now
+  corrects a previously mis-signed row instead of skipping it. If an account already shows
+  such a phantom (+) row paired with the matching (−) one, delete the phantom once from the
+  deposits/withdrawals list — it won't come back.
+- **Fixed the dashboard column-fold arrow getting stuck open.** The chevron that rolls the
+  extra columns in and out used to sit at the far right of the table — so once you folded
+  the columns *out*, a wide table pushed it off the right edge where you couldn't reach it
+  to fold them back *in*. It now sits just after the core columns and stays put while the
+  extras slide out to its right, so folding in and out both work at any width.
+
 ## v0.77.0 — "Market Cap column now has values"
 
 - **Fixed the empty Market Cap column.** The value was never being stored — Schwab hands us

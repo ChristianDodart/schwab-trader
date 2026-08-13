@@ -138,7 +138,6 @@ function BalanceFields() {
     ["Available funds — non-marginable", "available_funds_non_marginable", false],
     ["Buying power — non-marginable", "buying_power_non_marginable", false],
     ["Available funds", "available_funds", false],
-    ["Reg-T buying power", "buying_power", false],
     ["Day-trading buying power", "day_trading_buying_power", false],
     ["Cash", "cash", false],
     ["SMA", "sma", false],

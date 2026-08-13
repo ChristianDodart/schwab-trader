@@ -30,9 +30,11 @@ REAUTH_ERROR = "Schwab reauthorization required"
 SELECTED_KEY = "selected_account_hash"   # the active account: scopes all views AND trading
 
 # Schwab transaction types that represent OUTSIDE money crossing the account
-# boundary (not trades, dividends, or internal marks). Direction is fixed by type,
-# so we don't depend on netAmount's sign convention. JOURNAL is intentionally
-# EXCLUDED — it's an internal transfer and often nets to zero / is ambiguous.
+# boundary (not trades, dividends, or internal marks). The type only GATES whether a
+# row is a transfer at all — DIRECTION comes from netAmount's sign (see parse_transfers),
+# because ELECTRONIC_FUND is bidirectional: Schwab files both deposits AND withdrawals
+# under it, so a withdrawal keyed off the type alone flips into a phantom deposit. JOURNAL
+# is intentionally EXCLUDED — it's an internal transfer and often nets to zero / ambiguous.
 _TRANSFER_IN = {"ACH_RECEIPT", "WIRE_IN", "CASH_RECEIPT", "ELECTRONIC_FUND"}
 _TRANSFER_OUT = {"ACH_DISBURSEMENT", "WIRE_OUT", "CASH_DISBURSEMENT"}
 
@@ -371,17 +373,26 @@ async def fetch_transactions_window(account_hash: str, start: datetime, end: dat
 
 def parse_transfers(data: list) -> list[dict]:
     """Filter a raw transactions payload to outside-money transfers → normalized
-    {schwab_txn_id, day, amount(signed), kind} rows. Pure."""
+    {schwab_txn_id, day, amount(signed), kind} rows. Pure.
+
+    DIRECTION comes from netAmount's sign (Schwab signs cash-out negative), NOT the type:
+    ELECTRONIC_FUND carries both deposits and withdrawals, so a −$20,000 ELECTRONIC_FUND
+    withdrawal keyed off the type would flip into a phantom +$20,000 deposit (the Andrew
+    ...580 bug). The one-way types agree with the sign; a guard keeps a DISBURSEMENT a
+    withdrawal even in the unlikely event a row arrives with an unsigned (positive) net."""
     out: list[dict] = []
     for t in data:
         ty = t.get("type")
         is_in, is_out = ty in _TRANSFER_IN, ty in _TRANSFER_OUT
         if not (is_in or is_out):
             continue
-        mag = abs(_f(t.get("netAmount")))
-        if mag == 0:
+        net = round(_f(t.get("netAmount")), 2)
+        if net == 0:
             continue
-        amount = mag if is_in else -mag           # sign from TYPE, not netAmount
+        # Trust netAmount's sign; only override when a strictly one-way OUT type arrives
+        # positive (defensive against an unsigned amount — never lets a disbursement read
+        # as a deposit). Bidirectional ELECTRONIC_FUND therefore keeps its real sign.
+        amount = -abs(net) if (is_out and not is_in and net > 0) else net
         day = (t.get("tradeDate") or t.get("time") or "")[:10]
         txid = str(t.get("activityId") or t.get("transactionId") or t.get("id") or "")
         out.append({

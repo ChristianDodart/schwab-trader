@@ -70,7 +70,7 @@ export type MarginSummary = {
   long_market_value?: number | null;
   cash?: number | null;
   debt?: number | null;               // borrowed against positions ("Debt on Owned")
-  buying_power?: number | null;       // Reg-T buying power (the loose, marginable figure)
+  buying_power?: number | null;       // raw Reg-T figure — carried for snapshots only, not shown (use tradable_funds)
   margin_buying_power?: number | null;
   tradable_funds?: number | null;     // what you can actually deploy now (settled/non-marginable)
   available_funds?: number | null;

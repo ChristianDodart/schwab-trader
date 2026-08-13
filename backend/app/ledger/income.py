@@ -299,6 +299,12 @@ async def refresh_cashflows_from_schwab(account_hash: str,
         return {"ok": False, "error": "Schwab transactions unavailable", "added": 0, "window_days": 60}
     added = 0
     async with SessionLocal() as s:
+        # Existing schwab txn ids up front, so we can still report accurate INSERTS even
+        # though the upsert now UPDATES on conflict (below) instead of skipping.
+        existing = set((await s.execute(
+            select(CashFlow.schwab_txn_id).where(
+                CashFlow.account_hash == account_hash, CashFlow.schwab_txn_id.is_not(None))
+        )).scalars().all())
         for t in transfers:
             txid = t.get("schwab_txn_id")
             if not txid:
@@ -307,23 +313,25 @@ async def refresh_cashflows_from_schwab(account_hash: str,
             amt = round(_f(t.get("amount")), 2)
             if d is None or not math.isfinite(amt) or amt == 0:
                 continue
-            # Idempotent per-account upsert: the composite unique (account_hash,
-            # schwab_txn_id) makes a re-pull — or a concurrent one — skip dupes
-            # ATOMICALLY (no check-then-act race), and one account's txn id can't
-            # mask or block another account's transfer.
+            kind = t.get("kind") or ("deposit" if amt > 0 else "withdrawal")
+            # Schwab is authoritative: the composite unique (account_hash, schwab_txn_id)
+            # keeps this idempotent, and DO UPDATE lets a re-pull CORRECT a stored row
+            # rather than skip it — so a previously mis-signed transfer (e.g. an
+            # ELECTRONIC_FUND withdrawal once logged as a +deposit) self-heals on the next
+            # full re-pull, atomically and without a check-then-act race.
             stmt = (
                 pg_insert(CashFlow)
                 .values(
                     account_hash=account_hash, day=d, amount=amt,
-                    kind=t.get("kind") or ("deposit" if amt > 0 else "withdrawal"),
-                    source="schwab", memo=t.get("type"), schwab_txn_id=txid,
+                    kind=kind, source="schwab", memo=t.get("type"), schwab_txn_id=txid,
                 )
-                .on_conflict_do_nothing(index_elements=["account_hash", "schwab_txn_id"])
-                .returning(CashFlow.id)
+                .on_conflict_do_update(
+                    index_elements=["account_hash", "schwab_txn_id"],
+                    set_={"day": d, "amount": amt, "kind": kind, "memo": t.get("type")},
+                )
             )
-            # RETURNING yields the new id on insert, nothing on conflict — a reliable
-            # inserted-vs-skipped signal (rowcount is -1/"unknown" for DO NOTHING).
-            if (await s.execute(stmt)).scalar_one_or_none() is not None:
+            await s.execute(stmt)
+            if txid not in existing:
                 added += 1
         await s.commit()
     removed = await _dedup_transfers_vs_schwab(account_hash)

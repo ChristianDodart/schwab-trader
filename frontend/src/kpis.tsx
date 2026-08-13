@@ -47,14 +47,8 @@ export const KPI_CATALOG: KpiDef[] = [
   { id: "buying_power", term: "available_to_trade", label: "Available to trade", tone: "plain",
     hint: "What you can actually deploy on an order right now — settled cash plus borrowing "
       + "against fully-paid stock (Schwab's 'Settled Funds' / 'Funds Available to Withdraw'). "
-      + "This is the real limit; orders above it get rejected, so it's usually smaller than "
-      + "the looser Reg-T buying power.",
-    num: (_d, cash) => cash?.tradable_funds ?? cash?.buying_power },
-  { id: "reg_t_buying_power", term: "reg_t_buying_power", label: "Reg-T buying power", tone: "plain",
-    hint: "The looser margin buying power (assumes everything is marginable at the 25% "
-      + "maintenance floor). Bigger than 'Available to trade' — but sizing an order to this "
-      + "figure often gets rejected, which is why the app plans against 'Available to trade'.",
-    num: (_d, cash) => cash?.buying_power },
+      + "This is the real limit; orders above it get rejected.",
+    num: (_d, cash) => cash?.tradable_funds },
 ];
 
 export const DEFAULT_KPIS = ["invested", "day_change", "harvestable", "cash"];
