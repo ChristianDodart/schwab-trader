@@ -60,6 +60,7 @@ from .income import (
     _OTHER_CASH_SKIP,
     _cf_row,
     add_cashflow,
+    deep_resync_activity,
     delete_cashflow,
     get_dividends,
     get_other_cash,

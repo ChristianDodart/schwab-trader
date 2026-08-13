@@ -203,6 +203,17 @@ async def ledger_refresh_cashflows() -> dict:
     return {"ok": True, "added": r.get("transfers_added", 0), "window_days": 60}
 
 
+@router.post("/api/ledger/cashflows/deep-resync")
+async def ledger_deep_resync_cashflows() -> dict:
+    """Full-history re-pull: re-fetch every transaction window back to the API ceiling and
+    REWRITE stored schwab rows from the current parser, so a previously mis-signed transfer
+    self-corrects. Heavier than the 60-day refresh; used to heal old bad data."""
+    r = await ledger_svc.deep_resync_activity(await _selected())
+    if not r.get("ok"):
+        return {"ok": False, "error": r.get("error", "Schwab transactions unavailable")}
+    return {"ok": True, "windows": r.get("windows"), "added": r.get("transfers_added", 0)}
+
+
 @router.post("/api/ledger/cashflows/import")
 async def ledger_import_cashflows(body: CsvImportBody) -> dict:
     """Import deposits/withdrawals from a pasted Schwab transactions CSV — count-based

@@ -131,6 +131,19 @@ export function LedgerHistoric() {
       .finally(() => setBusy(false));
   };
 
+  const deepResync = () => {
+    setBusy(true);
+    fetch(`${API}/ledger/cashflows/deep-resync`, { method: "POST" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j?.ok) toast(`Re-pulled full history from Schwab${j.windows ? ` (${j.windows} window${j.windows === 1 ? "" : "s"})` : ""} — any mis-synced transfers are now corrected.`, "success");
+        else toast(j?.error || "Couldn't reach Schwab for a full re-pull.", "error");
+        load();
+      })
+      .catch(() => toast("Couldn't reach Schwab for a full re-pull.", "error"))
+      .finally(() => setBusy(false));
+  };
+
   const importCsv = (file: File) => {
     setBusy(true);
     file.text()
@@ -277,6 +290,8 @@ export function LedgerHistoric() {
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) importCsv(f); e.target.value = ""; }} />
             </label>
             <button className="btn btn-secondary btn-sm" disabled={busy} onClick={refreshDeposits}><IconRefresh /> Pull from Schwab (60d)</button>
+            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={deepResync}
+              title="Re-pull your ENTIRE transfer history from Schwab and rewrite each row from the current logic. Use this to fix an old mis-synced transfer (e.g. a withdrawal that showed up as a deposit). Heavier than the 60-day pull; safe to repeat.">Re-pull all history</button>
             {h.contributions.rows.length > 0 && (
               <button className="btn btn-secondary btn-sm" title="Download these deposits as CSV"
                 onClick={() => { const a = document.createElement("a"); a.href = `${API}/ledger/cashflows.csv${qs(scope)}`; a.rel = "noopener"; a.click(); }}><IconDownload /> CSV</button>

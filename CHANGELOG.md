@@ -3,6 +3,17 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.79.0 — "Re-pull all history (heal mis-synced transfers)"
+
+- **New "Re-pull all history" button** on the deposits/withdrawals panel. It re-fetches your
+  entire transfer history from Schwab and rewrites each row with the current logic, so an old
+  transfer that synced wrong self-corrects. This is the fix for the v0.78.0 phantom-deposit
+  case: Schwab files some withdrawals under an "electronic funds" type the app used to read as
+  incoming, so a −$20,000 withdrawal could show as a +$20,000 deposit next to the real one.
+  Those schwab-pulled rows can't be edited by hand (Schwab is the source of truth), so one
+  click here re-pulls, corrects the sign, and drops the duplicate. Heavier than the 60-day
+  pull and safe to repeat; your manual ("you") entries are left untouched.
+
 ## v0.78.0 — "Reg-T removed; transfer-sign + fold-arrow fixes"
 
 - **Removed "Reg-T buying power" from the whole app.** It was a looser figure you can't

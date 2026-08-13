@@ -477,6 +477,21 @@ async def sync_activity(account_hash: str, force: bool = False) -> dict:
     return {"ok": True, "synced_at": now_iso, "window_days": 60, **res}
 
 
+async def deep_resync_activity(account_hash: str) -> dict:
+    """Force a FULL-HISTORY re-pull from Schwab. Clears the one-time backfill gate so the
+    next sync re-fetches every transaction window back to the API ceiling; with the
+    authoritative DO-UPDATE upsert that REWRITES each stored schwab row from the current
+    parser — correcting a previously mis-signed transfer (e.g. an ELECTRONIC_FUND
+    withdrawal once logged as a +deposit) and letting the CSV-twin dedup then drop its
+    duplicate. Manual ('you') rows are untouched. Read-only against Schwab; a transient
+    failure leaves every log intact (the backfill aborts WITHOUT marking done, so the gate
+    stays cleared and it simply retries next time)."""
+    from .. import accounts as accounts_svc
+
+    await accounts_svc.set_setting(_BACKFILL_KEY + account_hash, "")
+    return await sync_activity(account_hash, force=True)
+
+
 # ----- CSV import (Schwab "Transactions" export) -----
 # Rows that move CASH into/out of THIS account count as contributions — never trades,
 # dividends, or interest. Transfers & wires are outside money. A JOURNAL is an internal
