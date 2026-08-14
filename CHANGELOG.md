@@ -3,6 +3,17 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.84.0 — "Sharper at-a-glance strip"
+
+- **The three cards below the table now show things the totals don't.** They were
+  repeating the account band (day change, deployment) and the To-Do tab. Replaced with:
+  - **Today's movers** — your best and worst holding today, by dollars and percent, so you
+    see *which names* drove the day's change instead of just the total again.
+  - **Concentration** — your largest single position as a share of the portfolio, and a clear
+    flag if anything breaks your 5% single-stock cap.
+  - **Open positions** — how many of your holdings are in profit right now (e.g. "4 of 6"),
+    with total open profit/loss and a quick fill bar.
+
 ## v0.83.0 — "Dashboard redesign"
 
 - **A full-width account band sits under the top bar.** Your account value leads at hero

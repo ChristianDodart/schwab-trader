@@ -605,7 +605,7 @@ export function App() {
                         deliberately minimal Simple view. */}
                     {!simple && data && (
                       <div style={{ marginTop: 24 }}>
-                        <DashboardStrip data={shown ?? data} cash={cashInfo} />
+                        <DashboardStrip data={shown ?? data} />
                       </div>
                     )}
                   </>
