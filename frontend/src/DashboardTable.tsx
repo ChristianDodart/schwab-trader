@@ -163,7 +163,7 @@ function nestRows(rows: DashboardRow[]): DispRow[] {
 // Bulk selection state (harvest / buy-the-dip). When present, the table shows a
 // checkbox column; only `candidates` are selectable, `checked` are selected.
 export type BulkUI = {
-  kind: "sell" | "buy" | "exit";
+  kind?: "sell" | "buy" | "exit";  // set once an action is chosen; absent during generic selection
   candidates: Set<string>;
   checked: Set<string>;
   onToggle: (symbol: string) => void;

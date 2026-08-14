@@ -5,7 +5,7 @@ import { AuthBanner, LiveStatusPill, useLiveness } from "./AuthBanner";
 import { ReauthButton } from "./Reauth";
 import { UpdateBanner } from "./UpdateBanner";
 import { matchesRule, type SignalRule } from "./signals";
-import { BulkGear, BulkReviewModal, useBulk } from "./Bulk";
+import { BulkReviewModal, useBulk } from "./Bulk";
 import { ColumnManager } from "./ColumnManager";
 import { ConfirmDialog } from "./Modal";
 import { DASH_COLUMNS, DASH_COLUMN_LIST, DEFAULT_DASH_COLS, DEFAULT_DASH_FOLDED, SIMPLE_DASH_COLS, useColumnPrefs, useFoldPrefs } from "./columns";
@@ -29,7 +29,7 @@ import { FinancialRules } from "./FinancialRules";
 import { Method } from "./Method";
 import { SkeletonTable } from "./Skeleton";
 import { useToast } from "./Toast";
-import type { AlertPrefill, BuyCandidate, Dashboard, DashboardRow, ExitCandidate, SellCandidate, Suggestion } from "./types";
+import type { AlertPrefill, Dashboard, DashboardRow, Suggestion } from "./types";
 
 import { API, wsUrl } from "./api";
 import { IconWarning, IconClose, IconSearch } from "./Icon";
@@ -447,63 +447,36 @@ export function App() {
 
         {view === "dashboard" && (
         <div style={S.subbar}>
-          {(bulk.kind ? (
+          {(bulk.active ? (
             <span style={S.bulkBar}>
               {bulk.loading ? (
-                <span style={S.note}>Loading {bulk.kind === "sell" ? "profitable positions" : bulk.kind === "exit" ? "open positions" : "dip candidates"}…</span>
+                <span style={S.note}>Loading {bulk.kind === "sell" ? "sell" : "buy"} plan…</span>
               ) : (
                 <>
                   <span style={{ fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
-                    <b>{bulk.selected.length}</b> selected
-                    {bulk.kind === "sell" ? (
-                      <> · proceeds <b>{usd(bulk.selected.reduce((s, c) => s + ((c as SellCandidate).est_proceeds || 0), 0))}</b>
-                        {" · "}profit <b style={{ color: "var(--pos)" }}>+{usd(bulk.selected.reduce((s, c) => s + ((c as SellCandidate).est_profit || 0), 0))}</b></>
-                    ) : bulk.kind === "exit" ? (
-                      <> · proceeds if filled <b>{usd(bulk.selected.reduce((s, c) => s + ((c as ExitCandidate).est_proceeds || 0), 0))}</b></>
-                    ) : (
-                      <> · cost <b>{usd(bulk.selected.reduce((s, c) => s + ((c as BuyCandidate).est_cost || 0), 0))}</b></>
-                    )}
+                    <b>{bulk.checkedCount}</b> selected
                   </span>
-                  <button className="btn btn-secondary" onClick={bulk.cancel}>Cancel</button>
-                  <button
-                    className={`btn ${bulk.kind === "buy" ? "btn-buy" : "btn-danger"}`}
-                    disabled={!bulk.selected.length}
-                    onClick={() => bulk.setReview(true)}
-                  >
-                    Review {bulk.kind === "sell" ? "sells" : bulk.kind === "exit" ? "exits" : "buys"}
+                  <button className="btn btn-ghost btn-sm" onClick={bulk.toggleAll}>
+                    {bulk.allChecked ? "Select none" : "Select all"}
                   </button>
+                  {/* Action buttons appear only in bulk mode: run that action on the picks. */}
+                  <span style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
+                    <button className="btn btn-buy" disabled={!bulk.checkedCount} onClick={() => bulk.run("buy")}>Buy</button>
+                    <button className="btn btn-danger" disabled={!bulk.checkedCount} onClick={() => bulk.run("sell")}>Sell</button>
+                    <button className="btn btn-secondary" onClick={bulk.escape}>Escape</button>
+                  </span>
                 </>
               )}
             </span>
           ) : (
             <span style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
-              {!simple && <>
-              {/* Buy/Sell each carry a hover-reveal gear (hover the button ~0.5s → a small
-                  settings gear slides out to its right). Exit has no gear and no count. */}
-              <span className="gear-host">
-                <button className="btn btn-secondary"
-                  title="Bulk buy: the next position on dips — or select any stock (incl. ones you don't hold) to enter"
-                  onClick={() => { setSelected(null); bulk.start("buy"); }}>
-                  Bulk Buy · {bulk.buyCount}
+              {!simple && (
+                <button className="btn btn-secondary" disabled={bulk.holdingsCount === 0}
+                  title="Bulk mode: pick your holdings, then Buy or Sell them together"
+                  onClick={() => { setSelected(null); bulk.enter(); }}>
+                  Bulk
                 </button>
-                <BulkGear kind="buy" revealClass="gear-reveal" />
-              </span>
-              <span className="gear-host">
-                {/* Always pressable — enter sell selection and pick any holding to sell,
-                    even ones that aren't yet profitable. The count is the profitable set. */}
-                <button className="btn btn-secondary"
-                  title="Bulk sell: profitable last positions are pre-checked — or manually select any holding to sell at the current price"
-                  onClick={() => { setSelected(null); bulk.start("sell"); }}>
-                  Bulk Sell · {bulk.sellCount}
-                </button>
-                <BulkGear kind="sell" revealClass="gear-reveal" />
-              </span>
-              <button className="btn btn-secondary" disabled={bulk.exitCount === 0}
-                title="Bulk exit ('get me out'): a good-till-canceled limit sell of each full position at its last-buy price"
-                onClick={() => { setSelected(null); bulk.start("exit"); }}>
-                Bulk Exit
-              </button>
-              </>}
+              )}
             </span>
           ))}
         </div>
@@ -583,7 +556,7 @@ export function App() {
                         foldedCols={dashFold.folded}
                         collapsed={dashFolded}
                         onToggleCollapse={toggleDashFold}
-                        tickerAdder={!simple && dashSub === "all" && !bulk.kind
+                        tickerAdder={!simple && dashSub === "all" && !bulk.active
                           ? { value: addSym, onChange: setAddSym, onSubmit: addTicker }
                           : undefined}
                         selected={selected}
@@ -628,7 +601,7 @@ export function App() {
             result={bulk.result}
             buyingPower={bulk.buyingPower}
             onConfirm={bulk.confirm}
-            onClose={() => { bulk.setReview(false); if (bulk.result) bulk.cancel(); }}
+            onClose={bulk.closeReview}
           />
         )}
 

@@ -3,6 +3,19 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.85.0 — "One Bulk button"
+
+- **Bulk trading is one button now, not three.** Click **Bulk**, check the holdings you want,
+  then click **Buy** or **Sell** to act on just those — or **Escape** to leave bulk mode. The
+  old Bulk Buy / Bulk Sell / Bulk Exit pills are gone.
+- Buy and Sell keep the same strategy sizing (buy the next rung at the current price; sell your
+  last position). A pick that can't be acted on right now — a stock too pricey for the next
+  rung, or one without a live quote — is skipped with a note, and you always review everything
+  before anything is placed.
+- **Select all** selects every holding at once.
+- The dedicated bulk **Exit** ("get me out") is retired; fully exit a single position from its
+  detail ticket instead.
+
 ## v0.84.0 — "Sharper at-a-glance strip"
 
 - **The three cards below the table now show things the totals don't.** They were

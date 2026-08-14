@@ -13,57 +13,72 @@ type Push = (msg: string, kind?: "error" | "success" | "info") => void;
 // An editable row in the review modal (shares + limit price are user-adjustable).
 type EditRow = { symbol: string; lot_id?: number; is_new?: boolean; shares: number; price: number; buy_price?: number; limit_price: number };
 
-// Orchestrates the two bulk flows (harvest profitable last positions / buy the
-// dip): counts, plan fetch, checkbox selection, review, and placement.
+// Orchestrates the bulk flow. SELECTION-FIRST: the user enters bulk mode, picks any
+// holdings, then chooses Buy or Sell — at which point we fetch that action's plan,
+// keep only the picked symbols it can act on, and open the review. (Exit is no longer
+// exposed in bulk; its code paths below stay dormant, never invoked from the UI.)
 export function useBulk(rows: DashboardRow[] | undefined, mode: string | undefined, toast: Push) {
-  const [kind, setKind] = useState<Kind | null>(null);
-  const [plan, setPlan] = useState<AnyCandidate[]>([]);
-  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [active, setActive] = useState(false);          // in bulk selection mode
+  const [kind, setKind] = useState<Kind | null>(null);  // set only once an action runs
+  const [plan, setPlan] = useState<AnyCandidate[]>([]); // the picked, actionable candidates
+  const [checked, setChecked] = useState<Set<string>>(new Set()); // the user's picks (symbols)
   const [loading, setLoading] = useState(false);
   const [review, setReview] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [result, setResult] = useState<BulkResult | null>(null);
   const [buyingPower, setBuyingPower] = useState<number | null>(null); // advisory (buy plan only)
 
-  // Counts come free from the dashboard rows the client already has.
+  // Selection universe = your holdings (watch rows aren't bulk-actionable).
   const held = (rows || []).filter((r) => !r.is_watch);
-  const sellCount = held.filter((r) => (r.last_pos_profit ?? 0) > 0).length;
-  const buyCount = held.filter((r) => r.buy_mark).length;
-  const exitCount = held.length; // "get me out" applies to every open position
+  const universe = held.map((r) => r.symbol);
+  const holdingsCount = held.length;
 
-  const cancel = () => { setKind(null); setPlan([]); setChecked(new Set()); setReview(false); setResult(null); };
+  // Leave bulk mode entirely (Escape, view/account switch, or after a placement).
+  const escape = () => { setActive(false); setKind(null); setPlan([]); setChecked(new Set()); setReview(false); setResult(null); setLoading(false); };
+  const cancel = escape; // alias for existing call sites (view/account switch)
 
-  const start = (k: Kind) => {
-    setLoading(true); setKind(k); setPlan([]); setResult(null); setReview(false); setChecked(new Set()); setBuyingPower(null);
-    const emptyMsg: Record<Kind, string> = {
-      sell: "No profitable last positions to harvest right now.",
-      buy: "No stocks available to buy right now.",
-      exit: "No open positions to exit.",
-    };
+  // Enter bulk mode with an empty selection — the user picks holdings first.
+  const enter = () => { setActive(true); setKind(null); setPlan([]); setChecked(new Set()); setReview(false); setResult(null); setBuyingPower(null); };
+
+  const toggle = (sym: string) =>
+    setChecked((s) => { const n = new Set(s); n.has(sym) ? n.delete(sym) : n.add(sym); return n; });
+  const allChecked = universe.length > 0 && universe.every((s) => checked.has(s));
+  const toggleAll = () => setChecked(allChecked ? new Set() : new Set(universe));
+
+  // Run a chosen action on the CURRENT picks: fetch that plan, keep only the picked
+  // symbols it can act on, then open review directly. Picks the plan can't act on are
+  // dropped with a note; if none survive, stay in selection mode.
+  const run = (k: Exclude<Kind, "exit">) => {
+    if (!checked.size) { toast("Pick at least one holding first.", "info"); return; }
+    setLoading(true); setKind(k); setResult(null); setReview(false); setBuyingPower(null);
     fetch(`${API}/bulk/${PLAN_PATH[k]}`)
       .then((r) => r.json())
       .then((d) => {
         setBuyingPower(typeof d.buying_power === "number" ? d.buying_power : null);
         const cands: AnyCandidate[] = d.candidates || [];
-        if (!cands.length) {
-          // Nothing selectable at all — don't strand the user in an empty mode.
-          cancel();
-          toast(d.note || emptyMsg[k], "info");
+        const picked = cands.filter((c) => checked.has(c.symbol));
+        if (!picked.length) {
+          setKind(null); setLoading(false);
+          toast(k === "sell" ? "None of your picks have a position to sell right now." : "None of your picks are buyable right now.", "info");
           return;
         }
-        setPlan(cands);
-        // Pre-check only the qualifying candidates; the rest stay selectable.
-        setChecked(new Set(cands.filter((c) => c.qualifies).map((c) => c.symbol)));
+        const dropped = checked.size - picked.length;
+        if (dropped > 0) toast(`${dropped} pick${dropped > 1 ? "s" : ""} skipped — not ${k === "sell" ? "sellable" : "buyable"} right now.`, "info");
+        setPlan(picked);
+        setReview(true);
+        setLoading(false);
       })
-      .catch(() => { cancel(); toast(`Couldn't load the ${k} plan — network error`); })
-      .finally(() => setLoading(false));
+      .catch(() => { setKind(null); setLoading(false); toast(`Couldn't load the ${k} plan — network error`); });
   };
-  const toggle = (sym: string) =>
-    setChecked((s) => { const n = new Set(s); n.has(sym) ? n.delete(sym) : n.add(sym); return n; });
-  const allChecked = plan.length > 0 && plan.every((c) => checked.has(c.symbol));
-  const toggleAll = () => setChecked(allChecked ? new Set() : new Set(plan.map((c) => c.symbol)));
 
-  const selected = plan.filter((c) => checked.has(c.symbol));
+  // Close review: after a placement leave bulk mode; otherwise drop back to selection
+  // (picks intact) so the user can re-pick or choose the other action.
+  const closeReview = () => {
+    if (result) escape();
+    else { setReview(false); setKind(null); setPlan([]); }
+  };
+
+  const selected = plan; // plan is already limited to the picked, actionable symbols
 
   const confirm = (orderType: string, items: EditRow[]) => {
     if (!kind || !items.length) return;
@@ -87,11 +102,13 @@ export function useBulk(rows: DashboardRow[] | undefined, mode: string | undefin
       .finally(() => setPlacing(false));
   };
 
-  const bulkUI: BulkUI | null = kind
-    ? { kind, candidates: new Set(plan.map((c) => c.symbol)), checked, onToggle: toggle, allChecked, onToggleAll: toggleAll }
+  // In bulk mode every holding is selectable (checkbox column); the picker set drives
+  // which action's plan we later run. No `kind` here — the action isn't chosen yet.
+  const bulkUI: BulkUI | null = active
+    ? { candidates: new Set(universe), checked, onToggle: toggle, allChecked, onToggleAll: toggleAll }
     : null;
 
-  return { kind, loading, start, cancel, bulkUI, sellCount, buyCount, exitCount, selected, review, setReview, confirm, placing, result, mode, buyingPower };
+  return { active, kind, loading, enter, run, escape, cancel, closeReview, bulkUI, holdingsCount, checkedCount: checked.size, allChecked, toggleAll, selected, review, confirm, placing, result, mode, buyingPower };
 }
 
 // Gear next to each bulk button: configure the auto-select threshold. Thresholds
