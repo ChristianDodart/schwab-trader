@@ -247,12 +247,12 @@ select.field { height: auto !important; min-height: 30px; padding-top: 3px; padd
 /* --- data tables --- */
 .tbl { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 .tbl th {
-  border-bottom: 1px solid var(--border-strong); padding: 9px 12px; font-size: var(--fs-2xs);
+  border-bottom: 1px solid var(--border-strong); padding: 9px var(--cell-px, 12px); font-size: var(--fs-2xs);
   text-transform: uppercase; letter-spacing: 0.055em; color: var(--text-dim);
   white-space: nowrap; font-weight: var(--fw-semibold); text-align: right;
 }
 .tbl th.left { text-align: left; }
-.tbl td { border-bottom: 1px solid var(--border-hairline); padding: 9px 12px; font-size: var(--fs-sm); white-space: nowrap; color: var(--text); }
+.tbl td { border-bottom: 1px solid var(--border-hairline); padding: 9px var(--cell-px, 12px); font-size: var(--fs-sm); white-space: nowrap; color: var(--text); }
 .tbl tbody tr { transition: background var(--dur-fast) var(--ease-out); }
 .tbl tbody tr:last-child td { border-bottom: none; }
 

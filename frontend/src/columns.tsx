@@ -77,30 +77,26 @@ const WinTag = ({ r }: { r: DashboardRow }) =>
   ) : null;
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
-// A compact 52-week range bar: where the live price sits between the year low and
-// high, with a faint median tick as a spike-robust "typical" reference. Null when we
-// lack the endpoints (no history) or the range is degenerate (high <= low).
+// A compact 52-week range bar: a clear accent fill from the year low up to where the
+// live price sits, capped by a bright price marker — so "how high in the 52-week range"
+// reads at a glance (a near-full bar = near the high). The median stays in the hover
+// title as a spike-robust "typical" reference, off the bar so it can't be mistaken for
+// the price. Null when we lack the endpoints (no history) or the range is degenerate.
 const RangeBar = ({ r }: { r: DashboardRow }) => {
   const low = r.year_low, high = r.year_high, price = r.price, med = r.median_52wk;
   if (low == null || high == null || price == null || high <= low) return null;
   const pos = clamp01((price - low) / (high - low));
-  const medPos = med != null ? clamp01((med - low) / (high - low)) : null;
-  const title = `low ${usd(low)} · ${med != null ? `med ${usd(med)} · ` : ""}high ${usd(high)}`;
+  const title = `low ${usd(low)} · ${med != null ? `med ${usd(med)} · ` : ""}high ${usd(high)} — ${Math.round(pos * 100)}% up the range`;
   return (
     <>
       <span style={{ display: "inline-block", width: 120, verticalAlign: "middle" }} title={title}>
-        {/* track */}
-        <span style={{ position: "relative", display: "block", width: "100%", height: 5, marginTop: 3,
+        {/* track (the full year low→high span) */}
+        <span style={{ position: "relative", display: "block", width: "100%", height: 6, marginTop: 3,
           borderRadius: "var(--r-sm)", background: "var(--panel-2)" }}>
-          {/* filled portion 0 -> pos */}
-          <span style={{ position: "absolute", left: 0, top: 0, height: 5, width: `${pos * 100}%`,
-            borderRadius: "var(--r-sm)", background: "color-mix(in srgb, var(--accent) 30%, transparent)" }} />
-          {/* faint median tick */}
-          {medPos != null && (
-            <span aria-hidden="true" style={{ position: "absolute", left: `${medPos * 100}%`, top: -4,
-              width: 2, height: 13, marginLeft: -1, background: "var(--text-faint)" }} />
-          )}
-          {/* current-price dot — bordered so it reads on the track */}
+          {/* fill: year low → current price (clearly visible so the position is unmistakable) */}
+          <span style={{ position: "absolute", left: 0, top: 0, height: 6, width: `${pos * 100}%`,
+            borderRadius: "var(--r-sm)", background: "color-mix(in srgb, var(--accent) 55%, transparent)" }} />
+          {/* current-price marker at the fill's leading edge — bordered so it reads on the track */}
           <span aria-hidden="true" style={{ position: "absolute", left: `${pos * 100}%`, top: "50%",
             width: 10, height: 10, marginLeft: -5, marginTop: -5, borderRadius: "var(--r-pill)",
             background: "var(--text)", border: "2px solid var(--panel)", boxSizing: "border-box" }} />

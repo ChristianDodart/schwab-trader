@@ -3,6 +3,15 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.86.0 — "Clearer range bar + column spacing"
+
+- **The 52-week range bar reads clearly now.** A bolder fill runs from the year low up to the
+  current price, so how high the price sits in its 52-week range is obvious at a glance — a
+  nearly-full bar means it's near the high. The faint median tick that could be mistaken for
+  the price marker moved into the hover tooltip, which now also shows the exact "% up the range".
+- **Column spacing is adjustable.** Open the Columns menu and drag the "Column spacing" slider
+  to bunch every table tighter or give it more room. Your choice is remembered.
+
 ## v0.85.0 — "One Bulk button"
 
 - **Bulk trading is one button now, not three.** Click **Bulk**, check the holdings you want,

@@ -7,6 +7,7 @@ import { UpdateBanner } from "./UpdateBanner";
 import { matchesRule, type SignalRule } from "./signals";
 import { BulkReviewModal, useBulk } from "./Bulk";
 import { ColumnManager } from "./ColumnManager";
+import { useCellDensity } from "./density";
 import { ConfirmDialog } from "./Modal";
 import { DASH_COLUMNS, DASH_COLUMN_LIST, DEFAULT_DASH_COLS, DEFAULT_DASH_FOLDED, SIMPLE_DASH_COLS, useColumnPrefs, useFoldPrefs } from "./columns";
 import { KpiPicker, useKpiPrefs, visibleKpis } from "./kpis";
@@ -106,6 +107,7 @@ export function App() {
   const [workingBySym, setWorkingBySym] = useState<Record<string, number>>({});
   const [ordersFilter, setOrdersFilter] = useState<string | null>(null);
   const bulk = useBulk(data?.rows, data?.mode, toast);
+  const cellDensity = useCellDensity();
   const live = useLiveness();
   // Demo/showcase feed: when on, drives the dashboard display with simulated ticks +
   // fills so the themes/motion come alive on a closed market. Display-only, in-memory
@@ -537,7 +539,7 @@ export function App() {
                           {/* align right so the popover opens leftward (never off-screen);
                               Reset also re-collapses the extra columns so the chevron stays visible. */}
                           <ColumnManager prefs={dashCols} labelOf={(id) => DASH_COLUMNS[id]?.label ?? id}
-                            align="right" fold={dashFold} onReset={() => { setFold(true); dashFold.reset(); }} />
+                            align="right" fold={dashFold} density={cellDensity} onReset={() => { setFold(true); dashFold.reset(); }} />
                         </span>
                       </div>
                     )}

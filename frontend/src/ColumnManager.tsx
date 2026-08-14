@@ -1,22 +1,26 @@
 import { useRef, useState } from "react";
 import type { ColumnPrefs, FoldPrefs } from "./columns";
+import { MIN_CELL_PX, MAX_CELL_PX, DEFAULT_CELL_PX, type CellDensity } from "./density";
 import { IconSettings, IconClose, IconGrip, IconArrowUp, IconArrowDown, IconChevronRight } from "./Icon";
 
 /** A "⚙ Columns" button + popover to reorder, remove, add, and reset the columns
  * for one view. Generic over any ColumnPrefs + a label lookup. When `fold` is
- * supplied, each column also gets a toggle to fold it behind the table's chevron. */
+ * supplied, each column also gets a toggle to fold it behind the table's chevron.
+ * When `density` is supplied, a column-spacing slider is shown at the top. */
 export function ColumnManager({
   prefs,
   labelOf,
   align = "left",
   onReset,
   fold,
+  density,
 }: {
   prefs: ColumnPrefs;
   labelOf: (id: string) => string;
   align?: "left" | "right";
   onReset?: () => void;   // extra side-effect when Reset is pressed (e.g. re-collapse folds)
   fold?: FoldPrefs;       // when set, each column shows a fold-behind-chevron toggle
+  density?: CellDensity;  // when set, a "Column spacing" slider adjusts global cell padding
 }) {
   const [open, setOpen] = useState(false);
   const [toAdd, setToAdd] = useState("");
@@ -52,6 +56,21 @@ export function ColumnManager({
             <button className="btn btn-ghost btn-sm" style={S.reset} onClick={() => { prefs.reset(); onReset?.(); }} title="restore default layout">Reset</button>
             <button className="btn btn-ghost btn-sm" style={S.close} onClick={close} aria-label="close column manager"><IconClose /></button>
           </div>
+
+          {density && (
+            <div style={S.densityRow}>
+              <span style={S.densityLabel}>Column spacing</span>
+              <input type="range" min={MIN_CELL_PX} max={MAX_CELL_PX} step={1} value={density.px}
+                onChange={(e) => density.setPx(Number(e.target.value))}
+                aria-label="Column spacing" title="Horizontal space inside every table cell" style={S.densitySlider} />
+              {density.px !== DEFAULT_CELL_PX ? (
+                <button className="btn btn-ghost btn-sm" style={S.densityVal} onClick={density.reset}
+                  title="reset to default spacing">{density.px}px</button>
+              ) : (
+                <span style={{ ...S.densityVal, color: "var(--text-faint)" }}>{density.px}px</span>
+              )}
+            </div>
+          )}
 
           {fold && (
             <div style={S.hint}>
@@ -112,6 +131,10 @@ const S: Record<string, React.CSSProperties> = {
   title: { fontSize: "var(--fs-sm)", fontWeight: 700, flex: 1, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-dim)" },
   reset: { color: "var(--accent-quiet)" },
   close: { color: "var(--text-faint)" },
+  densityRow: { display: "flex", alignItems: "center", gap: 8, padding: "10px 2px 4px" },
+  densityLabel: { fontSize: "var(--fs-xs)", color: "var(--text-muted)", whiteSpace: "nowrap" },
+  densitySlider: { flex: 1, minWidth: 0, accentColor: "var(--accent)" },
+  densityVal: { fontSize: "var(--fs-2xs)", color: "var(--text-dim)", fontVariantNumeric: "tabular-nums", padding: "1px 5px", minWidth: 40, textAlign: "right" },
   hint: { display: "flex", alignItems: "center", gap: 5, fontSize: "var(--fs-2xs)", color: "var(--text-dim)", padding: "8px 2px 2px", lineHeight: 1.4 },
   list: { maxHeight: 320, overflowY: "auto", padding: "6px 0" },
   item: { display: "flex", alignItems: "center", gap: 3, padding: "3px 2px", borderRadius: "var(--r-sm)", cursor: "grab" },
