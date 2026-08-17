@@ -20,6 +20,8 @@ const rememberedDuration = (): string => {
 };
 const SESSIONS = ["NORMAL", "AM", "PM", "SEAMLESS"];
 const label = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+// Broker statuses that mean the order has settled — once seen, stop polling for updates.
+const TERMINAL_STATUS = new Set(["FILLED", "REJECTED", "CANCELED", "CANCELLED", "EXPIRED", "REPLACED"]);
 
 export function OrderTicket({
   suggestion,
@@ -188,13 +190,22 @@ export function OrderTicket({
     (!needsLimit || price > 0) && (!needsStop || stopPrice > 0) && (!needsTrailing || trailingOffset > 0);
   const canPlace = !!acct && qty > 0 && priceValid && availableTypes.includes(orderType) && !placing;
 
-  const pollStatus = (orderId: string, hash: string, delays = [1000, 2000, 4000]) => {
-    if (!delays.length) { setStatus((s) => s ?? "unknown — check Orders"); return; }
+  // Poll the broker for this order's status. A freshly placed order can take a few
+  // seconds to become queryable, so we poll over a ~20s window and keep going until the
+  // status settles (FILLED/REJECTED/etc.) — a market order may read WORKING/PENDING for a
+  // moment before it fills. If nothing ever comes back, land on a calm "working" note (the
+  // order WAS accepted) rather than a scary "unknown".
+  const pollStatus = (orderId: string, hash: string, delays = [800, 1500, 2500, 4000, 6000, 8000]) => {
+    if (!delays.length) { setStatus((s) => s ?? "working — see the Orders tab"); return; }
     const [d, ...rest] = delays;
     timers.current.push(setTimeout(() => {
       fetch(`${API}/orders/${orderId}?account_hash=${hash}`)
         .then((r) => r.json())
-        .then((o) => { o.status ? setStatus(o.status) : pollStatus(orderId, hash, rest); })
+        .then((o) => {
+          const st = o && o.status ? String(o.status) : null;
+          if (st) setStatus(st);
+          if (!st || !TERMINAL_STATUS.has(st.toUpperCase())) pollStatus(orderId, hash, rest);
+        })
         .catch(() => pollStatus(orderId, hash, rest));
     }, d));
   };

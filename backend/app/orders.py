@@ -263,12 +263,27 @@ async def get_order(order_id, account_hash: str | None = None) -> dict:
         return {"error": "no client/account"}
 
     def go():
-        return client.get_order(order_id, h).json()
+        r = client.get_order(order_id, h)
+        return r.json() if r.status_code == 200 else None
 
+    err = None
     try:
-        return await asyncio.to_thread(go)
+        o = await asyncio.to_thread(go)
     except Exception as e:
-        return {"error": repr(e)}
+        o, err = None, repr(e)
+    if isinstance(o, dict) and o.get("status"):
+        return o
+    # A freshly placed order isn't always queryable by id for a few seconds, which left
+    # the order ticket's status poll hanging on "checking…". The account order LIST is a
+    # different Schwab endpoint that registers a new order sooner, so fall back to it for
+    # the status (same shape, includes "status") so the poll resolves promptly.
+    try:
+        for ro in await list_orders(days=1, account_hash=h):
+            if str(ro.get("order_id")) == str(order_id):
+                return ro
+    except Exception as e:
+        err = err or repr(e)
+    return o if isinstance(o, dict) else {"error": err or "not found"}
 
 
 async def list_orders(days: int = 7, account_hash: str | None = None) -> list[dict]:

@@ -3,6 +3,15 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.87.0 — "Order status stops hanging on 'checking…'"
+
+- **After you place an order, the ticket confirms the broker status quickly again.** A freshly
+  placed order can take a few seconds to be queryable by its id, which was leaving the ticket
+  stuck on "Broker status: checking…" even though the order had already gone through. It now
+  falls back to the account's order list (which registers a new order sooner) and polls a bit
+  longer, so it settles on FILLED (or the real status) promptly. If the broker never answers,
+  it shows a calm "working — see the Orders tab" instead of "unknown".
+
 ## v0.86.0 — "Clearer range bar + column spacing"
 
 - **The 52-week range bar reads clearly now.** A bolder fill runs from the year low up to the
