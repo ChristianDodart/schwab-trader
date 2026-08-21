@@ -7,18 +7,15 @@ import type { Order } from "./types";
 
 import { API } from "./api";
 import { IconRefresh, IconWarning } from "./Icon";
-const CANCELABLE = new Set([
-  "WORKING", "PENDING_ACTIVATION", "QUEUED", "ACCEPTED",
-  "AWAITING_PARENT_ORDER", "AWAITING_CONDITION", "AWAITING_MANUAL_REVIEW",
-]);
-
-// Status → chip color: green filled, dim terminal (canceled/rejected/expired),
-// amber for anything still working/queued.
-const statusChip = (s: string): React.CSSProperties => {
+// Status → chip color: green filled, dim terminal (canceled/rejected/expired), amber for
+// anything still working. "Working" is the backend's verdict (order.working), not a status
+// list re-derived here — one taxonomy, owned server-side.
+const statusChip = (o: Order): React.CSSProperties => {
+  const s = o.status;
   const [bg, fg] =
     s === "FILLED" ? ["var(--pos-bg)", "var(--pos)"]
     : s === "REJECTED" || s === "CANCELED" || s === "EXPIRED" ? ["transparent", "var(--text-faint)"]
-    : CANCELABLE.has(s) ? ["var(--warn-bg)", "var(--warn)"]
+    : o.working ? ["var(--warn-bg)", "var(--warn)"]
     : ["var(--panel-2)", "var(--text-dim)"];
   return { background: bg, color: fg, border: s === "REJECTED" || s === "CANCELED" || s === "EXPIRED" ? "1px solid var(--border)" : "none" };
 };
@@ -86,7 +83,7 @@ export function Orders({ initialFilter }: { initialFilter?: string } = {}) {
       ) : (
         <>
           {(() => {
-            const working = shown.filter((o) => CANCELABLE.has(o.status)).length;
+            const working = shown.filter((o) => o.working).length;
             const filled = shown.filter((o) => o.status === "FILLED").length;
             const other = shown.length - working - filled;
             return (
@@ -128,14 +125,14 @@ export function Orders({ initialFilter }: { initialFilter?: string } = {}) {
                         : <span style={{ color: "var(--text-faint)" }}>—</span>}
                     </td>
                     <td style={{ textAlign: "right" }}>
-                      <span className="pill" style={statusChip(o.status)}>{o.status}</span>
+                      <span className="pill" style={statusChip(o)}>{o.status}</span>
                     </td>
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                      {CANCELABLE.has(o.status) && o.type === "LIMIT" && (
+                      {o.working && o.type === "LIMIT" && (
                         <button className="btn btn-secondary btn-sm" style={{ marginRight: 6 }}
                           onClick={() => setEditing(o)}>Edit</button>
                       )}
-                      {CANCELABLE.has(o.status) && (
+                      {o.working && (
                         <button className="btn btn-sell btn-sm" onClick={() => cancel(o.order_id)}>Cancel</button>
                       )}
                     </td>

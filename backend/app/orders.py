@@ -25,29 +25,20 @@ from . import config_store
 from .db import SessionLocal
 from .db.models import Lot
 from .schwab import hub
+from .order_guards import OrderIntent, check_held, evaluate_order
+from .order_status import is_cancelable, is_settled, is_working
 from .schwab.auth import get_client
 from .strategy import rules
 from .util import _f
 
 log = logging.getLogger(__name__)
 
-# An order can be canceled unless it's already terminal. Denylist is robust to
-# Schwab adding new live statuses (broker is the final authority on the cancel).
-_TERMINAL = {
-    "FILLED", "CANCELED", "REJECTED", "EXPIRED", "REPLACED",
-    "PENDING_CANCEL", "PENDING_REPLACE", "UNKNOWN",
-}
 
-# Soft-confirm thresholds (overridable with confirm=true). The strategy trades
-# ~$500–1500/rung, so these only trip on a likely typo.
-_FATFINGER_PCT = 0.20       # limit this far from the last price → confirm
-_NOTIONAL_CONFIRM = 10_000  # a BUY larger than this (qty × price) → confirm
-
-
-def _ref_price(symbol: str) -> float | None:
+def trusted_last_price(symbol: str) -> float | None:
     """Last price for validating a real order — TRUSTED (schwab-sourced) quotes
     only. A demo/synthetic quote must read as 'no reference' so the rails fail
-    CLOSED (require confirmation) instead of validating against a random-walk price."""
+    CLOSED (require confirmation) instead of validating against a random-walk price.
+    Shared by the guard evaluator and bulk placement — one trusted-price definition."""
     q = hub.latest.get(symbol.upper(), {}) or {}
     if q.get("source") != "schwab":
         return None
@@ -171,60 +162,24 @@ async def place_order(symbol: str, side: str, quantity: int,
     except ValueError as e:
         return {"ok": False, "error": str(e)}
 
-    # --- stop-direction guard: a wrong-side stop triggers an immediate market order ---
-    if order_type.upper() in ("STOP", "STOP_LIMIT") and stop_price:
-        ref = _ref_price(symbol)
-        if ref:
-            sp = float(stop_price)
-            if side.upper() == "SELL" and sp >= ref:
-                return {"ok": False, "error": f"sell-stop {sp} is at/above the last price {ref} — would trigger immediately"}
-            if side.upper() == "BUY" and sp <= ref:
-                return {"ok": False, "error": f"buy-stop {sp} is at/below the last price {ref} — would trigger immediately"}
-        elif not confirm:
-            # No trusted quote to validate the stop side — fail CLOSED (match the
-            # fat-finger rail) rather than skipping the check.
-            return {"ok": False, "needs_confirm": True,
-                    "warning": f"No live quote for {symbol.upper()} to check the stop direction — confirm."}
+    # --- pre-trade soft rails (stop-direction, fat-finger, notional) — order_guards ---
+    verdict = evaluate_order(
+        OrderIntent(symbol=symbol, side=side, quantity=quantity, order_type=order_type,
+                    limit_price=limit_price, stop_price=stop_price),
+        trusted_last_price(symbol), confirm=confirm,
+    )
+    if verdict.action == "reject":
+        return {"ok": False, "error": verdict.reason}
+    if verdict.action == "confirm":
+        return {"ok": False, "needs_confirm": True, "warning": verdict.reason}
 
-    # --- fat-finger guard: a limit far from the market is probably a typo. Soft
-    # block (needs_confirm) so the user can override a deliberate odd limit. If we
-    # have NO live quote, we can't validate it — require confirmation rather than
-    # silently skip the check.
-    last_ref = _ref_price(symbol)
-    if not confirm and order_type.upper() in ("LIMIT", "STOP_LIMIT") and limit_price:
-        if not last_ref or last_ref <= 0:
-            return {"ok": False, "needs_confirm": True,
-                    "warning": f"No live quote for {symbol.upper()} to sanity-check the "
-                               f"${float(limit_price):.2f} limit — confirm the price."}
-        dev = abs(float(limit_price) / last_ref - 1)
-        if dev > _FATFINGER_PCT:
-            return {"ok": False, "needs_confirm": True,
-                    "warning": f"Limit ${float(limit_price):.2f} is {dev * 100:.0f}% "
-                               f"from the last price ${last_ref:.2f} — confirm this isn't a typo."}
-
-    # --- notional sanity rail: an unexpectedly large BUY is likely a quantity typo ---
-    if not confirm and side.upper() == "BUY":
-        market_ish = order_type.upper() not in ("LIMIT", "STOP_LIMIT")
-        px = float(limit_price) if limit_price else (last_ref or 0.0)
-        if market_ish and px <= 0:
-            # No live quote to size a market/triggered buy → can't bound it; confirm.
-            return {"ok": False, "needs_confirm": True,
-                    "warning": f"No live quote for {symbol.upper()} to size this market order — "
-                               f"confirm you want to proceed."}
-        notional = quantity * px
-        if notional > _NOTIONAL_CONFIRM:
-            return {"ok": False, "needs_confirm": True,
-                    "warning": f"This buy is about ${notional:,.0f} ({quantity} × ${px:.2f}) — "
-                               f"confirm the quantity isn't a typo."}
-
-    # --- SELL guard (fail CLOSED): only sell shares positively confirmed as held ---
+    # --- SELL held-shares rail (fail CLOSED). Runs after the soft rails pass — it needs
+    # the held lookup, which we make only for a SELL, exactly as before. ---
     if side.upper() == "SELL":
         held = await accounts_svc.held_shares(target, symbol)
-        if held is None:
-            return {"ok": False, "error": "could not verify shares held — sell refused"}
-        if quantity > held:
-            return {"ok": False,
-                    "error": f"sell {quantity} exceeds {held:g} shares held — refused to avoid a short"}
+        hv = check_held(quantity, held, verb="sell")
+        if hv.action == "reject":
+            return {"ok": False, "error": hv.reason}
 
     def go():
         from schwab.utils import Utils
@@ -272,7 +227,8 @@ async def get_order(order_id, account_hash: str | None = None) -> dict:
     except Exception as e:
         o, err = None, repr(e)
     if isinstance(o, dict) and o.get("status"):
-        return o
+        # `settled` lets the ticket's poll stop without re-deriving Schwab statuses itself.
+        return {**o, "settled": is_settled(o.get("status"))}
     # A freshly placed order isn't always queryable by id for a few seconds, which left
     # the order ticket's status poll hanging on "checking…". The account order LIST is a
     # different Schwab endpoint that registers a new order sooner, so fall back to it for
@@ -280,7 +236,7 @@ async def get_order(order_id, account_hash: str | None = None) -> dict:
     try:
         for ro in await list_orders(days=1, account_hash=h):
             if str(ro.get("order_id")) == str(order_id):
-                return ro
+                return {**ro, "settled": is_settled(ro.get("status"))}
     except Exception as e:
         err = err or repr(e)
     return o if isinstance(o, dict) else {"error": err or "not found"}
@@ -324,6 +280,7 @@ async def list_orders(days: int = 7, account_hash: str | None = None) -> list[di
             "limit_price": limit_price,
             "fill_price": round(fill, 4) if fill is not None else None,
             "status": o.get("status"),
+            "working": is_working(o.get("status")),   # live → cancelable/editable (nav badge, row actions)
             "entered": (o.get("enteredTime") or "")[:19],
             "realized_pl": None,
         })
@@ -357,15 +314,11 @@ async def list_orders(days: int = 7, account_hash: str | None = None) -> list[di
     return out
 
 
-_WORKING_STATUSES = {"WORKING", "QUEUED", "ACCEPTED", "PENDING_ACTIVATION",
-                     "AWAITING_PARENT_ORDER", "AWAITING_CONDITION", "AWAITING_MANUAL_REVIEW"}
-
-
 async def working_count(account_hash: str | None = None) -> int:
     """Count of still-working orders on the account — powers the ambient nav badge.
     READ-ONLY (reuses list_orders); never touches place/cancel."""
     orders = await list_orders(days=7, account_hash=account_hash)
-    return sum(1 for o in orders if o.get("status") in _WORKING_STATUSES)
+    return sum(1 for o in orders if is_working(o.get("status")))
 
 
 async def working_summary(account_hash: str | None = None) -> dict:
@@ -376,7 +329,7 @@ async def working_summary(account_hash: str | None = None) -> dict:
     count = 0
     by_symbol: dict[str, int] = {}
     for o in orders:
-        if o.get("status") not in _WORKING_STATUSES:
+        if not is_working(o.get("status")):
             continue
         count += 1
         if o.get("symbol"):
@@ -411,7 +364,7 @@ async def replace_order(order_id, new_quantity: int | None = None,
         return {"ok": False, "error": f"could not read the original order: {e!r}"}
 
     status = orig.get("status")
-    if status not in _WORKING_STATUSES:
+    if not is_working(status):
         return {"ok": False, "error": f"order is {status or 'unknown'} — only a working order can be modified"}
     legs = orig.get("orderLegCollection") or []
     if len(legs) != 1:
@@ -440,32 +393,25 @@ async def replace_order(order_id, new_quantity: int | None = None,
                 "warning": f"{filled:g} of {_f(orig.get('quantity')):g} shares already filled — "
                            f"the replacement {side.lower()}s {quantity} MORE shares on top of those. Confirm."}
 
-    # --- same soft rails as place_order, applied to the NEW terms ---
-    last_ref = _ref_price(symbol)
-    if not confirm:
-        if not last_ref or last_ref <= 0:
-            return {"ok": False, "needs_confirm": True,
-                    "warning": f"No live quote for {symbol.upper()} to sanity-check the "
-                               f"${limit_price:.2f} limit — confirm the price."}
-        dev = abs(limit_price / last_ref - 1)
-        if dev > _FATFINGER_PCT:
-            return {"ok": False, "needs_confirm": True,
-                    "warning": f"Limit ${limit_price:.2f} is {dev * 100:.0f}% "
-                               f"from the last price ${last_ref:.2f} — confirm this isn't a typo."}
-        if side == "BUY" and quantity * limit_price > _NOTIONAL_CONFIRM:
-            return {"ok": False, "needs_confirm": True,
-                    "warning": f"This buy is about ${quantity * limit_price:,.0f} "
-                               f"({quantity} × ${limit_price:.2f}) — confirm the quantity isn't a typo."}
+    # --- same soft rails as place_order (order_guards), applied to the NEW terms. A
+    # replacement is always LIMIT, so only the fat-finger / notional rails can trip. ---
+    verdict = evaluate_order(
+        OrderIntent(symbol=symbol, side=side, quantity=quantity, order_type="LIMIT",
+                    limit_price=limit_price),
+        trusted_last_price(symbol), confirm=confirm,
+    )
+    if verdict.action == "confirm":
+        return {"ok": False, "needs_confirm": True, "warning": verdict.reason}
+    if verdict.action == "reject":
+        return {"ok": False, "error": verdict.reason}
 
-    # --- SELL guard (fail CLOSED). The original order's shares still count as held
-    # (they haven't sold), so the plain held >= quantity check is the right bound. ---
+    # --- SELL held-shares rail (fail CLOSED). The original order's shares still count
+    # as held (they haven't sold), so held >= quantity is the right bound. ---
     if side == "SELL":
         held = await accounts_svc.held_shares(target, symbol)
-        if held is None:
-            return {"ok": False, "error": "could not verify shares held — modify refused"}
-        if quantity > held:
-            return {"ok": False,
-                    "error": f"sell {quantity} exceeds {held:g} shares held — refused to avoid a short"}
+        hv = check_held(quantity, held, verb="modify")
+        if hv.action == "reject":
+            return {"ok": False, "error": hv.reason}
 
     try:
         builder = _build_order(symbol, side, quantity, "LIMIT", limit_price,
@@ -510,7 +456,7 @@ async def cancel_order(order_id, account_hash: str | None = None) -> dict:
 
     def go():
         status = (client.get_order(order_id, h).json() or {}).get("status")
-        if status in _TERMINAL:
+        if not is_cancelable(status):
             return {"ok": False, "error": f"order is {status}; not cancelable", "status": status}
         c = client.cancel_order(order_id, h)
         return {"ok": c.status_code in (200, 201), "http": c.status_code, "status": status}

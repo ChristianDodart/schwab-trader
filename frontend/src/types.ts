@@ -370,6 +370,7 @@ export type Order = {
   limit_price?: number | null;
   fill_price?: number | null;
   status: string;
+  working: boolean;             // backend verdict: live → cancelable/editable (order_status.is_working)
   entered: string;
   realized_pl?: number | null;  // app-computed realized P/L for a filled SELL (LIFO); null otherwise
 };

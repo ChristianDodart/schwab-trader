@@ -3,6 +3,16 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.90.0 — "Order-path internals hardening"
+
+- **Maintenance — no visible change.** Consolidated the order safety rails and the
+  order-status handling into single, tested modules. The pre-trade checks (a stop on the
+  wrong side of the market, a limit far from the price, an oversized order, selling more
+  than you hold) now live in one place instead of being copied across the place-order and
+  modify-order paths; and each order's "working / cancelable / settled" state comes from one
+  classifier shared by the Orders list, the Cancel/Edit buttons, and the fill confirmation.
+  Behavior is unchanged — the point is fewer places for these rules to drift out of sync.
+
 ## v0.89.0 — "Timezone data hardening"
 
 - **Maintenance:** the timezone database the app uses for market-hours math (Eastern/Mountain

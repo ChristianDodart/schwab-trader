@@ -33,18 +33,6 @@ _BULK_MAX_NOTIONAL = 25_000.0   # per-order fat-finger ceiling (well above a ~$1
 _BULK_PRICE_BAND = 0.25         # an edited BUY limit may sit at most this far from the market
 
 
-def _price(sym: str):
-    """Current price for money decisions — TRUSTED (schwab-sourced) quotes only.
-    Demo/synthetic quotes are random-walk numbers; pricing a real order off one
-    would be catastrophic, so their absence must read as 'no live price' and make
-    every plan/placement refuse."""
-    q = hub.latest.get(sym.upper(), {}) or {}
-    if q.get("source") != "schwab":
-        return None
-    p = q.get("last")
-    return _f(p) if p else None
-
-
 # --- auto-select thresholds (persisted; drive the DEFAULT checkboxes only) ---
 
 async def get_prefs() -> dict:
@@ -108,7 +96,7 @@ async def sell_plan(account_hash: str) -> dict:
     cands = []
     for sym, lots in by.items():
         last = _last_lot(lots)
-        px = _price(sym)
+        px = orders_svc.trusted_last_price(sym)
         if px is None:
             continue
         qty = int(_f(last.shares))
@@ -149,7 +137,7 @@ async def buy_plan(account_hash: str) -> dict:
 
     cands = []
     for sym in universe:
-        px = _price(sym)
+        px = orders_svc.trusted_last_price(sym)
         if px is None or px <= 0:
             continue
         lots = by.get(sym, [])
@@ -205,7 +193,7 @@ async def exit_plan(account_hash: str) -> dict:
             continue
         last_px = _f(last.buy_price)                 # the "last position price"
         limit = round(last_px * (1 + off), 2)
-        px = _price(sym)                             # current mark (informational)
+        px = orders_svc.trusted_last_price(sym)                             # current mark (informational)
         cands.append({
             "symbol": sym, "shares": shares,
             "last_price": round(last_px, 2),
@@ -296,7 +284,7 @@ async def bulk_sell(account_hash: str, items: list[dict], order_type: str = "LIM
             results.append({"lot_id": lid, "symbol": lot.symbol, "ok": False,
                             "error": "not the last position — refused (bulk-sell only sells last positions)"})
             continue
-        px = _price(lot.symbol)
+        px = orders_svc.trusted_last_price(lot.symbol)
         lot_sh = int(_f(lot.shares))
         if px is None or px <= 0:
             results.append({"lot_id": lid, "symbol": lot.symbol, "ok": False, "error": "no live price"})
@@ -343,7 +331,7 @@ async def bulk_buy(account_hash: str, items: list[dict], order_type: str = "LIMI
     for it in items:
         sym = str(it.get("symbol") or "").upper()
         shares = int(it.get("shares") or 0)
-        px = _price(sym)
+        px = orders_svc.trusted_last_price(sym)
         if px is None or px <= 0:
             results.append({"symbol": sym, "ok": False, "error": "no live price"})
             continue

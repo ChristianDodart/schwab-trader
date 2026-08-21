@@ -21,8 +21,6 @@ const rememberedDuration = (): string => {
 };
 const SESSIONS = ["NORMAL", "AM", "PM", "SEAMLESS"];
 const label = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-// Broker statuses that mean the order has settled — once seen, stop polling for updates.
-const TERMINAL_STATUS = new Set(["FILLED", "REJECTED", "CANCELED", "CANCELLED", "EXPIRED", "REPLACED"]);
 
 export function OrderTicket({
   suggestion,
@@ -203,7 +201,8 @@ export function OrderTicket({
         .then((o) => {
           const st = o && o.status ? String(o.status) : null;
           if (st) setStatus(st);
-          if (!st || !TERMINAL_STATUS.has(st.toUpperCase())) pollStatus(orderId, hash, rest);
+          // Keep polling until the backend marks the order settled — it owns the status taxonomy.
+          if (!o || !o.settled) pollStatus(orderId, hash, rest);
         })
         .catch(() => pollStatus(orderId, hash, rest));
     }, d));
