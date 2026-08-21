@@ -3,6 +3,13 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.89.0 — "Timezone data hardening"
+
+- **Maintenance:** the timezone database the app uses for market-hours math (Eastern/Mountain
+  time) is now an explicit, bundled dependency on Windows instead of arriving indirectly
+  through another package. No visible change — it just removes a way a future build could
+  have lost timezone support and broken the Activity, Fills, and Ledger views.
+
 ## v0.88.0 — "After-hours limit orders don't get stranded"
 
 - **A limit order placed when the market's status can't be confirmed now uses the Seamless

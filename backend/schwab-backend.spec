@@ -1,4 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
+import sys
 from PyInstaller.utils.hooks import collect_submodules
 from PyInstaller.utils.hooks import collect_all
 
@@ -21,6 +22,12 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 # can verify TLS on macOS/Linux (see the SSL_CERT_FILE wiring there).
 tmp_ret = collect_all('certifi')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+# tzdata: only needed on Windows (no system IANA tz db there) and only installed there
+# (see requirements.txt marker). Guard so Mac/Linux builds don't call collect_all on a
+# package that isn't present. Guarantees ZoneInfo works regardless of how tzdata got pulled.
+if sys.platform == "win32":
+    tmp_ret = collect_all('tzdata')
+    datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(

@@ -14,6 +14,12 @@ aiosqlite>=0.20        # async SQLite driver (packaged-app default DB)
 alembic>=1.13          # schema migrations (versioned ALTERs, not drop/recreate)
 cryptography>=43       # Fernet — encrypts per-profile tokens + the app secret at rest
 
+# Timezone database for ZoneInfo (America/New_York etc.). Windows ships no system IANA
+# tz db, so ZoneInfo needs this package; we use ZoneInfo directly (activity/fills/ledger),
+# so declare it explicitly instead of leaning on psycopg's transitive win32 tzdata dep
+# (which would vanish if psycopg were ever trimmed from the SQLite-only desktop build).
+tzdata>=2024.1; sys_platform == "win32"
+
 # Config & strategy
 pydantic-settings>=2.6
 PyYAML>=6.0
