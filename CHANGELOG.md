@@ -3,6 +3,20 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.88.0 — "After-hours limit orders don't get stranded"
+
+- **A limit order placed when the market's status can't be confirmed now uses the Seamless
+  session, so it stays eligible in regular AND extended hours.** Before, if the app's
+  market-hours check hiccupped (a brief Schwab outage, or right at the 4pm boundary), an
+  after-hours limit could be silently set to regular-hours-only ("Day") and sit unfilled even
+  when the price was already at your limit. That failure can no longer strand an order.
+- **The order ticket now spells out the timing in plain English** right above Place — e.g.
+  "Trades in regular and extended hours today" or "Regular hours only — won't trade after
+  hours, expires at today's close" — and flags it when a limit is set to regular-hours-only
+  while the market isn't in its regular session.
+- Fixed a latent case where an extended-hours order could be paired with Good-Till-Canceled,
+  a combination Schwab rejects.
+
 ## v0.87.0 — "Order status stops hanging on 'checking…'"
 
 - **After you place an order, the ticket confirms the broker status quickly again.** A freshly

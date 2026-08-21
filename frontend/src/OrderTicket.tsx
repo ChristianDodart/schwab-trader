@@ -4,6 +4,7 @@ import type { Suggestion } from "./types";
 
 import { API } from "./api";
 import { IconWarning } from "./Icon";
+import { defaultTiming, describeTiming } from "./orderTiming";
 
 type Acct = { hash: string; mask: string; type: string | null };
 
@@ -160,17 +161,15 @@ export function OrderTicket({
   }, [orderType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply session-aware defaults once the session is known (unless the user already
-  // touched the controls). MARKET only when the market is actually LIVE (regular) —
-  // in pre/post (limit-only) and when closed/unknown (a market order would queue to
-  // an unknown gap-open) default to LIMIT so the order is price-protected. Session =
-  // the current one. Duration = DAY (correct for all sessions, incl. AM/PM extended;
-  // GTC+AM/PM is an invalid Schwab combo — the real pre/post fix is the session).
+  // touched the controls). See defaultTiming(): regular → MARKET/NORMAL; pre/post →
+  // LIMIT in the matching extended session; closed/unknown → LIMIT + SEAMLESS so a
+  // stale/failed market-hours read can't strand an after-hours limit in a
+  // regular-hours-only order that never fills in extended hours.
   useEffect(() => {
     if (marketSession == null || defaultsApplied.current || userTouched.current) return;
     defaultsApplied.current = true;
-    setOrderType(marketSession === "regular" ? "MARKET" : "LIMIT");
-    setSession(marketSession === "pre" ? "AM" : marketSession === "post" ? "PM" : "NORMAL");
-    setDuration(rememberedDuration());
+    const t = defaultTiming(marketSession, rememberedDuration());
+    if (t) { setOrderType(t.orderType); setSession(t.session); setDuration(t.duration); }
   }, [marketSession]);
 
   const isBuy = suggestion.side === "BUY";
@@ -280,9 +279,9 @@ export function OrderTicket({
             </p>
           )}
           {closed && (
-            <p style={S.warnNote}>
-              <IconWarning /> Market is closed — an order queues to the next open. A market order would fill at the
-              (unknown) opening price, so a limit is safer.
+            <p style={S.note}>
+              Market hours couldn't be confirmed right now — this limit defaults to the Seamless session so it stays
+              eligible in regular or extended hours. Check the timing below before placing.
             </p>
           )}
 
@@ -366,6 +365,17 @@ export function OrderTicket({
             <span>{isBuy ? "Est. cost" : "Est. proceeds"}</span>
             <b>{est != null ? (needsLimit ? usd(est) : `~ ${usd(est)}`) : "—"}</b>
           </div>
+          {/* Plain-English timing so what will actually be sent to Schwab is never hidden.
+              Warn when a limit is set to regular-hours-only while the market isn't confirmed
+              in the regular session — the exact shape of the silent "Day after-hours" bug. */}
+          {needsLimit && (() => {
+            const timingWarn = session === "NORMAL" && marketSession != null && marketSession !== "regular";
+            return (
+              <p style={timingWarn ? S.warnNote : S.note}>
+                {timingWarn && <IconWarning />} {describeTiming(session, duration)}
+              </p>
+            );
+          })()}
           {/* Advisory only — the broker enforces margin/settlement. Never blocks placing. */}
           {isBuy && suggestion.buying_power != null && est != null && est > suggestion.buying_power && (
             <p style={S.warnNote}>
