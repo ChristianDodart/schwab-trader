@@ -1,5 +1,6 @@
 import { usd, pct } from "./format";
 import { moneyColor } from "./LedgerUI";
+import { dayPct as computeDayPct } from "./rowDerived";
 import type { VisibleKpi } from "./kpis";
 
 // Full-width account band that sits directly beneath the top bar on the dashboard.
@@ -17,11 +18,9 @@ type Props = {
 };
 
 export function AccountBand({ accountValue, dayChange, invested, cash, kpis, picker }: Props) {
-  // Today's % move, derived from the SAME two numbers shown in the hero so the value and
-  // the percent can never disagree: today's $ change over the start-of-day value
-  // (now − change). Null unless we have both and the start value is positive.
-  const startVal = accountValue != null && dayChange != null ? accountValue - dayChange : null;
-  const dayPct = startVal != null && startVal > 0 ? (dayChange as number) / startVal : null;
+  // Today's % move, from the SAME two numbers shown in the hero so the value and percent
+  // can never disagree — today's $ change over the start-of-day value (shared selector).
+  const dayPct = computeDayPct(dayChange, accountValue);
 
   // Deployment = invested / (invested + cash). Guard a zero/absent denominator.
   const inv = invested ?? 0;

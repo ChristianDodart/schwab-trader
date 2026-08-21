@@ -8,6 +8,7 @@ import { matchesRule, type SignalRule } from "./signals";
 import { BulkReviewModal, useBulk } from "./Bulk";
 import { ColumnManager } from "./ColumnManager";
 import { useCellDensity } from "./density";
+import { lastPosGainPct } from "./rowDerived";
 import { ConfirmDialog } from "./Modal";
 import { DASH_COLUMNS, DASH_COLUMN_LIST, DEFAULT_DASH_COLS, DEFAULT_DASH_FOLDED, SIMPLE_DASH_COLS, useColumnPrefs, useFoldPrefs } from "./columns";
 import { KpiPicker, useKpiPrefs, visibleKpis } from "./kpis";
@@ -726,8 +727,7 @@ function Top10({ rows, onSelect }: { rows: DashboardRow[]; onSelect: (s: string)
     .filter((r) => r.lilo_pct != null)
     .sort((a, b) => (a.lilo_pct as number) - (b.lilo_pct as number))
     .slice(0, 10);
-  const gainPct = (r: DashboardRow) =>
-    r.last_pos_profit != null && r.last_pos_cost ? (r.last_pos_profit / r.last_pos_cost) * 100 : null;
+  const gainPct = lastPosGainPct;  // one source for last-position gain%
   const gainers = held
     .filter((r) => gainPct(r) != null)
     .sort((a, b) => (gainPct(b) as number) - (gainPct(a) as number))

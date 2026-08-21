@@ -3,6 +3,16 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.91.0 — "Dashboard internals hardening"
+
+- **Maintenance — no visible change.** Consolidated the dashboard's money-math and row
+  building. The per-row calculations (last-position gain %, today's % move, over the 5%
+  concentration cap) and the single money→color rule now live in one place each instead of
+  being re-derived across the table, account band, at-a-glance strip, Top-10 view, and signal
+  rules — removing small inconsistencies (e.g. a $0.00 change coloring differently in
+  different spots). The held and watch rows are now built from one shared base, so they can't
+  drift and every row carries every field the app expects. Behavior is unchanged.
+
 ## v0.90.0 — "Order-path internals hardening"
 
 - **Maintenance — no visible change.** Consolidated the order safety rails and the

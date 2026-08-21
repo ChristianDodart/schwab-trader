@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { usd, pct } from "./format";
 import type { DashboardRow, Lot } from "./types";
 import { matchesRule, type SignalRule } from "./signals";
+import { moneyColor } from "./LedgerUI";
+import { CONCENTRATION_CAP, isOverConcentrationCap } from "./rowDerived";
 
 import { API } from "./api";
 import { IconWarning } from "./Icon";
@@ -42,14 +44,13 @@ export type DetailCol = {
 // "Source" line — the old superscript ƒ mark + its legend were retired in v0.59 in
 // favor of hover-to-define terms.
 
-const sign = (n: number | null | undefined) =>
-  n == null ? undefined : n >= 0 ? "var(--pos)" : "var(--neg)";
-// Colored money/percent with a redundant +/- sign so gain vs loss reads without
-// relying on color alone (colorblind-safe). `v` is the pre-formatted string
-// (usd/pct already render "-" for negatives); we prepend "+" for positives.
+// Colored money/percent with a redundant +/- sign so gain vs loss reads without relying on
+// color alone (colorblind-safe). `v` is the pre-formatted string (usd/pct already render "-"
+// for negatives); we prepend "+" for positives. Color comes from moneyColor — the one
+// money→color function (positive green, negative red, exactly zero neutral).
 const Colored = ({ v, n }: { v: string; n: number | null | undefined }) => {
   if (n == null) return <Dash />;
-  return <span style={{ color: sign(n) }}>{n > 0 ? "+" : ""}{v}</span>;
+  return <span style={{ color: moneyColor(n) }}>{n > 0 ? "+" : ""}{v}</span>;
 };
 const num = (n: number | null | undefined) =>
   n == null ? "" : n.toLocaleString("en-US");
@@ -115,10 +116,9 @@ const RangeBar = ({ r }: { r: DashboardRow }) => {
 
 // RULE 10 from the sheet: keep every stock under 5% of the portfolio. Flag any
 // held position at/over this so over-concentration is visible at a glance.
-export const CONCENTRATION_CAP = 0.05;
 const PortfolioPct = ({ r }: { r: DashboardRow }) => {
   if (r.portfolio_pct == null) return <Dash />;
-  const over = r.portfolio_pct >= CONCENTRATION_CAP;
+  const over = isOverConcentrationCap(r);
   return (
     <span style={over ? { color: "var(--warn)", fontWeight: 600 } : undefined}
       title={over ? `Over the ${(CONCENTRATION_CAP * 100).toFixed(0)}% single-stock cap` : undefined}>

@@ -36,3 +36,18 @@ sharing the pre-trade guards and their thresholds (20% fat-finger band, $10k not
 per-item guard model (reject/skip, wider 25% / $25k thresholds) that then routes each item
 through `place_order`. Deliberately separate from the single-order guards; reconciling the
 two is an open decision, not a settled one.
+
+**DashboardRow contract** — the wide per-symbol row the backend builds and the frontend
+renders. Held and watch rows share one builder base (`dashboard.py::_base_row`, the ~14
+identical quote/reference fields); `_summary_row` and `_watch_row` add their specifics on
+top, so the two can't drift and every field the type promises is present on both kinds
+(watch rows set the held-only fields to zero/None rather than omitting them).
+
+**Row derivations** — the money-math computed off a `DashboardRow`, in one pure module
+`frontend/src/rowDerived.ts`, so the table, account band, at-a-glance strip, Top-10 view,
+and signal rules all read the same values instead of re-deriving (and drifting): *last
+position gain %* (`lastPosGainPct`, guarded on a positive cost — also the sell-signal
+metric), *today's % move* (`dayPct(change, value)` — change over start-of-day value, used at
+account and position level), and *over the concentration cap* (`isOverConcentrationCap`, the
+5% single-stock RULE 10). Money→color is the separate `moneyColor` (positive green, negative
+red, exactly zero neutral) — the one money-color function.

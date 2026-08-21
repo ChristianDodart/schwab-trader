@@ -1,6 +1,6 @@
 import { usd, pct } from "./format";
 import { moneyColor } from "./LedgerUI";
-import { CONCENTRATION_CAP } from "./columns";
+import { CONCENTRATION_CAP, dayPct, isOverConcentrationCap } from "./rowDerived";
 import type { Dashboard, DashboardRow } from "./types";
 
 // Bottom "at a glance" strip beneath the dashboard table: three cards, each a RANKING or
@@ -8,17 +8,10 @@ import type { Dashboard, DashboardRow } from "./types";
 // by scanning the table. Momentum (today's movers), risk (concentration), and position
 // health (how many holdings are green). Every color is a theme token so themes recolor it.
 
-// Position's own % move today: today's $ change over its start-of-day value (value − change).
-function dayPctOf(r: DashboardRow): number | null {
-  if (r.day_change == null || r.current_value == null) return null;
-  const start = r.current_value - r.day_change;
-  return start > 0 ? r.day_change / start : null;
-}
-
 // One "TICK +$X · +Y%" mover line, colored by direction.
 function MoverLine({ r }: { r: DashboardRow }) {
   const dc = r.day_change ?? 0;
-  const dp = dayPctOf(r);
+  const dp = dayPct(r.day_change, r.current_value);   // this position's % move today
   return (
     <div style={S.moverLine}>
       <span aria-hidden="true" style={{ color: moneyColor(dc) }}>{dc >= 0 ? "▲" : "▼"}</span>
@@ -48,7 +41,7 @@ export function DashboardStrip({ data }: { data: Dashboard }) {
   const largest = withPct.length
     ? withPct.reduce((m, r) => ((r.portfolio_pct as number) > (m.portfolio_pct as number) ? r : m))
     : null;
-  const overCap = withPct.filter((r) => (r.portfolio_pct as number) >= CONCENTRATION_CAP);
+  const overCap = withPct.filter(isOverConcentrationCap);
   const capPctLabel = `${Math.round(CONCENTRATION_CAP * 100)}%`;
 
   // --- Card 3: open positions (how many are green right now + total open P/L) ---

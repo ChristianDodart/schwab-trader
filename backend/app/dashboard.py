@@ -146,6 +146,37 @@ def _lot_sell_target(lot: Lot, cfg: StrategyConfig) -> float:
                                    mode=lot.sell_mode)
 
 
+def _base_row(symbol: str, ticker: Ticker | None,
+              cfg: StrategyConfig) -> tuple[dict, float | None, bool, dict]:
+    """The quote + 52-week-reference fields shared IDENTICALLY by held and watch rows —
+    defined once so the two builders can't drift on them. Returns the base row plus the
+    derived values the caller needs for its own fields (raw price, has_price, the raw
+    quote) so nothing is recomputed."""
+    quote = hub.latest.get(symbol, {})
+    price = quote.get("last")
+    price = _f(price) if price is not None else None
+    # avg / median / high / low reference window (13wk for leveraged/inverse ETFs, else 52wk).
+    ref_avg, ref_median, year_high, year_low, ref_weeks = _ref_window(symbol, ticker, quote)
+    has_price = price is not None and price > 0
+    row = {
+        "symbol": symbol,
+        "name": ticker.name if ticker else None,
+        "sector": ticker.sector if ticker else None,
+        "risk": _risk(ticker),
+        "price": round(price, 4) if has_price else None,
+        "avg_52wk": ref_avg,
+        "median_52wk": ref_median,
+        "pct_of_high": round(price / year_high, 4) if has_price and year_high else None,
+        "pct_of_low": round(price / year_low - 1, 4) if has_price and year_low else None,
+        "market_cap": _f(ticker.market_cap) if ticker and ticker.market_cap is not None else None,
+        "first_buy_shares": max(1, round(rules.sizing_dollars(0, cfg) / price)) if has_price else None,
+        "year_high": year_high,
+        "year_low": year_low,
+        "ref_window_weeks": ref_weeks,
+    }
+    return row, price, has_price, quote
+
+
 def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
                  realized: tuple[float, int, date | None],
                  year_realized: tuple[float, int], total_invested: float,
@@ -154,11 +185,7 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
                  today_trade: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0),
                  schwab_day_pl: float | None = None,
                  last_sold: float | None = None) -> dict:
-    quote = hub.latest.get(symbol, {})
-    price = quote.get("last")
-    price = _f(price) if price is not None else None
-    # avg / median / high / low reference window (13wk for leveraged/inverse ETFs, else 52wk).
-    ref_avg, ref_median, year_high, year_low, ref_weeks = _ref_window(symbol, ticker, quote)
+    base, price, has_price, quote = _base_row(symbol, ticker, cfg)
 
     shares = sum(_f(l.shares) for l in lots)   # total shares held (every lot)
     positions = len(lots)
@@ -190,18 +217,14 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
     days = (_today() - anchor).days if anchor else 0
     avg_monthly = (log_profit / days * 30) if days > 0 else 0.0
 
-    has_price = price is not None and price > 0
     return {
-        "symbol": symbol,
-        "name": ticker.name if ticker else None,
-        "sector": ticker.sector if ticker else None,
-        "risk": _risk(ticker),
+        **base,   # symbol, name, sector, risk, price, avg/median_52wk, pct_of_high/low,
+                  # market_cap, first_buy_shares, year_high/low, ref_window_weeks
         "is_watch": False,
         "positions": positions,
         "shares": round(shares, 4),
         "invested": round(invested, 2),
         "basis_per_share": round(rules.basis_per_share(invested, priced_shares), 4) if priced_shares > 0 else 0.0,
-        "price": round(price, 4) if has_price else None,
         "current_value": round(shares * price, 2) if has_price else None,
         # Unrealized is the gain on shares whose cost we KNOW. A fully un-priced position
         # (e.g. a rights/backfill lot at $0) resolves to 0 here — neutral, NOT the phantom
@@ -217,23 +240,7 @@ def _summary_row(symbol: str, lots: list[Lot], ticker: Ticker | None,
                                         today_trade[2], today_trade[3]), 2)
               if has_price and quote.get("netChange") is not None else None),
         "lilo_pct": round(rules.lilo_pct(price, min_buy), 4) if has_price else None,
-        # Average + median of daily closes — "where it spends most of its time"; below =
-        # historical discount, above = rich. Median is spike-robust (the true typical
-        # close). Window is 52wk normally, 13wk for leveraged/inverse ETFs (decay makes a
-        # year stale) — `ref_window_weeks` tells the UI which, so the figure is never
-        # mislabeled. Cached/refreshed in the background; None until warmed / too new.
-        "avg_52wk": ref_avg,
-        "median_52wk": ref_median,
-        "pct_of_high": round(price / year_high, 4) if has_price and year_high else None,
-        "pct_of_low": round(price / year_low - 1, 4) if has_price and year_low else None,
-        "market_cap": _f(ticker.market_cap) if ticker and ticker.market_cap is not None else None,
-        # Shares that match a FIRST-position dollar size (rung-1 sizing tier) — prefills the
-        # buy ticket for a name you don't yet hold, instead of a bare 1 share.
-        "first_buy_shares": max(1, round(rules.sizing_dollars(0, cfg) / price)) if has_price else None,
         "portfolio_pct": round(invested / total_invested, 4) if total_invested else None,
-        "year_high": year_high,
-        "year_low": year_low,
-        "ref_window_weeks": ref_weeks,
         "next_buy_price": round(next_buy, 4),
         "buy_mark": rules.is_buy_mark(price, next_buy) if has_price else False,
         "sell_mark": rules.is_sell_mark(price, sell_targets) if has_price else False,
@@ -459,29 +466,21 @@ async def _build_dashboard_uncached(account_hash: str) -> dict:
 
 
 def _watch_row(ticker: Ticker, cfg: StrategyConfig) -> dict:
-    quote = hub.latest.get(ticker.symbol, {})
-    price = quote.get("last")
-    price = _f(price) if price is not None else None
-    ref_avg, ref_median, year_high, year_low, ref_weeks = _ref_window(ticker.symbol, ticker, quote)
-    has_price = price is not None and price > 0
+    base, *_ = _base_row(ticker.symbol, ticker, cfg)
     return {
-        "symbol": ticker.symbol, "name": ticker.name, "sector": ticker.sector, "is_watch": True,
-        "risk": _risk(ticker),
+        **base,   # symbol, name, sector, risk, price, avg/median_52wk, pct_of_high/low,
+                  # market_cap, first_buy_shares, year_high/low, ref_window_weeks
+        "is_watch": True,
         "positions": 0, "shares": 0, "invested": 0, "basis_per_share": 0,
-        "price": round(price, 4) if has_price else None,
         "current_value": None, "unrealized": None, "day_change": None, "lilo_pct": None,
-        "avg_52wk": ref_avg,
-        "median_52wk": ref_median,
-        "pct_of_high": round(price / year_high, 4) if has_price and year_high else None,
-        "pct_of_low": round(price / year_low - 1, 4) if has_price and year_low else None,
-        "market_cap": _f(ticker.market_cap) if ticker.market_cap is not None else None,
-        "first_buy_shares": max(1, round(rules.sizing_dollars(0, cfg) / price)) if has_price else None,
-        "portfolio_pct": None, "year_high": year_high, "year_low": year_low,
-        "ref_window_weeks": ref_weeks,
+        "portfolio_pct": None,
         "next_buy_price": None, "buy_mark": False, "sell_mark": False,
         "last_pos_cost": None, "last_pos_profit": None, "log_profit": 0, "trades": 0,
         "year_profit": 0, "year_trades": 0, "avg_monthly": 0,
         "first_buy_date": None,
+        # Set the fields _watch_row used to omit, so the DashboardRow contract holds for
+        # watch rows too (held rows always set these). Fixes the type-lie / possible-undefined.
+        "dividends": 0, "total_return": 0, "last_sold": None,
     }
 
 

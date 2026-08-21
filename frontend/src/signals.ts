@@ -1,3 +1,4 @@
+import { lastPosGainPct } from "./rowDerived";
 import type { DashboardRow } from "./types";
 
 // User-defined EXTRA signal rules, OR'd with the built-in strategy buy/sell marks.
@@ -21,8 +22,7 @@ export const SIGNAL_METRICS: Record<"buy" | "sell", Metric[]> = {
     { key: "last_pos_profit", label: "Last-position profit", unit: "$", get: (r) => r.last_pos_profit },
     {
       key: "last_pos_gain_pct", label: "Last-position gain", unit: "%",
-      get: (r) => (r.last_pos_profit != null && r.last_pos_cost && r.last_pos_cost > 0
-        ? (r.last_pos_profit / r.last_pos_cost) * 100 : null),
+      get: (r) => lastPosGainPct(r),
     },
   ],
   buy: [
