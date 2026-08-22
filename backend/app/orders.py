@@ -25,6 +25,7 @@ from . import config_store
 from .db import SessionLocal
 from .db.models import Lot
 from .schwab import hub
+from .order_eligibility import combo_error
 from .order_guards import OrderIntent, check_held, evaluate_order
 from .order_status import is_cancelable, is_settled, is_working
 from .schwab.auth import get_client
@@ -98,6 +99,13 @@ def _build_order(symbol: str, side: str, quantity: int, order_type: str,
         sess = Session[str(session).upper()]
     except KeyError:
         raise ValueError(f"unsupported session: {session}") from None
+
+    # Cross-field broker rule (the enums above only validate each field on its own): a
+    # MARKET/STOP/etc. or a GTC order in an extended-hours session is a combo Schwab
+    # rejects. Fail it here, the single authoritative gate every path builds through.
+    err = combo_error(order_type, session, duration)
+    if err:
+        raise ValueError(err)
 
     ob = OrderBuilder()
     ob.set_session(sess)

@@ -37,6 +37,49 @@ per-item guard model (reject/skip, wider 25% / $25k thresholds) that then routes
 through `place_order`. Deliberately separate from the single-order guards; reconciling the
 two is an open decision, not a settled one.
 
+**Order eligibility** — which order settings may go together, split into two concerns.
+*Combo validity* is broker law: the `(order type, session, duration)` tuples Schwab will
+accept, time-independent — an extended-hours session (AM/PM/SEAMLESS) takes a plain LIMIT
+only, and never a good-till-canceled. It lives in one pure module,
+`backend/app/order_eligibility.py::combo_error` (returns a plain-English reason or None),
+enforced server-side inside `orders.py::_build_order` — the single authoritative gate every
+path (single ticket, replace, bulk) builds through, so an invalid combo fails fast with a
+clear reason before Schwab ever sees it. The frontend mirrors it in
+`frontend/src/orderEligibility.ts::comboError`, wired into the ticket's *can-place* check so
+a reachable bad combo (e.g. STOP_LIMIT or GTC in an extended session) blocks with the same
+message instead of round-tripping to a broker rejection. *Clock affordance* is the separate,
+time-dependent UX rule — `offerableTypes(marketSession, menu)` — for which order types a
+ticket should OFFER given the detected market clock: the full menu only in confirmed regular
+hours, a price-protected LIMIT otherwise (extended/closed/unknown), and the full menu while
+the clock is still loading (`null`). Both the single Order Ticket and the Bulk review read
+this one function, so they can no longer disagree (the single ticket now also restricts its
+closed/unknown case to LIMIT, matching Bulk).
+
+**Deployment %** — the one canonical "how much of my capital is in the market" figure:
+long market value ÷ your own equity, as a percent. ~100% when fully invested; deliberately
+**uncapped and over 100% when you're on margin** (the "am I stretched?" signal — it does not
+count margin buying power as capacity). Defined once in the pure
+`backend/app/accounts.py::deployment_pct(lmv, equity)` (None when a balance is missing or
+equity is zero — read as "unknown", never a misleading number), surfaced as
+`margin_summary::deployed_pct`, and read by exactly three consumers so they can't disagree:
+the account-band meter (`AccountBand.tsx` renders `margin.deployed_pct` — its 0–100 bar caps
+at 100% but the label shows the true % and flags "· on margin" past 100), the glossary live
+figures, and ladder deployment-scaling. Distinct from a cost-basis "dry powder" ratio (which
+the meter used to compute locally, off `total_invested`); that second definition was retired
+to end the two-numbers-on-one-screen drift.
+
+**Dashboard read-model** — the App shell's live data layer, extracted into one hook
+`frontend/src/useDashboardData.ts::useDashboardData(acctKey, view, live)` so `App` is
+layout + routing and this owns the reads. Four independent reads plus one derived flag: the
+WebSocket dashboard stream (`data` + `connected`), the `/account/margin` poll (`cash` +
+`margin` — the full summary the glossary reads), the `/orders/working-count` poll (`working`
+= `{count, bySym}`), and `pricesStale` (from the pure `pricesAreStale(mode, live)` — stale
+only when a real feed's Schwab liveness reads explicitly `false`, never for a demo feed or an
+unknown liveness). READ-ONLY: it never selects an account or touches UI state. Account
+*selection* — and the bulk/selection resets a switch performs — stay in the shell; the hook
+only reacts to the resulting `acctKey`/`view`, and blanks `data` on a real switch (not the
+initial resolve from `""`) so one account's holdings never render under another.
+
 **DashboardRow contract** — the wide per-symbol row the backend builds and the frontend
 renders. Held and watch rows share one builder base (`dashboard.py::_base_row`, the ~14
 identical quote/reference fields); `_summary_row` and `_watch_row` add their specifics on

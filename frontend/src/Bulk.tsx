@@ -6,6 +6,7 @@ import type { BulkPrefs, BulkResult, BuyCandidate, DashboardRow, ExitCandidate, 
 
 import { API } from "./api";
 import { IconSettings, IconClose, IconWarning } from "./Icon";
+import { offerableTypes } from "./orderEligibility";
 type Kind = "sell" | "buy" | "exit";
 type AnyCandidate = SellCandidate | BuyCandidate | ExitCandidate;
 const PLAN_PATH: Record<Kind, string> = { sell: "sell-plan", buy: "buy-plan", exit: "exit-plan" };
@@ -202,8 +203,8 @@ export function BulkReviewModal({
   }, []);
   // Market only during REGULAR hours — outside them (extended, closed, or unknown)
   // a market order fills at an unknown gap/open price, so force the price-protected
-  // LIMIT (matches the single order ticket's philosophy).
-  const marketDisabled = session !== null && session !== "regular";
+  // LIMIT. One shared rule with the single Order Ticket (orderEligibility.offerableTypes).
+  const marketDisabled = !offerableTypes(session, ["LIMIT", "MARKET"]).includes("MARKET");
   useEffect(() => { if (marketDisabled && orderType === "MARKET") setOrderType("LIMIT"); }, [marketDisabled, orderType]);
 
   const isLimit = orderType === "LIMIT";

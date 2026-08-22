@@ -4,6 +4,7 @@ import type { Suggestion } from "./types";
 
 import { API } from "./api";
 import { IconWarning } from "./Icon";
+import { comboError, offerableTypes } from "./orderEligibility";
 import { defaultTiming, describeTiming } from "./orderTiming";
 
 type Acct = { hash: string; mask: string; type: string | null };
@@ -141,15 +142,17 @@ export function OrderTicket({
 
   const extended = marketSession === "pre" || marketSession === "post";
   const closed = marketSession === "closed" || marketSession === "unknown";
-  // Extended hours: Schwab allows LIMIT only. Regular/closed: all types.
-  const availableTypes = extended ? ["LIMIT"] : ORDER_TYPES;
+  // Which order types to offer for the detected clock — one shared rule with the Bulk
+  // review (orderEligibility): the market-fill types show only in confirmed regular hours;
+  // extended/closed/unknown restrict to a price-protected LIMIT.
+  const availableTypes = offerableTypes(marketSession, ORDER_TYPES);
 
-  // If the session flips to limit-only (pre/post) AFTER the user picked a now-
-  // disallowed type, clamp back to LIMIT so we never submit — or show blank — a
-  // type the session forbids (the defaults effect is suppressed once userTouched).
+  // If the offerable set narrows (the clock resolves to a non-regular session) AFTER the
+  // user picked a now-disallowed type, clamp back to LIMIT so we never submit — or show
+  // blank — a type the session forbids (the defaults effect is suppressed once userTouched).
   useEffect(() => {
-    if (!availableTypes.includes(orderType)) setOrderType("LIMIT");
-  }, [extended]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!offerableTypes(marketSession, ORDER_TYPES).includes(orderType)) setOrderType("LIMIT");
+  }, [marketSession]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Switching to a market-type order forces the session back to NORMAL (AM/PM +
   // MARKET is an invalid Schwab combo). LIMIT/STOP_LIMIT are unaffected.
@@ -185,7 +188,11 @@ export function OrderTicket({
   const est = estRef && estRef > 0 && qty > 0 ? qty * estRef : null;
   const priceValid =
     (!needsLimit || price > 0) && (!needsStop || stopPrice > 0) && (!needsTrailing || trailingOffset > 0);
-  const canPlace = !!acct && qty > 0 && priceValid && availableTypes.includes(orderType) && !placing;
+  // Broker combo rule (mirror of the server's order_eligibility gate): catches the combos
+  // the type/session dropdowns can still reach — e.g. STOP_LIMIT or GTC in an extended
+  // session — so an invalid order fails here with a clear reason instead of at Schwab.
+  const comboErr = comboError(orderType, session, duration);
+  const canPlace = !!acct && qty > 0 && priceValid && availableTypes.includes(orderType) && !comboErr && !placing;
 
   // Poll the broker for this order's status. A freshly placed order can take a few
   // seconds to become queryable, so we poll over a ~20s window and keep going until the
@@ -394,6 +401,8 @@ export function OrderTicket({
               Limit to place the ladder order instead of a market fill.
             </p>
           )}
+
+          {comboErr && <p style={S.warnNote}><IconWarning /> {comboErr}</p>}
 
           <div style={S.acct}>
             {!acctLoaded ? "Resolving trading account…"

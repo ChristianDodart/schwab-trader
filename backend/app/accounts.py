@@ -269,6 +269,18 @@ def select_tradable_funds(b: dict) -> float | None:
     return None
 
 
+def deployment_pct(lmv: float | None, equity: float | None) -> float | None:
+    """THE canonical capital-deployment figure: long market value as a % of your OWN equity.
+    ~100% when fully invested; OVER 100% when margin buys more than your equity (the
+    'am I stretched?' signal — deliberately uncapped, and NOT counting margin buying power as
+    capacity). None when a balance is missing or equity is zero, so callers read it as
+    'unknown' rather than a misleading number. Pure so it's unit-tested; one definition,
+    rendered by the account-band meter and the glossary and read by ladder deployment-scaling."""
+    if lmv is None or not equity:
+        return None
+    return round(lmv / equity * 100, 1)
+
+
 async def margin_summary(account_hash: str) -> dict:
     """Capital-deployment / leverage view for an account — the sheet's 'how much of my
     capacity is in the market, how much is borrowed, how far from a margin call' picture,
@@ -295,10 +307,9 @@ async def margin_summary(account_hash: str) -> dict:
     debt = round(-mbal, 2) if (mbal is not None and mbal < 0) else 0.0
     # Leverage = long exposure / your own equity (1.0 = unlevered, >1 = using margin).
     eq_base = equity if equity is not None else acct_value
-    # Deployed % = long market value vs. YOUR OWN capital (equity), deliberately
-    # NOT counting margin buying power. So all-cash-invested reads ~100% and using
-    # margin to buy more pushes it OVER 100% — the intended "am I stretched?" signal.
-    deployed_pct = round(lmv / eq_base * 100, 1) if (lmv is not None and eq_base) else None
+    # Deployed % = long market value vs. YOUR OWN capital (equity) — the canonical figure
+    # (see deployment_pct): all-cash-invested reads ~100%, margin pushes it OVER 100%.
+    deployed_pct = deployment_pct(lmv, eq_base)
     leverage = round(lmv / eq_base, 2) if (lmv is not None and eq_base) else None
     # Cushion to a maintenance call: equity above the required maintenance.
     maint_cushion = round(eq_base - maint, 2) if (eq_base is not None and maint is not None) else None

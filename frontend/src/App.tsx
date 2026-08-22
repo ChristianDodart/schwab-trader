@@ -14,6 +14,7 @@ import { DASH_COLUMNS, DASH_COLUMN_LIST, DEFAULT_DASH_COLS, DEFAULT_DASH_FOLDED,
 import { KpiPicker, useKpiPrefs, visibleKpis } from "./kpis";
 import { useGlossaryFigures } from "./GlossaryUI";
 import { useDemoFeed } from "./demo";
+import { useDashboardData } from "./useDashboardData";
 import { DashboardTable } from "./DashboardTable";
 import { AccountBand } from "./AccountBand";
 import { DashboardStrip } from "./DashboardStrip";
@@ -31,12 +32,10 @@ import { FinancialRules } from "./FinancialRules";
 import { Method } from "./Method";
 import { SkeletonTable } from "./Skeleton";
 import { useToast } from "./Toast";
-import type { AlertPrefill, Dashboard, DashboardRow, Suggestion } from "./types";
+import type { AlertPrefill, DashboardRow, Suggestion } from "./types";
 
-import { API, wsUrl } from "./api";
+import { API } from "./api";
 import { IconWarning, IconClose, IconSearch } from "./Icon";
-
-const WS_URL = wsUrl("/ws/dashboard");
 
 const NAV: { id: View; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
@@ -50,8 +49,6 @@ const NAV: { id: View; label: string }[] = [
 type View = "dashboard" | "ledger" | "orders" | "rules" | "method" | "notifications" | "settings";
 
 export function App() {
-  const [data, setData] = useState<Dashboard | null>(null);
-  const [connected, setConnected] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<View>("dashboard");
   const [showHelp, setShowHelp] = useState(false);
@@ -69,8 +66,6 @@ export function App() {
   };
   const symInputRef = useRef<HTMLInputElement>(null);
   const gPending = useRef(false); // "g" prefix for vim-style tab jumps (g then d/s/l/o/r)
-  const [cashInfo, setCashInfo] = useState<{ cash: number | null; buying_power: number | null; margin_buying_power: number | null; tradable_funds: number | null } | null>(null);
-  const [margin, setMargin] = useState<Record<string, number | null> | null>(null); // full margin summary → glossary live figures
   const setGlossFigures = useGlossaryFigures();
   const [signalRules, setSignalRules] = useState<SignalRule[]>([]);
   const [acctKey, setAcctKey] = useState("");
@@ -104,20 +99,20 @@ export function App() {
   const toast = useToast();
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [pendingNav, setPendingNav] = useState<(() => void) | null>(null);
-  const [workingOrders, setWorkingOrders] = useState(0);
-  const [workingBySym, setWorkingBySym] = useState<Record<string, number>>({});
   const [ordersFilter, setOrdersFilter] = useState<string | null>(null);
-  const bulk = useBulk(data?.rows, data?.mode, toast);
   const cellDensity = useCellDensity();
   const live = useLiveness();
+  // The dashboard's live read-model (WS feed, cash/margin, working orders, stale flag).
+  // Account SELECTION and the UI resets a switch triggers stay here in the shell; the hook
+  // only reacts to the resulting acctKey/view.
+  const { data, connected, cash: cashInfo, margin, working, pricesStale } = useDashboardData(acctKey, view, live);
+  const { count: workingOrders, bySym: workingBySym } = working;
+  const bulk = useBulk(data?.rows, data?.mode, toast);
   // Demo/showcase feed: when on, drives the dashboard display with simulated ticks +
   // fills so the themes/motion come alive on a closed market. Display-only, in-memory
   // (a reload turns it off), and it never touches the order path — bulk stays on `data`.
   const demoOn = false;   // demo/showcase mode retired from the UI (Aug 2026) — kept as a
-  const shown = useDemoFeed(data, demoOn);   // constant so downstream live/stale logic is unchanged
-  // Prices are stale only when we're MEANT to be live (not demo) but Schwab isn't
-  // answering — then dim the table + explain, so a frozen quote isn't mistaken for a real move.
-  const pricesStale = !demoOn && data?.mode !== "demo" && live === false;
+  const shown = useDemoFeed(data, demoOn);   // constant so downstream display logic is unchanged
   // Dashboard table rows after the Ctrl+F ticker filter. Bulk keeps the FULL row set.
   const dashRows = (shown?.rows ?? []).filter((r) =>
     !symQuery || r.symbol.toUpperCase().includes(symQuery));
@@ -152,23 +147,6 @@ export function App() {
     return () => { alive = false; };
   }, [acctKey, view]);
 
-  // Cash + buying power for the header (account-level, live). Refetch on account switch + 30s.
-  useEffect(() => {
-    let alive = true;
-    const load = () =>
-      fetch(`${API}/account/margin`).then((r) => r.json())
-        .then((j) => {
-          if (!alive) return;
-          const m = j && !j.blocked ? j : null;
-          setCashInfo(m ? { cash: m.cash ?? null, buying_power: m.buying_power ?? null, margin_buying_power: m.margin_buying_power ?? null, tradable_funds: m.tradable_funds ?? null } : null);
-          setMargin(m);
-        })
-        .catch(() => {});
-    load();
-    const t = setInterval(load, 30_000);
-    return () => { alive = false; clearInterval(t); };
-  }, [acctKey]);
-
   // Feed the selected account's live figures to the glossary so definitions can show
   // their formula worked out on real numbers ("on this account now").
   useEffect(() => {
@@ -190,23 +168,6 @@ export function App() {
       dayChange: data?.total_day_change ?? null,
     });
   }, [data, margin, setGlossFigures]);
-
-  // Ambient working orders (per selected account): total for the nav badge +
-  // per-symbol counts for the dashboard row markers. Refetch on account switch
-  // (acctKey) + every 30s — placing/canceling also pokes it via view changes.
-  useEffect(() => {
-    let alive = true;
-    const load = () =>
-      fetch(`${API}/orders/working-count`).then((r) => r.json())
-        .then((j) => {
-          if (!alive) return;
-          setWorkingOrders(j?.count ?? 0);
-          setWorkingBySym(j?.by_symbol && typeof j.by_symbol === "object" ? j.by_symbol : {});
-        }).catch(() => {});
-    load();
-    const t = setInterval(load, 30_000);
-    return () => { alive = false; clearInterval(t); };
-  }, [acctKey, view]);
 
   // Guard tab/account switches when Settings has unsaved edits → custom confirm.
   const guardedNav = (action: () => void) => {
@@ -260,7 +221,7 @@ export function App() {
     fetch(`${API}/accounts/select`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ hash }),
     })
-      .then((r) => { if (!r.ok) throw new Error(); setAcctKey(hash); setData(null); setSelected(null); bulk.cancel(); })
+      .then((r) => { if (!r.ok) throw new Error(); setAcctKey(hash); setSelected(null); bulk.cancel(); })
       .catch(() => toast("Couldn't switch account — try again.", "error"));
   };
   // The switch (server select + commit) is deferred through the dirty-Settings
@@ -278,39 +239,6 @@ export function App() {
     fetch(`${API}/accounts`).then((r) => r.json())
       .then((j) => { if (j?.selected_hash) setAcctKey(j.selected_hash); })
       .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    let ws: WebSocket | null = null;
-    let retry: ReturnType<typeof setTimeout>;
-    let disposed = false;   // guards against a post-unmount reconnect (StrictMode / re-mount)
-    const connect = () => {
-      if (disposed) return;
-      ws = new WebSocket(WS_URL);
-      ws.onopen = () => { if (!disposed) setConnected(true); };
-      ws.onclose = () => {
-        if (disposed) return;   // don't reschedule after cleanup — no zombie loop
-        setConnected(false);
-        retry = setTimeout(connect, 1500);
-      };
-      // Guard the socket: a single malformed frame must never wedge the UI or
-      // replace good data with garbage. Keep the last-good dashboard on any error.
-      ws.onmessage = (ev) => {
-        if (disposed) return;
-        try {
-          const parsed = JSON.parse(ev.data);
-          if (parsed && Array.isArray(parsed.rows)) setData(parsed as Dashboard);
-        } catch {
-          /* ignore a bad frame — keep the last-good dashboard */
-        }
-      };
-    };
-    connect();
-    return () => {
-      disposed = true;
-      clearTimeout(retry);
-      if (ws) { ws.onclose = null; ws.onmessage = null; ws.onopen = null; ws.close(); }
-    };
   }, []);
 
   const mode = data?.mode;
@@ -416,8 +344,7 @@ export function App() {
             <AccountBand
               accountValue={margin?.account_value ?? ((data.total_value ?? 0) + (cashInfo?.cash ?? 0))}
               dayChange={data.total_day_change ?? null}
-              invested={data.total_invested}
-              cash={cashInfo?.cash ?? null}
+              deployedPct={margin?.deployed_pct ?? null}
               kpis={visibleKpis(kpiPrefs.ids, shown ?? data, cashInfo)}
               picker={<KpiPicker prefs={kpiPrefs} />}
             />

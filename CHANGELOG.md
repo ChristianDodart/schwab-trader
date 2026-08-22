@@ -3,6 +3,24 @@
 Patch notes for each release. The newest version's section is pulled into the GitHub
 release automatically and shown inside the app when an update is ready to install.
 
+## v0.92.0 — "Order & account internals hardening"
+
+- **Mostly maintenance, with two small visible refinements.** Finished the internals cleanup
+  across the order path and the dashboard's data layer.
+- **The order tickets now agree on what's allowed.** The single order ticket and the bulk
+  review share one rule for which order types and timing combinations are valid, so they
+  can't disagree: when the market isn't confirmed open, both offer price-protected limit
+  orders only. And a combination the broker would reject — for example a good-till-canceled
+  or stop-limit order set to an extended-hours session — is now caught and explained in the
+  ticket before it's sent, instead of failing at Schwab.
+- **One deployment number.** The capital-deployment meter now shows the same figure used
+  everywhere else in the app — your market value as a share of your own equity — so it reads
+  ~100% when fully invested and over 100% when you're on margin (flagged "· on margin"). It
+  shows "—" when live balances aren't available, rather than a misleading 100%.
+- **Under the hood.** The dashboard's live data (feed, cash/margin, working orders, stale
+  detection) moved into one place, and the order-eligibility rules are now enforced in a
+  single server-side gate. Behavior otherwise unchanged.
+
 ## v0.91.0 — "Dashboard internals hardening"
 
 - **Maintenance — no visible change.** Consolidated the dashboard's money-math and row

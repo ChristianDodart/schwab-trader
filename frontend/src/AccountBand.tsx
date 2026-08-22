@@ -11,24 +11,23 @@ import type { VisibleKpi } from "./kpis";
 type Props = {
   accountValue: number | null;
   dayChange: number | null;
-  invested: number | null;
-  cash: number | null;
+  deployedPct: number | null;   // THE canonical margin_summary figure (LMV/equity, a percent)
   kpis: VisibleKpi[];
   picker: React.ReactNode;
 };
 
-export function AccountBand({ accountValue, dayChange, invested, cash, kpis, picker }: Props) {
+export function AccountBand({ accountValue, dayChange, deployedPct, kpis, picker }: Props) {
   // Today's % move, from the SAME two numbers shown in the hero so the value and percent
   // can never disagree — today's $ change over the start-of-day value (shared selector).
   const dayPct = computeDayPct(dayChange, accountValue);
 
-  // Deployment = invested / (invested + cash). Guard a zero/absent denominator.
-  const inv = invested ?? 0;
-  const csh = cash ?? 0;
-  const denom = inv + csh;
-  const deployed = denom > 0 ? inv / denom : 0;
-  const deployedPct = Math.min(100, Math.max(0, deployed * 100));
-  const pctText = pct(deployed);
+  // Deployment % is the ONE canonical figure from margin_summary (LMV/equity): ~100% fully
+  // invested, OVER 100% on margin. The bar caps at 100%, but the label shows the true % and
+  // flags margin when it runs past 100. Null (balances unavailable) reads as "—".
+  const hasDep = deployedPct != null;
+  const barWidth = hasDep ? Math.min(100, Math.max(0, deployedPct)) : 0;
+  const overExtended = hasDep && deployedPct > 100.5;   // using margin
+  const pctText = hasDep ? pct(deployedPct / 100) : "—";
 
   return (
     <div style={S.band}>
@@ -61,11 +60,11 @@ export function AccountBand({ accountValue, dayChange, invested, cash, kpis, pic
         {picker}
       </div>
 
-      {/* Right-pushed capital-deployment meter. */}
+      {/* Right-pushed capital-deployment meter — the canonical LMV/equity from margin_summary. */}
       <div style={S.deploy}>
-        <div style={S.deployLabel}>Deployment · {pctText} in market</div>
+        <div style={S.deployLabel}>Deployment · {pctText} in market{overExtended ? " · on margin" : ""}</div>
         <div style={S.track}>
-          <div style={{ ...S.fill, width: `${deployedPct}%` }} />
+          <div style={{ ...S.fill, width: `${barWidth}%`, ...(overExtended ? { background: "var(--warn)" } : null) }} />
         </div>
       </div>
     </div>
